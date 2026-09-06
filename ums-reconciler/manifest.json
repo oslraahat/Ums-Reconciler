@@ -1,0 +1,42 @@
+{
+  "manifest_version": 3,
+  "name": "UMS Payment Reconciler",
+  "version": "13.9.0",
+  "description": "Verifies that Course Wise payment distribution matches the Program Wise totals on *.osl.team (matched per MRN/CRN, column by column). Editable base URL, pop-out window, Google Sheet import.",
+  "permissions": [
+    "storage"
+  ],
+  "host_permissions": [
+    "https://*.osl.team/*",
+    "https://docs.google.com/*",
+    "https://*.googleusercontent.com/*"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "https://*.osl.team/Student/Payment/PaymentHistory*",
+        "https://*.osl.team/Student/Payment/HistoryOfPayment*",
+        "https://*.osl.team/Student/Payment/HistoyOfPaymentCourseWise*"
+      ],
+      "js": [
+        "reconcile.js",
+        "content.js"
+      ],
+      "run_at": "document_idle"
+    }
+  ],
+  "web_accessible_resources": [
+    {
+      "resources": [
+        "panel.html",
+        "panel.js",
+        "reconcile.js",
+        "app.html",
+        "app.js"
+      ],
+      "matches": [
+        "https://*.osl.team/*"
+      ]
+    }
+  ]
+}

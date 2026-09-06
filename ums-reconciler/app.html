@@ -1,0 +1,246 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UMS Payment Reconciler</title>
+<style>
+  :root{--btnw:158px; --bg:#0d0f1a; --card:#161a2b; --line:#2a3050; --text:#eef1fb; --mut:#8b91b4;
+         --accent:#7c6cff; --ok:#37d18b; --no:#ff6b7d; --warn:#ffb454; --info:#5b8cff; --fld:#10131f; }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);
+       font:14px/1.5 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif}
+  .topbar{background:linear-gradient(90deg,#2a1d5e,#5a3ff0);color:#fff;padding:9px 22px;border-bottom:1px solid #2a3050;
+          display:flex;align-items:center;justify-content:space-between;gap:12px}
+  .topbar h1{margin:0;font-size:16px;font-weight:800}
+  .topbar p{margin:1px 0 0;font-size:11px;opacity:.8}
+  .tbtn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;
+        padding:5px 11px;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap}
+  .tbtn:hover{background:rgba(255,255,255,.25)}
+  .wrap{max-width:1020px;margin:0 auto;padding:22px 16px 60px}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px;
+        box-shadow:0 8px 24px rgba(0,0,0,.25)}
+  .ch{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .ch .n{width:26px;height:26px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
+  .ch h2{margin:0;font-size:16px;font-weight:700}
+  .ch .badge{background:rgba(124,108,255,.16);color:#bcb2ff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;font-variant-numeric:tabular-nums}
+  label{display:block;font-size:12px;color:var(--mut);margin-bottom:5px;font-weight:600}
+  input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
+    background:var(--fld);color:var(--text);font-size:14px;font-family:inherit}
+  input:focus,select:focus,textarea:focus{outline:none;border-color:var(--accent)}
+  select option{background:#161a2b;color:var(--text)}
+  textarea{min-height:140px;font-family:ui-monospace,monospace;font-size:13px;resize:vertical}
+  .grid{display:grid;gap:14px}
+  .g3{grid-template-columns:1fr 1fr 1fr}
+  .g4{grid-template-columns:1fr 1fr 1fr minmax(200px,1.1fr);align-items:start}
+  /* Start/Pause/Stop live in the last column so they sit at the right edge; the negative margin
+     lifts them level with the inputs, which carry a label above. */
+  .runbtns{grid-column:4;align-self:start;display:grid;grid-template-columns:1fr 1fr;gap:8px;
+    align-items:start;margin-top:-24px}
+  .btn{cursor:pointer;border:none;border-radius:10px;padding:11px 18px;font-weight:700;font-size:14px;
+    box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;line-height:1.2;
+    vertical-align:middle;font-family:inherit}
+  .btn.p{background:linear-gradient(90deg,#6d5cf0,#8b7bf5);color:#fff}
+  .btn.p:disabled{opacity:.5;cursor:default}
+  .btn.g{background:#20263c;color:var(--text);border:1px solid var(--line)}
+  .btn.g:hover{background:#28304a}
+  body.light .btn.g{background:#f3f4fb}
+  #run{background:linear-gradient(90deg,#0ea968,#37d18b);color:#04220f}
+  #pause:not(:disabled){background:#ffb454;color:#3a2606;border-color:#ffb454}
+  #stop:not(:disabled){background:#ff6b7d;color:#fff;border-color:#ff6b7d}
+  .hint{font-size:12px;color:var(--mut);margin-top:8px}
+  .ok{color:var(--ok)}.no{color:var(--no)}.warn{color:var(--warn)}.info{color:var(--info)}.mut{color:var(--mut)}
+  .note{background:#12162400;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13px;color:var(--mut);text-align:center}
+  /* which file / which tab the rows came from — reads above the counts, not as another count */
+  .isrc{display:inline-block;max-width:100%;margin-bottom:3px;color:var(--text);font-weight:600;
+    overflow-wrap:anywhere}
+  .note:empty{display:none}
+  .bar2{height:9px;background:#232a44;border-radius:5px;overflow:hidden;margin:10px 0}
+  .tile .v{font-variant-numeric:tabular-nums}
+  .bar2 > div{height:100%;width:0;background:linear-gradient(90deg,#6d5cf0,#8b7bf5);transition:width .2s}
+  /* one row, always — minmax(0,1fr) lets the tiles shrink instead of wrapping */
+  .tiles{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:8px;margin:6px 0 14px}
+  @media (max-width:880px){ .tiles{grid-template-columns:repeat(4,minmax(0,1fr))} }
+  .tile{display:flex;align-items:flex-start;justify-content:space-between;gap:9px;background:#121626;border:1px solid var(--line);border-radius:10px;padding:9px 11px}
+  /* dot on top, re-run button centred right under it, the pair pinned to the tile's top-left */
+  .tile .lft{display:flex;flex-direction:column;align-items:center;gap:8px;flex:none;
+    align-self:flex-start;margin-top:3px}
+  .tile .dot{width:9px;height:9px;border-radius:50%;flex:none}
+  .tile .rr{flex:none;width:24px;height:24px;padding:0;border-radius:50%;cursor:pointer;
+    display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--line);background:#1b2137;color:#b9c0e0;
+    font-size:14px;line-height:1;transition:background .12s,color .12s,border-color .12s,transform .12s}
+  .tile .rr:hover:not(:disabled){background:var(--accent);border-color:var(--accent);color:#fff;transform:scale(1.1)}
+  .tile .rr:active:not(:disabled){transform:scale(.95)}
+  .tile .rr:disabled{opacity:.28;cursor:default}
+  body.light .tile .rr{background:#eef0fa;color:#5b628a}
+  .tile .tv{display:flex;flex-direction:column;text-align:right;min-width:0}
+  .tile .v{font-size:18px;font-weight:800;line-height:1.1}
+  .tile .l{font-size:11px;color:var(--mut);line-height:1.2;margin-top:3px;overflow-wrap:anywhere}
+  .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:12px;align-items:center}
+  .filters .fb{cursor:pointer;border:1px solid var(--line);background:#161a2b;color:var(--text);border-radius:8px;padding:7px 12px;font-size:13px;font-weight:600}
+  .filters .fb[data-f="ok"]{color:var(--ok)}
+  .filters .fb[data-f="no"]{color:var(--no)}
+
+  .filters .fb[data-f="cw"]{color:#9aa3bd}
+  .filters .fb[data-f="nf"]{color:var(--warn)}
+  .filters .fb.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  .filters .fb:disabled{opacity:.5;cursor:default}
+  .list{border:1px solid var(--line);border-radius:12px;max-height:60vh;overflow-y:auto;overflow-x:hidden}
+  .stu{border-bottom:1px solid var(--line)}
+  .stu:last-child{border-bottom:none}
+  .stu .sh{display:flex;align-items:center;gap:10px;padding:10px 14px;background:#12162a}
+  /* pushed to the right edge of the student header; quiet until hovered, so a wall of cards does
+     not read as a wall of buttons */
+  .stu .sh .mk{margin-left:auto;flex:none;cursor:pointer;border:1px solid var(--line);
+    background:#1b2137;color:#9aa3bd;border-radius:8px;padding:4px 10px;font-size:12px;
+    font-weight:600;font-family:inherit;white-space:nowrap;
+    transition:background .12s,color .12s,border-color .12s}
+  .stu .sh .mk:hover{background:var(--ok);border-color:var(--ok);color:#04220f}
+  .stu .sh .mk.on{background:rgba(55,209,139,.16);border-color:var(--ok);color:var(--ok)}
+  .stu .sh .mk.on:hover{background:var(--warn);border-color:var(--warn);color:#3a2606}
+  body.light .stu .sh .mk{background:#eef0fa;color:#5b628a}
+  .stu .sh .reg{color:#9d90ff;font-weight:800}
+  .prow{display:flex;align-items:flex-start;gap:10px;padding:9px 14px 9px 26px;border-top:1px dashed var(--line)}
+  .prow .pill{flex:none;font-size:11px;font-weight:700;padding:3px 9px;border-radius:20px;white-space:nowrap}
+  .pill.ok{background:rgba(55,209,139,.16);color:var(--ok)} .pill.no{background:rgba(255,107,125,.16);color:var(--no)}
+  .pill.warn{background:rgba(255,180,84,.16);color:var(--warn)} .pill.mut{background:rgba(139,145,180,.16);color:var(--mut)} .pill.info{background:rgba(91,140,255,.16);color:var(--info)}
+  .prow .pinfo{flex:1;min-width:0}
+  .prow .pn{font-weight:600}
+  .cpy{cursor:pointer;color:var(--mut);margin-left:2px;user-select:none}
+  .cpy:hover{color:var(--accent)}
+  .cpy.ok{color:var(--ok)}
+  .prow .pd{font-size:12px;color:var(--no);margin-top:2px;overflow-wrap:anywhere}
+  .prow .pd.okd{color:var(--mut)}
+  .prow .pd.warnd{color:var(--warn)}
+  /* what the headline above actually means — quieter than the finding, still readable */
+  .prow .pwhy{font-size:12px;color:var(--mut);margin-top:2px;overflow-wrap:anywhere}
+  .row-actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap;align-items:center}
+  .preview{border:1px solid var(--line);border-radius:12px;max-height:212px;overflow:auto;margin-top:12px}
+  .paste{flex:1;min-width:220px;min-height:74px;resize:vertical;box-sizing:border-box;padding:8px 10px;
+    border-radius:10px;background:var(--fld);border:1px solid var(--line);color:var(--text);
+    font:12px/1.5 ui-monospace,"Cascadia Mono",Consolas,monospace}
+  .paste:focus{outline:none;border-color:var(--accent)}
+  /* Check on top, Clear directly under it, both the same width */
+  .pstack{display:flex;flex-direction:column;gap:8px;flex:none;align-self:flex-start;width:var(--btnw)}
+  .pstack .btn{width:100%}
+  /* Import · Sheet Link · Check · Clear — সবকটা এক মাপে */
+  .impbtn{width:var(--btnw);flex:none;text-align:center;box-sizing:border-box}
+  /* these four sit tighter than the page's default button padding */
+  .impbtn,.pstack .btn{padding:9px 12px;font-size:13px;white-space:nowrap}
+  /* search input sits inside the header row, right of the last column */
+  .ptbl th.pvs{text-align:right;padding:4px 12px}
+  .pvsearch{width:190px;max-width:100%;box-sizing:border-box;padding:5px 9px;font-size:12px;border-radius:8px;
+    background:var(--fld);border:1px solid var(--line);color:var(--text);font-weight:400}
+  .pvsearch:focus{outline:none;border-color:var(--accent)}
+  .preview:empty{display:none}
+  .tile.clk{cursor:pointer;transition:border-color .1s}
+  .tile.clk:hover{border-color:var(--accent)}
+  .ptbl{width:100%;border-collapse:collapse;font-size:13px}
+  .ptbl th,.ptbl td{border-bottom:1px solid var(--line);padding:6px 12px;text-align:left;white-space:nowrap}
+  .ptbl th{position:sticky;top:0;background:var(--card);color:var(--mut);font-weight:700}
+  .ptbl td:first-child,.ptbl th:first-child{color:var(--mut);width:44px}
+  /* stacked: there is no 4th column to sit in, and no label above to line up with */
+  @media (max-width:820px){ .g3,.g4{grid-template-columns:1fr} .tiles{grid-template-columns:repeat(2,1fr)}
+    .runbtns{grid-column:auto;margin-top:0} }
+  /* ---- light theme (image-এর মতো) ---- */
+  body.light{ --bg:#eef0f8; --card:#fff; --line:#e4e7f2; --text:#1f2340; --mut:#8b90ad; --accent:#5b4ff0; --fld:#fff; }
+  body.light .card{box-shadow:0 1px 3px rgba(20,20,60,.06)}
+  body.light .ch .badge{background:#eceafe;color:#5b4ff0}
+  body.light .btn.g{background:#f3f4fb} body.light .btn.g:hover{background:#e9ebf7}
+  body.light .bar2{background:#e7e9f6}
+  body.light .tile{background:#fafbff} body.light .stu .sh{background:#fbfbfe}
+  body.light .filters .fb{background:#fff} body.light .filters .fb.active{background:#2b2f52;border-color:#2b2f52}
+  body.light .stu .sh .reg{color:#5b4ff0}
+  body.light select option{background:#fff}
+</style>
+</head>
+<body>
+  <div class="topbar">
+    <div>
+      <h1>UMS Payment Reconciler <span id="ver" style="font-size:11px;font-weight:600;color:var(--mut);vertical-align:middle"></span></h1>
+      <p data-i18n="subtitle">Program Wise ⇄ Course Wise — Registration No. দিন, Run চাপুন, রিপোর্ট পান</p>
+    </div>
+    <div style="display:flex;gap:8px">
+      <button class="tbtn" id="lang">EN</button>
+      <button class="tbtn" id="theme">☀ Light</button>
+    </div>
+  </div>
+  <div class="wrap">
+
+    <div class="card">
+      <div class="ch"><span class="n">1</span><h2 data-i18n="conn_h">সংযোগ</h2><span id="conn" class="badge mut" data-i18n="conn_unchecked">যাচাই করা হয়নি</span></div>
+      <div class="grid" style="grid-template-columns:1fr auto auto;align-items:end">
+        <div><label data-i18n="base_l">UMS ঠিকানা (Base URL)</label><input id="base" spellcheck="false" placeholder="https://ums-5.osl.team"></div>
+        <div><button class="btn g" id="testConn" data-i18n="test">Test Connection</button></div>
+        <div><button class="btn g" id="saveCfg" data-i18n="save">সেভ করুন</button></div>
+      </div>
+      <div class="hint" data-i18n="sess_hint">এই ব্রাউজারে UMS-এ লগইন থাকা অবস্থায় চলবে (সেশন ব্যবহার করে)। আলাদা email/password লাগে না।</div>
+    </div>
+
+    <div class="card">
+      <div class="ch"><span class="n">2</span><h2 data-i18n="verify_h">কী যাচাই হবে</h2><span id="cnt" class="badge">০ টি</span></div>
+      <div class="hint" style="margin:0 0 10px" data-i18n="in_hint">Excel / CSV বা Google Sheet import করো — Reg ও spid/Program অটো-ধরবে।</div>
+      <div class="row-actions">
+        <label class="btn g impbtn" for="file" style="cursor:pointer" data-i18n="import_btn">⬆ Import Excel</label>
+        <input type="file" id="file" accept=".csv,.txt,.xlsx" style="display:none">
+        <input id="link" data-ph="link_ph" placeholder="…অথবা Google Sheet লিংক" style="flex:1;min-width:160px">
+        <button class="btn g impbtn" id="linkBtn" data-i18n="link_btn">↧ Sheet Link</button>
+      </div>
+      <div class="row-actions" style="align-items:stretch">
+        <textarea id="paste" class="paste" data-ph="paste_ph"
+          placeholder="…অথবা এখানে পেস্ট করো — প্রতি লাইনে: Student Reg, Student Program ID"></textarea>
+        <div class="pstack">
+          <button class="btn p" id="pasteBtn" data-i18n="paste_btn">✓ Check</button>
+          <button class="btn g" id="clearImp" data-i18n="clear_btn">✕ Clear</button>
+        </div>
+      </div>
+      <div class="note" id="impNote" data-i18n="imp_default"></div>
+      <div id="pvWrap" style="display:none">
+        <div id="preview" class="preview" style="margin-top:12px"></div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch"><span class="n">3</span><h2 data-i18n="settings_h">সেটিংস ও Run</h2></div>
+      <div class="grid g4">
+        <div><label data-i18n="tol_l">গ্রহণযোগ্য পার্থক্য</label><input id="tol" type="number" min="0" step="any" value="0"></div>
+        <div><label data-i18n="conc_l">একসাথে কয়টি অনুরোধ</label><input id="conc" type="number" min="1" max="300" value="25" title="সর্বোচ্চ 300"></div>
+        <div class="runbtns">
+          <button class="btn p" id="run" disabled style="grid-column:1;grid-row:1/3;align-self:stretch" data-i18n="run_btn">▶ Start</button>
+          <button class="btn g" id="pause" style="grid-column:2;grid-row:1" disabled>⏸ Pause</button>
+          <button class="btn g" id="stop" style="grid-column:2;grid-row:2" disabled>⏹ Stop</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="ch"><span class="n">4</span><h2 data-i18n="results_h">ফলাফল</h2><span id="prog" class="badge mut" data-i18n="ready">প্রস্তুত</span></div>
+      <div class="bar2"><div id="fill"></div></div>
+      <div class="tiles">
+        <div class="tile clk" data-f="ok"><div class="lft"><span class="dot" style="background:var(--ok)"></span><button class="rr" data-rr="ok" disabled>↻</button></div><div class="tv"><div class="v ok" id="t-ok">0</div><div class="l" data-i18n="t_ok">মিলেছে</div></div></div>
+        <div class="tile clk" data-f="no"><div class="lft"><span class="dot" style="background:var(--no)"></span><button class="rr" data-rr="no" disabled>↻</button></div><div class="tv"><div class="v no" id="t-no">0</div><div class="l" data-i18n="t_no">অমিল</div></div></div>
+        <div class="tile clk" data-f="cw"><div class="lft"><span class="dot" style="background:#7c8598"></span><button class="rr" data-rr="cw" disabled>↻</button></div><div class="tv"><div class="v" id="t-cw">0</div><div class="l" data-i18n="t_cw">CW ফাঁকা</div></div></div>
+        <div class="tile clk" data-f="nf"><div class="lft"><span class="dot" style="background:var(--warn)"></span><button class="rr" data-rr="nf" disabled>↻</button></div><div class="tv"><div class="v warn" id="t-nf">0</div><div class="l" data-i18n="t_nf">Program পাওয়া যায়নি</div></div></div>
+        <div class="tile clk" data-f="zero"><div class="lft"><span class="dot" style="background:#7c8598"></span><button class="rr" data-rr="zero" disabled>↻</button></div><div class="tv"><div class="v" id="t-zero">0</div><div class="l" data-i18n="t_zero">Zero Pay</div></div></div>
+        <div class="tile clk" data-f="prob"><div class="lft"><span class="dot" style="background:var(--no)"></span><button class="rr" data-rr="prob" disabled>↻</button></div><div class="tv"><div class="v no" id="t-stu">0</div><div class="l" data-i18n="t_stu">Total Problem</div></div></div>
+      </div>
+      <div class="filters">
+        <span class="fb active" data-f="all" data-i18n="f_all">সব</span>
+        <span class="fb" data-f="ok" data-i18n="f_ok">শুধু মিলেছে</span>
+        <span class="fb" data-f="no" data-i18n="f_no">শুধু অমিল</span>
+        <span class="fb" data-f="cw" data-i18n="f_cw">শুধু CW ফাঁকা</span>
+        <span class="fb" data-f="zero" data-i18n="f_zero">Zero Pay</span>
+        <span class="fb" data-f="nf" data-i18n="f_nf">Program পাওয়া যায়নি</span>
+        <button class="fb" id="html" disabled style="margin-left:auto">⬇ HTML Report</button>
+        <button class="fb" id="xlsx" disabled>⬇ Excel Report</button>
+        <button class="fb" id="raw" disabled title="Program Wise + Course Wise tables for every student that still needs work — one .txt file">⬇ Table Data</button>
+      </div>
+      <div class="list" id="list" style="margin-top:12px"></div>
+    </div>
+
+  </div>
+  <script src="reconcile.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>

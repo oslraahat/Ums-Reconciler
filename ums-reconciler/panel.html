@@ -1,0 +1,47 @@
+<!doctype html>
+<html lang="bn">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>UMS Reconciler</title>
+<style>
+  :root{ --bg:#181c2e; --line:#2a3050; --text:#eef1fb; --accent:#5b8cff; --mut:#98a0c0; }
+  @media (prefers-color-scheme:light){ :root{ --bg:#fff; --line:#e2e6f2; --text:#141830; } }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden;
+       font:13px/1.45 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif}
+  .hd{background:var(--accent);color:#fff;padding:10px 14px;font-weight:700;display:flex;justify-content:space-between;align-items:center}
+  .bd{padding:14px}
+  .st{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid var(--line)}
+  .ok{color:#37d18b}.no{color:#ff6b7d}.warn{color:#ffb454}.mut{color:var(--mut)}
+  button{cursor:pointer;border:none;border-radius:8px;padding:9px 12px;font-weight:600;font-size:13px}
+  .primary{background:var(--accent);color:#fff;width:100%;margin-top:10px}
+  .ghost{background:transparent;border:1px solid var(--line);color:var(--text)}
+  .row-actions{display:flex;gap:8px;margin-top:8px}
+  .verdict{padding:9px 10px;border-radius:8px;font-weight:700;text-align:center;margin:10px 0}
+  .vok{background:rgba(55,209,139,.16);color:#37d18b}
+  .vwarn{background:rgba(255,180,84,.16);color:#ffb454}
+  .vno{background:rgba(255,107,125,.16);color:#ff6b7d}
+  table{border-collapse:collapse;width:100%;font-size:12px;margin-top:6px}
+  th,td{border:1px solid var(--line);padding:5px 7px;text-align:right;
+    white-space:normal;overflow-wrap:anywhere;word-break:break-word;vertical-align:top}
+  th:first-child,td:first-child{text-align:left}
+  .mrn{font-weight:700}
+</style>
+</head>
+<body>
+  <div class="hd"><span id="title">UMS Reconciler</span><span class="mut" id="spid" style="font-size:12px;color:#dbe3ff"></span></div>
+  <div class="bd">
+    <div class="st"><span>Program Wise</span><span id="p" class="mut">—</span></div>
+    <div class="st"><span>Course Wise</span><span id="c" class="mut">—</span></div>
+    <button class="primary" id="verify">Verify Distribution</button>
+    <div class="row-actions">
+      <button class="ghost" id="refresh" style="flex:1">↻ Refresh</button>
+      <button class="ghost" id="clear" style="flex:1">Clear captured</button>
+    </div>
+    <div id="out"></div>
+  </div>
+  <script src="reconcile.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>
