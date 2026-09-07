@@ -11,10 +11,47 @@
   // tol 0 like the CLI: at 1 the near() test swallows exactly the ৳1 row-wise differences we are
   // hunting for. Still editable in Settings if a run needs slack.
   let baseUrl = "https://ums-5.osl.team", conc = 25, tol = 0, inputMode = "auto";
+  /* Two-server mode. baseUrl is the Expected (reference) server and baseUrl2 the Actual one being
+     checked; srvMode says which question a run is answering — one server's two views against each
+     other, or one page across two servers. Off by default: the single-server run is what this page
+     has always done and nothing about it changes. */
+  let baseUrl2 = "https://ums-41.osl.team", srvMode = false;
   let importedRows = null, importedHeader = null, entries = [];
   let students = [], run = null, _token = null, renderBuf = null;
 
-  function payBase() { return baseUrl.replace(/\/+$/, "") + "/Student/Payment/"; }
+  // b omitted = the Expected server, so every existing caller keeps its meaning
+  function payBase(b) { return String(b || baseUrl).replace(/\/+$/, "") + "/Student/Payment/"; }
+
+  /* How hard the runner tries before it will say anything at all.
+     A page that never arrived proves nothing about the student, so it is asked again rather than
+     filed as a fault — "load error" and "পাতা খোলেনি" both read as findings about the data, and
+     neither is one. These numbers are deliberately generous: waiting costs a slower run, giving up
+     early costs a wrong answer that nobody will ever go back and re-check. */
+  const NET_TRIES = 6;        // one page — attempts before the fetch itself gives up
+  const CW_TRIES = 6;         // Course Wise must produce a real answer, not a half-built page
+  const ITEM_TRIES = 5;       // one student, end to end
+  const SWEEP_ROUNDS = 6;     // whole-run passes over whatever still has no answer
+  /* A request that has said nothing for this long is not coming back — but each retry allows
+     longer, because a server that is merely slow should be given the time it actually needs
+     instead of being cut off at the same mark over and over. */
+  const reqTimeout = function (a) { return Math.min(45000 * (a + 1), 180000); };
+
+  /* Growing, jittered pause. The jitter matters at 25 parallel requests: without it every worker
+     that hit the same hiccup comes back at the same instant and hits it together again. */
+  function backoff(attempt, retryAfter) {
+    const ra = parseFloat(retryAfter);
+    const ms = (isFinite(ra) && ra > 0) ? Math.min(ra * 1000, 30000)
+      : Math.min(800 * Math.pow(2, attempt), 20000);
+    return sleep(Math.round(ms * (0.75 + Math.random() * 0.5)));
+  }
+
+  /* Twenty-five parallel requests is often what makes a struggling server struggle. Count how many
+     refusals are arriving and make every worker wait before its next page while they pile up: the
+     run slows down instead of the server falling over, which is the difference between finishing
+     late and finishing with a page full of "load error". */
+  let pressure = 0;
+  function netPressure(bad) { pressure = bad ? Math.min(pressure + 1, 20) : Math.max(0, pressure - 1); }
+  function breathe() { return pressure > 2 ? sleep(Math.min(pressure * 150, 3000)) : Promise.resolve(); }
 
   // ---------- i18n ----------
   let lang = "bn";
@@ -58,23 +95,69 @@
     d_cwnotable: { bn: "Course Wise পাতা এসেছে, কিন্তু টেবিলটাই পাওয়া গেল না (permission, নাকি পাতার markup বদলেছে?) — ফাঁকা নয়, কিছুই পড়া হয়নি", en: "Course Wise page loaded but its table was not found (permission, or the page markup changed?) — not empty, nothing was read at all" },
     d_noprog: { bn: "এই Student-এর এমন কোনো Program নেই", en: "This student has no such program" }, d_has: { bn: "· আছে:", en: "· has:" },
     d_onlyprog: { bn: "শুধু Program-এ", en: "only in Program" }, d_onlycourse: { bn: "শুধু Course-এ", en: "only in Course" }, d_deduction: { bn: "Deduction", en: "Deduction" }, d_cross: { bn: "cross-view/timing", en: "cross-view/timing" },
+    sheet_l: { bn: "কোন শিট পড়া হবে", en: "Which sheet to read" },
+    sheet_unknown: { bn: "শিটের তালিকা পড়া গেল না — ফাইলের প্রথম worksheet নেওয়া হয়েছে, তাই শিট বাছার বাক্সটা নেই", en: "could not read the workbook’s sheet list — the first worksheet in the file was used, so there is no sheet picker" },
     src_sheet: { bn: "শিট", en: "Sheet" }, src_link: { bn: "Google Sheet", en: "Google Sheet" }, src_paste: { bn: "✎ পেস্ট বক্স", en: "✎ Paste box" },
     mk_do: { bn: "✓ Mark as Matched", en: "✓ Mark as Matched" }, mk_undo: { bn: "↺ Undo", en: "↺ Undo" },
     mk_tip: { bn: "UMS-এ হাতে দেখে ঠিক পেয়েছি — মিলেছে ধরো", en: "Checked by hand in UMS and found correct — treat as matched" },
     mk_tip_undo: { bn: "হাতে-দেওয়া রায় তুলে নাও", en: "Take the manual verdict back" },
     pill_manual: { bn: "✓ মিলেছে · হাতে দেখা", en: "✓ Matched · checked" },
-    saved: { bn: "✓ সেভ হয়েছে", en: "✓ Saved" }, checking: { bn: "…", en: "…" },
+    saved: { bn: "✓ সেভ হয়েছে", en: "✓ Saved" }, checking: { bn: "যাচাই হচ্ছে…", en: "checking…" },
+    conn_exp: { bn: "Expected", en: "Expected" }, conn_act: { bn: "Actual", en: "Actual" },
     pause: { bn: "⏸ Pause", en: "⏸ Pause" }, resume: { bn: "▶ Resume", en: "▶ Resume" }, paused: { bn: "⏸ থামানো (Resume চাপো)", en: "⏸ Paused (press Resume)" },
-    stopping: { bn: "⏹ থামানো হচ্ছে…", en: "⏹ Stopping…" }
+    stopping: { bn: "⏹ থামানো হচ্ছে…", en: "⏹ Stopping…" },
+    p_retry: { bn: "{n} টির উত্তর আসেনি — আবার চাইছি (রাউন্ড {r})", en: "{n} unanswered — asking again (round {r})" },
+    save_l: { bn: "রান শেষে", en: "When the run ends" },
+    save_run: { bn: "ফল সেভ করো", en: "Save the results" },
+    save_pick: { bn: "কোথায় সেভ হবে — ফোল্ডার বাছো", en: "Where to save — choose a folder" },
+    save_pick_b: { bn: "📁 ফোল্ডার", en: "📁 Folder" },
+    save_folder: { bn: "প্রতি রানে তারিখ-সময়ের ফোল্ডার", en: "a dated folder per run" },
+    save_downloads: { bn: "Downloads / UMS Reconciler / তারিখ-সময়ের ফোল্ডার", en: "Downloads / UMS Reconciler / a dated folder" },
+    save_nopicker: { bn: "এই ব্রাউজার ফোল্ডার বাছতে দেয় না — Downloads-এ যাবে", en: "this browser cannot pick a folder — it will go to Downloads" },
+    save_hint: { bn: "report.html · report.xlsx · table-data.txt · summary.txt — ফিল্টার যা-ই থাক, পুরোটাই সেভ হয়। এক্সটেনশন নিজের ফোল্ডারে লিখতে পারে না, তাই ফোল্ডারটা একবার বেছে দিতে হয় (টুলের ফোল্ডারও চলবে); না বাছলে Downloads-এ যাবে।", en: "report.html · report.xlsx · table-data.txt · summary.txt — saved in full, whatever the filter says. An extension cannot write to its own folder, so pick one once (the tool's own folder is fine); without one it goes to Downloads." },
+    save_failed: { bn: "সেভ করা গেল না", en: "could not save" },
+    p_saving: { bn: "ফল সেভ করা হচ্ছে…", en: "saving the results…" },
+    list_capped: { bn: "নিচে প্রথম {a} টি দেখানো হচ্ছে · মোট {b} টি — পুরোটা HTML / Excel রিপোর্টে আছে", en: "showing the first {a} of {b} below — the HTML and Excel reports carry them all" },
+    p_unanswered: { bn: "{n} টিতে সার্ভার সাড়াই দেয়নি", en: "{n} still unanswered" },
+    d_noanswer: { bn: "সার্ভার সাড়া দেয়নি — {n} বার চাওয়া হয়েছে, ডেটা নিয়ে কিছুই বলা যায়নি", en: "no answer from the server — asked {n} times; nothing was concluded about the data" },
+
+    /* ---- two-server mode ---- */
+    srv_mode: { bn: "দুই সার্ভার মেলাও (Expected ↔ Actual)", en: "Compare two servers (Expected ↔ Actual)" },
+    srv_hint: { bn: "একই Reg + StudentProgramId দুই সার্ভারে খুলে প্রতিটা সারির প্রতিটা ঘর মিলিয়ে দেখা হবে। দুই সার্ভারেই লগইন থাকতে হবে।", en: "Opens the same Reg + StudentProgramId on both servers and compares every cell of every row. You must be logged in to both." },
+    s_base_l: { bn: "Expected URL (যেটাকে ঠিক ধরা হচ্ছে)", en: "Expected URL (the reference)" },
+    base_act_l: { bn: "Actual URL (যেটা যাচাই হবে)", en: "Actual URL (the one being checked)" },
+    e_pw_both: { bn: "কোনো সার্ভারেই Program Wise পাওয়া গেল না (ভুল reg/spid?)", en: "No Program Wise on either server (wrong reg/spid?)" },
+    s_subtitle: { bn: "Expected ⇄ Actual — একই ছাত্র দুই সার্ভারে, প্রতিটা ঘর মিলিয়ে দেখা", en: "Expected ⇄ Actual — one student on two servers, every cell compared" },
+    s_t_ok: { bn: "দুই সার্ভারে এক", en: "Identical" }, s_t_no: { bn: "ডেটা আলাদা", en: "Data differs" },
+    s_t_cw: { bn: "Actual-এ সারি নেই", en: "Missing on Actual" }, s_t_zero: { bn: "Actual-এ বাড়তি", en: "Extra on Actual" },
+    s_t_nf: { bn: "পাতা পড়া যায়নি", en: "Page not read" },
+    s_pill_ok: { bn: "✓ এক", en: "✓ Identical" }, s_pill_no: { bn: "✕ আলাদা", en: "✕ Differs" },
+    s_pill_cw: { bn: "Actual-এ নেই", en: "Missing on Actual" }, s_pill_zero: { bn: "Actual-এ বাড়তি", en: "Extra on Actual" },
+    s_pill_nf: { bn: "পাতা পড়া যায়নি", en: "Page not read" },
+    s_f_ok: { bn: "শুধু এক", en: "Identical" }, s_f_no: { bn: "শুধু আলাদা", en: "Differs" },
+    s_f_cw: { bn: "Actual-এ নেই", en: "Missing on Actual" }, s_f_zero: { bn: "Actual-এ বাড়তি", en: "Extra on Actual" },
+    s_f_nf: { bn: "পাতা পড়া যায়নি", en: "Page not read" },
+    s_d_allmatch: { bn: "দুই সার্ভারে হুবহু এক", en: "identical on both servers" },
+    s_tt_prob: { bn: "দুই সার্ভারে যা এক নয় — ডেটা আলাদা + Actual-এ নেই + Actual-এ বাড়তি + পাতা পড়া যায়নি + লোড এরর (Reg + Student PID ধরে)", en: "Everything that is not identical — data differs + missing on Actual + extra on Actual + page not read + load error (by Reg + Student PID)" },
+    s_verify_h: { bn: "কোন ছাত্রদের মেলানো হবে", en: "Which students to compare" }
   };
-  function t(k) { const e = DICT[k]; return e ? (e[lang] || e.bn) : k; }
+  /* In two-server mode a key with an "s_" twin resolves to the twin. One lookup, so a label that
+     means something different across two servers cannot be updated in one place and forgotten in
+     the other. */
+  function t(k) { const e = (srvMode && DICT["s_" + k]) || DICT[k]; return e ? (e[lang] || e.bn) : k; }
   function applyLang(l) {
     lang = (l === "en") ? "en" : "bn";
     document.querySelectorAll("[data-i18n]").forEach(function (el) { const s = t(el.getAttribute("data-i18n")); if (s != null) el.textContent = s; });
     document.querySelectorAll("[data-ph]").forEach(function (el) { const s = t(el.getAttribute("data-ph")); if (s != null) el.setAttribute("placeholder", s); });
+    /* a tooltip is the third thing an element can say, and an icon-only button has nothing else */
+    document.querySelectorAll("[data-title]").forEach(function (el) { const s = t(el.getAttribute("data-title")); if (s != null) el.setAttribute("title", s); });
     const b = $("lang"); if (b) b.textContent = (lang === "bn" ? "EN" : "BN");
     const pv = $("preview"); if (pv) pv.removeAttribute("data-col"); // force head rebuild in the new language
-    updateCount(); rerenderList(); renderPreview(); paintRerun();
+    /* Everything whose words are written by JS rather than by a data-i18n node has to be
+       repainted here too, or it keeps the language it was first drawn in. paintSaveRow() runs
+       during wire(), before the stored language is applied, so the save line stayed Bengali under
+       an English interface. */
+    updateCount(); rerenderList(); renderPreview(); paintRerun(); paintConn(); paintSaveRow();
   }
 
   // ---------- scrape ----------
@@ -106,19 +189,50 @@
   }
   function parseFrag(frag) { return frag ? new DOMParser().parseFromString(frag, "text/html").querySelector("table") : null; }
 
+  /* Waiting is not failing. A request that times out, is refused, or comes back 5xx/429/408 has
+     said nothing about the student, so it is asked again — with a growing jittered pause, and
+     honouring Retry-After when the server sends one. Only a real reply, or Stop, ends the loop.
+
+     The per-request timeout is what keeps a run moving: without it one socket that goes quiet
+     holds its worker for as long as the browser allows, and at 25 workers a handful of those is
+     the whole run stopped. It aborts THAT request only — run.ac stays the user's Stop button. */
   async function fetchHtml(url) {
     let last;
-    for (let a = 0; a < 3; a++) {   // up to 3 tries with growing back-off — fewer load errors at high concurrency
+    for (let a = 0; a < NET_TRIES; a++) {
+      const ac = (typeof AbortController !== "undefined") ? new AbortController() : null;
+      const stopIt = function () { if (ac) try { ac.abort(); } catch (e) {} };
+      const runSig = (run && run.ac) ? run.ac.signal : null;
+      if (runSig && ac) { if (runSig.aborted) stopIt(); else runSig.addEventListener("abort", stopIt); }
+      let timer = null, timedOut = false;
+      if (ac) timer = setTimeout(function () { timedOut = true; stopIt(); }, reqTimeout(a));
       try {
-        const r = await fetch(url, { credentials: "include", signal: run && run.ac ? run.ac.signal : undefined });
-        if ((r.status >= 500 || r.status === 429) && a < 2) { await sleep(400 * (a + 1)); continue; }
+        const r = await fetch(url, { credentials: "include", signal: ac ? ac.signal : undefined });
+        if (r.status >= 500 || r.status === 429 || r.status === 408) {
+          netPressure(true);
+          last = new Error("HTTP " + r.status);
+          /* On the last attempt hand the response back rather than throwing: the caller can still
+             tell a redirect from a table, and a 503 body is at least a fact about the page. */
+          if (a < NET_TRIES - 1) { await backoff(a, r.headers.get("retry-after")); continue; }
+          return { html: await r.text(), redirected: r.redirected, status: r.status, ok: r.ok };
+        }
+        netPressure(false);
         return { html: await r.text(), redirected: r.redirected, status: r.status, ok: r.ok };
-      } catch (e) { if (e && e.name === "AbortError") throw e; last = e; await sleep(400 * (a + 1)); }
+      } catch (e) {
+        // Stop is the user's decision, not a slow server — it is never retried
+        if (run && run.stop) { const a2 = new Error("stopped"); a2.name = "AbortError"; throw a2; }
+        if (e && e.name === "AbortError" && !timedOut) throw e;
+        netPressure(true);
+        last = timedOut ? new Error("timeout after " + Math.round(reqTimeout(a) / 1000) + "s") : e;
+        if (a < NET_TRIES - 1) await backoff(a);
+      } finally {
+        if (timer) clearTimeout(timer);
+        if (runSig && ac) try { runSig.removeEventListener("abort", stopIt); } catch (e) {}
+      }
     }
     throw last || new Error("fetch failed");
   }
-  function pwUrl(reg, spid) { return payBase() + "HistoryOfPayment?studentProgramId=" + encodeURIComponent(spid) + "&programId=0&sessionId=0&stdRollOrRegistrationNo=" + encodeURIComponent(reg); }
-  function cwUrl(reg, spid) { return payBase() + "HistoyOfPaymentCourseWise?studentProgramId=" + encodeURIComponent(spid) + "&stdRollOrRegistrationNo=" + encodeURIComponent(reg); }
+  function pwUrl(reg, spid, b) { return payBase(b) + "HistoryOfPayment?studentProgramId=" + encodeURIComponent(spid) + "&programId=0&sessionId=0&stdRollOrRegistrationNo=" + encodeURIComponent(reg); }
+  function cwUrl(reg, spid, b) { return payBase(b) + "HistoyOfPaymentCourseWise?studentProgramId=" + encodeURIComponent(spid) + "&stdRollOrRegistrationNo=" + encodeURIComponent(reg); }
 
   /* Has the Course Wise side given a real answer yet? A table with rows, or a table that says
      "No Data" in so many words, is settled — the server has spoken. A redirect, or a page with no
@@ -152,8 +266,8 @@
        permanent verdict. Unread answers are fetched again, twice, with a growing pause.
        A settled No Data is never re-requested — a run holds hundreds of them. */
     let cwTries = 1;
-    while (cwTries < 3 && !cwSettled(c, cw)) {
-      await sleep(600 * cwTries);
+    while (cwTries < CW_TRIES && !cwSettled(c, cw)) {
+      await backoff(cwTries - 1);
       try { c = await fetchHtml(cwUrl(reg, spid)); }
       catch (e) { if (e && e.name === "AbortError") throw e; break; }   // Stop pressed
       cTable = c.redirected ? null : parseFrag(sliceTable(c.html, "course"));
@@ -171,6 +285,44 @@
     const cwData = (cw && cw.ok) ? cw : { ok: true, rows: [], cols: {}, totalRow: null, noData: true };
     return { kind: "done", pw: pw, cw: cwData, cwEmpty: cwEmpty, cwRedirect: !!c.redirected,
       cwNoTable: cwNoTable, cwTries: cwTries, result: U.compare(pw, cwData, { tolerance: tol }) };
+  }
+
+  /* Both pages of ONE server, with the same wait for Course Wise the single-server path uses:
+     a redirect or a table-less page is not an answer, so it is asked again before being believed. */
+  async function fetchTables(base, reg, spid) {
+    const pP = fetchHtml(pwUrl(reg, spid, base)), pC = fetchHtml(cwUrl(reg, spid, base));
+    let p;
+    try { p = await pP; } catch (e) { pC.catch(function () {}); throw e; }
+    const pwT = p.redirected ? null : parseFrag(sliceTable(p.html, "program"));
+    const pw = pwT ? scrape(pwT, "program") : null;
+    let c = null;
+    try { c = await pC; } catch (e) { if (e && e.name === "AbortError") throw e; }
+    let cw = (c && !c.redirected) ? scrape(parseFrag(sliceTable(c.html, "course")), "course") : null;
+    let tries = 1;
+    while (tries < CW_TRIES && !(c && cwSettled(c, cw))) {
+      await backoff(tries - 1);
+      try { c = await fetchHtml(cwUrl(reg, spid, base)); }
+      catch (e) { if (e && e.name === "AbortError") throw e; break; }
+      cw = c.redirected ? null : scrape(parseFrag(sliceTable(c.html, "course")), "course");
+      tries++;
+    }
+    /* { ok: false } is "nothing was read", which compareServers() reports as its own finding
+       rather than as a difference — a page that never arrived proves nothing about the data. */
+    return { pw: (pw && pw.ok) ? pw : { ok: false }, cw: (cw && cw.ok) ? cw : { ok: false }, tries: tries };
+  }
+
+  async function testOneServers(reg, spid) {
+    /* allSettled, not Promise.all: the second server's failure must still be handled even when the
+       first one throws first, or a run leaves unhandled rejections behind it. */
+    const got = await Promise.allSettled([fetchTables(baseUrl, reg, spid), fetchTables(baseUrl2, reg, spid)]);
+    const bad = got.filter(function (x) { return x.status === "rejected"; })[0];
+    if (bad) throw bad.reason;
+    const exp = got[0].value, act = got[1].value;
+    /* Neither server knows this pair — that is a wrong reg/spid, not a difference between them. */
+    if (!exp.pw.ok && !act.pw.ok) return { kind: "error", msg: t("e_pw_both"), notFound: true };
+    return { kind: "done", srv: true, exp: exp, act: act,
+      cwTries: Math.max(exp.tries, act.tries),
+      result: U.compareServers(exp, act, { tolerance: tol }) };
   }
 
   // ---------- reg → program resolve ----------
@@ -228,10 +380,26 @@
 
   // ---------- run ----------
   // the CLI's runner.js ladder: error → Course Wise empty → errors → warnings → clean
+  /* Two-server verdict, most serious first. A page that was never read outranks everything, since
+     nothing was measured; then a row that did not survive the move, then a cell that changed,
+     then a row that appeared out of nowhere. Same six buckets as the single-server run, so the
+     tiles, the filter, the re-run button and the exports all work untouched — only the labels
+     change (see the s_ entries in DICT). */
+  function statusOfSrv(out) {
+    const r = out.result, has = {};
+    (r.errors || []).forEach(function (e) { has[e.kind] = 1; });
+    if (has.srvside) return "nf";
+    if (!r.errors.length) return "ok";
+    if (has.srvlost) return "cw";
+    if (has.srvcell || has.srvtext || has.srvcol) return "no";
+    if (has.srvextra) return "zero";
+    return "no";
+  }
   function statusOf(out) {
     // no Program Wise rows means the program was not found for this reg/spid — its own bucket,
     // not a load error and not a reconciliation failure
     if (out.kind === "error") return out.notFound ? "nf" : "error";
+    if (out.srv) return statusOfSrv(out);
     const r = out.result;
     /* No payment was ever made: Program Wise has rows but every figure on them is 0, so Course
        Wise having nothing is the correct outcome, not a gap. It used to sit inside CW ফাঁকা and
@@ -247,6 +415,7 @@
   // one-line headline for the on-screen list; the export keeps the full itemDetail()
   function shortLine(st, out) {
     if (out.kind === "error") return out.msg;
+    if (out.srv) return U.summaryServers(out.result);
     if (st === "ok") return t("d_allmatch");
     if (st === "zero") return U.summary(out.result) || t("d_zero");
     // summary() reports "Course Wise ফাঁকা", which hides both the page never opening and its table
@@ -257,6 +426,15 @@
   }
   function itemDetail(st, out) {
     if (out.kind === "error") return out.msg;
+    if (out.srv) {
+      const rs = out.result;
+      if (!rs.errors.length) return U.summaryServers(rs);
+      const cs = U.classifyServers(rs), ps = [];
+      if (cs) ps.push(cs.label + (cs.why ? " (" + cs.why + ")" : ""));
+      rs.errors.forEach(function (e, i) { ps.push((i + 1) + ") " + U.shortError(e)); });
+      (rs.notes || []).forEach(function (nt) { ps.push(nt.detail); });
+      return ps.join("   ");
+    }
     if (st === "ok") return t("d_allmatch");
     const r = out.result; const parts = [];
     if (st === "zero") return t("d_zero");
@@ -281,7 +459,10 @@
     return parts.join("   ") || (st === "warn" ? t("d_cross") : "");
   }
 
-  async function processItem(stu, item) {
+  /* prior: the result being re-asked about, if this is a sweep round — its attempt count carries
+     forward so the line can say how many times the server was actually asked, not how many times
+     the last round asked. */
+  async function processItem(stu, item, prior) {
     let spid = item.spid;
     if (!spid) {
       if (!item.program) return { st: "error", detail: t("e_need"), spid: "" };
@@ -295,35 +476,122 @@
        more, with a growing pause. There is no Load error tile to press ⟳ on any more (the slot is
        Zero Pay now), and a fault that clears on its own should never have needed a person.
        fetchHtml() already retries a 5xx/429 inside one attempt; this covers the whole student. */
-    let out;
-    for (let a = 0; a < 3; a++) {
-      try { out = await testOne(stu.reg, spid); break; }
+    let out, attempts = 0;
+    for (let a = 0; a < ITEM_TRIES; a++) {
+      attempts = a + 1;
+      try { out = srvMode ? await testOneServers(stu.reg, spid) : await testOne(stu.reg, spid); break; }
       catch (e) {
         out = { kind: "error", msg: String((e && e.message) || e) };
         if (e && e.name === "AbortError") break;      // Stop was pressed — do not keep trying
-        if (a < 2) await sleep(500 * (a + 1));
+        if (a < ITEM_TRIES - 1) await backoff(a);
       }
     }
     const st = statusOf(out);
-    const cat = out.result && out.result.errors && out.result.errors.length ? U.classify(out.result) : null;
+    const cat = (out.result && out.result.errors && out.result.errors.length)
+      ? (out.srv ? U.classifyServers(out.result) : U.classify(out.result)) : null;
     /* Keep the raw cells of anything that still needs a person. Arguing about whether a receipt is
        really a mismatch takes the actual numbers off both pages, and pulling those out of UMS by
        hand — one student at a time, eleven columns each — is where the day goes. They are already
        parsed and in memory; holding them costs a couple of KB per flagged student and nothing at
        all for the clean ones, which are the overwhelming majority. */
     const raw = (notOk(st) && out.kind === "done")
-      ? U.rawText(out.pw, out.cw, { spid: spid, reg: stu.reg }) : "";
+      ? (out.srv
+        ? U.rawTextServers(out.exp, out.act, { spid: spid, reg: stu.reg,
+          expUrl: pwUrl(stu.reg, spid), actUrl: pwUrl(stu.reg, spid, baseUrl2) })
+        : U.rawText(out.pw, out.cw, { spid: spid, reg: stu.reg })) : "";
     const res0 = { st: st, detail: shortLine(st, out), detailFull: itemDetail(st, out),
       why: cat ? cat.why : "", whySelf: !!(cat && cat.selfEvident), raw: raw,
       spid: spid, program: item.program || "" };
+    /* Say it on the line. "লোড এরর" alone reads as a fact about the student; what happened is that
+       the server was asked N times and never replied, and the difference decides whether anyone
+       goes and looks at the data or at the network. */
+    res0.unanswered = unanswered(out);
+    res0.tried = ((prior && prior.tried) || 0) + attempts;
+    if (res0.unanswered) res0.detail += " · " + t("d_noanswer").replace("{n}", res0.tried);
     applyManual(res0, stu.reg);
     return res0;
+  }
+
+  /* Did the servers actually answer about this student?
+     A table with rows is an answer. A table that says No Data is an answer — the server has spoken.
+     A page that never arrived, was redirected away, or came back without its table is NOT: nothing
+     was read, so nothing can be concluded, and the verdict on screen would be about the network
+     while reading as a verdict about the money. Everything marked here goes back into the queue —
+     see sweepUnanswered(). */
+  function unanswered(out) {
+    if (!out || out.kind === "error") return true;
+    if (out.notFound) return true;    // Program Wise produced no table — could be the server, not the id
+    if (out.srv) return (((out.result || {}).errors) || []).some(function (e) { return e.kind === "srvside"; });
+    return !!(out.cwRedirect || out.cwNoTable);
+  }
+  function countUnanswered() {
+    let k = 0;
+    students.forEach(function (stu) {
+      (stu.results || []).forEach(function (x) { if (x.res && x.res.unanswered) k++; });
+    });
+    return k;
+  }
+
+  /* Rounds of asking again, with a growing pause between them, for every student the servers never
+     answered about. A run is not finished while any of them is outstanding — a slow server is
+     allowed to delay the result, never to decide it.
+
+     It ends when there is nothing left, when Stop is pressed, or when two whole rounds in a row
+     change nothing — at that point the server is saying no rather than saying nothing, and the
+     line says exactly that, with the number of attempts behind it, instead of pretending. */
+  async function sweepUnanswered(t0) {
+    let barren = 0;
+    for (let round = 1; round <= SWEEP_ROUNDS && run && !run.stop; round++) {
+      const jobs = [];
+      students.forEach(function (stu) {
+        (stu.results || []).forEach(function (x) { if (x.res && x.res.unanswered) jobs.push({ stu: stu, slot: x }); });
+      });
+      if (!jobs.length) return;
+      $("prog").textContent = "⏳ " + t("p_retry").replace("{n}", jobs.length).replace("{r}", round) +
+        " · ⏱ " + mmss(Date.now() - t0);
+      await sleep(Math.min(2000 * round, 15000));
+      if (run.stop) return;
+      let fixed = 0, next = 0, done = 0;
+      const tick = function () {
+        $("prog").textContent = "⏳ " + t("p_retry").replace("{n}", jobs.length).replace("{r}", round) +
+          " · " + done + "/" + jobs.length + " · ⏱ " + mmss(Date.now() - t0);
+      };
+      async function worker() {
+        while (!run.stop) {
+          const i = next++; if (i >= jobs.length) return;
+          const j = jobs[i];
+          await breathe();
+          if (run.stop) return;
+          let res;
+          // a re-ask that itself blows up must not lose the slot — keep what was there
+          try { res = await processItem(j.stu, j.slot.item, j.slot.res); }
+          catch (e) { res = j.slot.res; }
+          if (run.stop) return;
+          if (!res.unanswered) fixed++;
+          j.slot.res = res;
+          done++; tick();
+        }
+      }
+      /* Half the usual parallelism: the server has already shown it cannot keep up, and asking
+         harder is what put these here. */
+      await Promise.all(Array.from({ length: Math.min(Math.max(1, Math.ceil(conc / 2)), jobs.length) },
+        function () { return worker(); }));
+      recountAll(); paintTiles(); rerenderList(); applyFilterAll();
+      barren = fixed ? 0 : barren + 1;
+      /* Give up only when the server is answering normally and STILL has nothing for these. While
+         it is visibly struggling (pressure > 0), a round that fixed nothing says nothing about the
+         data either — it says the server is busy, which is the one case the sweep exists for. */
+      if (barren >= 3 && !pressure) return;
+    }
   }
 
   /* Total Problem = everything that still needs a person. "ok" is clean; so is "zero" — a student
      who never paid has nothing to reconcile, and counting them as problems put hundreds of
      perfectly ordinary records on the work list. */
-  const notOk = function (st) { return st !== "ok" && st !== "zero"; };
+  /* "zero" is Zero Pay on a single-server run — nothing to reconcile, so not a problem. On a
+     two-server run the same slot holds "Actual has a row Expected never had", which very much is
+     one, so the exemption does not carry over. */
+  const notOk = function (st) { return srvMode ? st !== "ok" : (st !== "ok" && st !== "zero"); };
   /* Findings a person has gone to UMS, checked by hand, and judged correct. Kept against the
      exact wording of the finding they cleared: if the rules change, or the receipt does, the
      signature stops matching and the student comes back for a fresh look rather than staying
@@ -391,11 +659,18 @@
       });
     });
   }
+  /* The tally already knows how many are in each bucket, so ask it. This used to call
+     pickByStatus() once per ⟳ button — six walks of every student and every result, each BUILDING
+     AN ARRAY of the matches only to read .length off it — and paintTiles() calls it on every
+     repaint, about eight times a second. At 100,000 students that measured 30 ms a repaint: a
+     quarter of the main thread spent counting things it had just finished counting, which is
+     thread the run needs to dispatch its fetches. */
+  const bucketCount = function (st) { return st === "prob" ? T.stu : (st === "error" ? T.err : T[st] || 0); };
   function paintRerun() {
     const busy = !!run;
     [].slice.call(document.querySelectorAll(".rr")).forEach(function (b) {
       const st = b.getAttribute("data-rr");
-      const n = pickByStatus(st).length;
+      const n = bucketCount(st);
       b.disabled = busy || n === 0;
       b.title = busy ? t("rr_busy") : (n ? n + " " + t("rr_run") : t("rr_none"));
     });
@@ -419,9 +694,11 @@
         while (run.paused && !run.stop) { $("prog").textContent = t("paused"); await sleep(200); }
         const i = next++; if (i >= jobs.length) return;
         const j = jobs[i];
+        await breathe();
+        if (run.stop) return;
         let res;
         // one bad item must not sink the whole re-run — record it and carry on
-        try { res = await processItem(j.stu, j.slot.item); }
+        try { res = await processItem(j.stu, j.slot.item, j.slot.res); }
         catch (e) { res = { st: "error", detail: String((e && e.message) || e), spid: j.slot.res.spid || "" }; }
         if (run.stop) return;
         j.slot.res = res;            // replace in place — order and student grouping stay put
@@ -453,7 +730,11 @@
        count: a 10,515-pair sheet spread over 9,832 Regs read "Done · 9832/9832" while the tiles
        above it added up to 10,515. Count the pairs — entries.length is exactly Σ items.length. */
     T.total = entries.length;
-    $("list").innerHTML = ""; paintTiles(); $("fill").style.width = "0%";
+    $("list").innerHTML = ""; listShown = 0; listTotal = 0; paintListNote();
+    paintTiles(); $("fill").style.width = "0%";
+    /* Nothing wrote the progress line until the first student came back, so on a big sheet — or a
+       slow server — Start looked like it had done nothing at all for minutes. */
+    $("prog").textContent = "⏳ 0/" + T.total + " · " + t("p_running");
     $("run").disabled = true; $("stop").disabled = false; $("pause").disabled = false; $("pause").textContent = t("pause");
     $("html").disabled = true; $("xlsx").disabled = true; $("raw").disabled = true;
     const t0 = Date.now();
@@ -471,7 +752,9 @@
         $("list").appendChild(renderBuf); renderBuf = document.createDocumentFragment();
       }
       $("fill").style.width = (T.total ? Math.round(T.done / T.total * 100) : 0) + "%";
-      paintTiles(); prog();
+      /* the cap note has to move while the run fills the list, not only when the list is rebuilt —
+         otherwise a long run silently stops adding cards and never says why */
+      paintTiles(); paintListNote(); prog();
       if (T.done > 0) { $("html").disabled = false; $("xlsx").disabled = false; $("raw").disabled = false; }
     }
     function ui() { const now = Date.now(); if (now - lastUI >= 120) flushUI(); else if (!uiTimer) uiTimer = setTimeout(flushUI, 120 - (now - lastUI)); }
@@ -480,6 +763,8 @@
         while (run.paused && !run.stop) { $("prog").textContent = t("paused"); await sleep(200); }
         if (run.stop) return;
         const i = next++; if (i >= students.length) return;
+        await breathe();          // the server is refusing — slow down rather than pile on
+        if (run.stop) return;
         running++;
         const stu = students[i];
         for (let j = 0; j < stu.items.length && !run.stop; j++) {
@@ -498,16 +783,50 @@
     }
     await Promise.all(Array.from({ length: Math.min(Math.max(1, conc), students.length) }, function () { return worker(); }));
     flushUI(); renderBuf = null;
-    $("prog").textContent = "✅ " + t("p_done") + " · " + T.done + "/" + T.total + " · ⏱ " + mmss(Date.now() - t0);
+    /* Not done yet. Everything the servers never actually answered about goes round again before
+       the run calls itself finished — nothing is left standing on a non-answer. */
+    await sweepUnanswered(t0);
+    const left = countUnanswered();
+    /* Written before the buttons are re-enabled, so "finished" and "saved" are one moment and
+       nobody closes the tab in between. */
+    let saved = "";
+    if (saveOnFinish) {
+      $("prog").textContent = "💾 " + t("p_saving");
+      try { saved = await saveRun(); } catch (e) { saved = ""; }
+    }
+    $("prog").textContent = "✅ " + t("p_done") + " · " + T.done + "/" + T.total + " · ⏱ " + mmss(Date.now() - t0) +
+      (left ? " · ⚠ " + t("p_unanswered").replace("{n}", left) : "") +
+      (saved ? " · 💾 " + saved : (saveOnFinish ? " · ⚠ " + t("save_failed") : ""));
     $("run").disabled = !entries.length; $("stop").disabled = true; $("pause").disabled = true;
     run = null;
     paintRerun();   // must come AFTER run is cleared — flushUI() painted them while still busy
   }
 
   // ---------- render ----------
+  /* One card per student is fine for a few thousand and ruinous for a hundred thousand: the
+     browser relayouts the whole document on every append, and appending is what a run does all
+     day. The list is for looking at; the HTML and Excel reports are the deliverable and still
+     carry every row, so the list stops here and says so. */
+  const LIST_MAX = 1000;
+  let listShown = 0, listTotal = 0;
+  function paintListNote() {
+    const el = $("listNote"); if (!el) return;
+    const capped = listTotal > listShown;
+    el.style.display = capped ? "" : "none";
+    if (capped) el.textContent = t("list_capped").replace("{a}", listShown.toLocaleString())
+      .replace("{b}", listTotal.toLocaleString());
+  }
   const PILLC = { ok: "ok", no: "no", cw: "mut", zero: "mut", nf: "mut", error: "no" };
-  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
-  function rerenderList() { const l = $("list"); if (!l) return; l.innerHTML = ""; students.forEach(function (s) { if (s.results && s.results.length) renderStudent(s); }); }
+  /* Quotes too: this output goes into attributes (data-reg, data-copy, and a sheet name in an
+     <option value>), and a Reg or a tab called \u0022x\u0022 would otherwise close the attribute early
+     and take the rest of the tag with it. */
+  function esc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;"); }
+  function rerenderList() {
+    const l = $("list"); if (!l) return;
+    l.innerHTML = ""; listShown = 0; listTotal = 0;
+    students.forEach(function (s) { if (s.results && s.results.length) renderStudent(s); });
+    paintListNote();
+  }
   function renderStudent(stu) {
     const total = stu._resolved ? stu._resolved.length : stu.items.length;
     const div = document.createElement("div"); div.className = "stu";
@@ -531,7 +850,9 @@
       pn += ' <span class="mut">—</span> <span class="mut">SPID:</span> ' + (spid || "—");
       if (x.res.spid) {
         pn += ' <span class="cpy" data-copy="' + spid + '" title="Copy SPID">⧉</span>';
-        pn += ' <span class="mut">—</span> <a href="' + pwUrl(stu.reg, x.res.spid) + '" target="_blank" style="color:#8fb4ff" title="Open Payment History">↗</a>';
+        pn += ' <span class="mut">—</span> <a href="' + pwUrl(stu.reg, x.res.spid) + '" target="_blank" style="color:#8fb4ff" title="' + (srvMode ? "Expected" : "Open Payment History") + '">↗' + (srvMode ? " E" : "") + '</a>';
+        // both servers, one click each — the whole point of the mode is reading them side by side
+        if (srvMode) pn += ' <a href="' + pwUrl(stu.reg, x.res.spid, baseUrl2) + '" target="_blank" style="color:#ffb454" title="Actual">↗ A</a>';
       }
       /* the headline names the fault; this says what it actually means, which until now was
          written but never shown anywhere */
@@ -542,6 +863,14 @@
     });
     div.innerHTML = h;
     applyFilterTo(div);
+    /* A card the filter hides costs nothing to leave out — and counting it against the cap spends
+       the whole allowance on cards nobody can see. Measured: 5,000 students with the 64 mismatches
+       sitting past row 1,200 (where a sheet sorted by Reg puts them), "শুধু অমিল" selected — 1,000
+       cards drawn, 0 of them visible, every mismatch missing from the one view meant to show them. */
+    if (div.style.display === "none") return;
+    listTotal++;   // matching students, so the note counts what the filter would have shown
+    if (listShown >= LIST_MAX) return;
+    listShown++;
     (renderBuf || $("list")).appendChild(div);   // during a run, cards accumulate in a fragment and flush in batches
   }
 
@@ -561,7 +890,10 @@
   function setFilter(f) {
     filter = f;
     [].slice.call(document.querySelectorAll(".fb")).forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-f") === f); });
-    applyFilterAll();
+    /* With the list capped, hiding cards is not enough: the ones that match may be past the cap and
+       never drawn at all. Re-render so the filter chooses which LIST_MAX are on screen. While a run
+       is going the list is still filling, so leave it to the next flush. */
+    if (run) applyFilterAll(); else rerenderList();
   }
   function applyFilterTo(stuDiv) {
     let visible = 0;
@@ -704,7 +1036,11 @@
     // lead with the file/tab the rows came from, so the counts below it can be trusted
     $("impNote").innerHTML = (importSrc ? '<span class="isrc">' + esc(importSrc) + "</span><br>" : "") + note;
   }
-  var PV_MAX = Infinity;   // render ALL rows into the scroll box (box height ≈ 5 rows, rest scrolls)
+  /* The box is about five rows tall and the rest scrolls, so drawing all of them was only ever
+     paid for, never seen. At 100,000 rows that is 100,000 <tr> built, painted and laid out — and
+     renderPreview() re-runs on every keystroke in the search box, so it is paid again per letter.
+     Search still looks at every row; only the drawing stops at PV_MAX. */
+  var PV_MAX = 500;
   function renderPreview() {
     const box = $("preview"); const bar = $("pvWrap"); if (!box) return;
     if (!entries.length) { box.innerHTML = ""; if (bar) bar.style.display = "none"; return; }
@@ -769,10 +1105,17 @@
      relationship id, so it is looked up through the rels rather than by position. Best-effort: an
      unreadable workbook costs the name, never the import. */
   const RELS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
-  function sheetNameOf(files, key, dec) {
+  /* Every tab, in the order Excel shows them along the bottom. workbook.xml carries the names a
+     person sees, but the order of its <sheet> elements is NOT the order of the sheetN.xml files —
+     the link between them is the relationship id, so it is followed through the rels rather than
+     read off the position. Picking by filename is how "the first tab" came to mean sheet1.xml,
+     which is frequently the second or third tab and sometimes a Summary nobody meant to import.
+     Best effort: an unreadable workbook part costs the names, never the import. */
+  function sheetsOf(files, dec) {
+    const out = [];
     try {
       const wbx = files["xl/workbook.xml"];
-      if (!wbx) return "";
+      if (!wbx) return out;
       const rels = {}, rlx = files["xl/_rels/workbook.xml.rels"];
       if (rlx) {
         const rd = new DOMParser().parseFromString(dec.decode(rlx), "application/xml");
@@ -781,14 +1124,15 @@
         });
       }
       const wd = new DOMParser().parseFromString(dec.decode(wbx), "application/xml");
-      const tabs = [].slice.call(wd.getElementsByTagName("sheet"));
-      const want = String(key).replace(/^xl\//, "").toLowerCase();
-      for (let i = 0; i < tabs.length; i++) {
-        const rid = tabs[i].getAttributeNS(RELS_NS, "id") || tabs[i].getAttribute("r:id");
-        if (rid && rels[rid] && rels[rid].toLowerCase() === want) return tabs[i].getAttribute("name") || "";
-      }
-      return tabs.length ? (tabs[0].getAttribute("name") || "") : "";
-    } catch (e) { return ""; }
+      [].slice.call(wd.getElementsByTagName("sheet")).forEach(function (nd) {
+        const rid = nd.getAttributeNS(RELS_NS, "id") || nd.getAttribute("r:id");
+        const tgt = (rid && rels[rid]) ? "xl/" + rels[rid] : "";
+        /* only tabs whose worksheet actually came out of the zip — a chart sheet has a <sheet>
+           entry and no rows, and offering it would be offering an empty import */
+        if (tgt && files[tgt]) out.push({ name: nd.getAttribute("name") || tgt, target: tgt });
+      });
+    } catch (e) {}
+    return out;
   }
   /* Where the rows came from. Two tabs of one workbook can look identical in the preview, and so
      can last week's file — once the rows are in, nothing on screen said which file or which tab
@@ -802,37 +1146,104 @@
   }
   function shared(xml) { const out = []; if (!xml) return out; const d = new DOMParser().parseFromString(xml, "application/xml"); const si = d.getElementsByTagName("si"); for (let i = 0; i < si.length; i++) { const ts = si[i].getElementsByTagName("t"); let s = ""; for (let j = 0; j < ts.length; j++) s += ts[j].textContent; out.push(s); } return out; }
   function sheet(xml, sh) { const d = new DOMParser().parseFromString(xml, "application/xml"); const re = d.getElementsByTagName("row"); const rows = []; for (let i = 0; i < re.length; i++) { const cs = re[i].getElementsByTagName("c"); const arr = []; for (let j = 0; j < cs.length; j++) { const c = cs[j]; let idx = c.getAttribute("r") ? colIdx(c.getAttribute("r")) : j; if (idx < 0) idx = j; const t = c.getAttribute("t"); let v = ""; if (t === "s") { const vv = c.getElementsByTagName("v")[0]; if (vv) v = sh[parseInt(vv.textContent, 10)] || ""; } else if (t === "inlineStr") { const is = c.getElementsByTagName("t")[0]; if (is) v = is.textContent; } else { const vv = c.getElementsByTagName("v")[0]; if (vv) v = vv.textContent; } arr[idx] = v; } for (let k = 0; k < arr.length; k++) if (arr[k] === undefined) arr[k] = ""; rows.push(arr); } return rows.filter(function (r) { return r.some(function (c) { return String(c).trim() !== ""; }); }); }
-  async function readXlsx(buf) { const f = await unzip(new Uint8Array(buf)); const dec = new TextDecoder("utf-8"); const sh = shared(f["xl/sharedStrings.xml"] ? dec.decode(f["xl/sharedStrings.xml"]) : ""); const key = Object.keys(f).find(function (x) { return /^xl\/worksheets\/sheet1\.xml$/i.test(x); }) || Object.keys(f).find(function (x) { return /^xl\/worksheets\/.*\.xml$/i.test(x); }); if (!key) throw new Error("worksheet নেই"); return { rows: sheet(dec.decode(f[key]), sh), sheet: sheetNameOf(f, key, dec) }; }
+  /** want: the target of the tab to read; omitted means the workbook's FIRST tab. */
+  async function readXlsx(buf, want) {
+    const f = await unzip(new Uint8Array(buf));
+    const dec = new TextDecoder("utf-8");
+    const sh = shared(f["xl/sharedStrings.xml"] ? dec.decode(f["xl/sharedStrings.xml"]) : "");
+    const tabs = sheetsOf(f, dec);
+    /* The workbook's order first, so "the first tab" means what it means in Excel. The filename
+       guess is only a last resort, for a workbook whose own index will not parse. */
+    let key = (want && f[want]) ? want : ((tabs[0] && tabs[0].target) || "");
+    if (!key) {
+      key = Object.keys(f).find(function (x) { return /^xl\/worksheets\/sheet1\.xml$/i.test(x); }) ||
+        Object.keys(f).find(function (x) { return /^xl\/worksheets\/.*\.xml$/i.test(x); });
+    }
+    if (!key) throw new Error("worksheet নেই");
+    const hit = tabs.filter(function (x) { return x.target === key; })[0];
+    return { rows: sheet(dec.decode(f[key]), sh), sheet: hit ? hit.name : "", sheets: tabs, target: key };
+  }
+  /* The workbook a tab can be picked from, and what it holds. The File itself is kept rather
+     than the unzipped parts: switching tab costs one more unzip, against holding every worksheet
+     inflated for as long as the page is open — on a workbook with a 100,000-row tab that is
+     hundreds of megabytes sitting there for tabs nobody asked for. */
+  let xlsxFile = null, xlsxTabs = [], xlsxTarget = "";
+  function paintSheetPicker() {
+    const row = $("sheetRow"), sel = $("sheetSel");
+    if (!row || !sel) return;
+    /* One tab is not a choice. A picker with a single entry only asks a question that has no other
+       answer, so it stays out of the way until a workbook actually has tabs. */
+    if (xlsxTabs.length < 2) { row.style.display = "none"; sel.innerHTML = ""; return; }
+    row.style.display = "";
+    sel.innerHTML = xlsxTabs.map(function (x) {
+      return '<option value="' + esc(x.target) + '">' + esc(x.name) + "</option>";
+    }).join("");
+    sel.value = xlsxTarget;
+  }
+  function clearSheetPicker() { xlsxFile = null; xlsxTabs = []; xlsxTarget = ""; paintSheetPicker(); }
+
+  /** want: the tab to read; omitted means the workbook's first. */
+  function loadXlsx(file, want) {
+    xlsxFile = file;
+    const r = new FileReader();
+    r.onload = function () {
+      $("impNote").textContent = t("imp_excel");
+      readXlsx(r.result, want).then(function (x) {
+        xlsxTabs = x.sheets || []; xlsxTarget = x.target || "";
+        paintSheetPicker();
+        setSource("📄 " + file.name, x.sheet);
+        return applyImported(x.rows).then(function () {
+          /* An .xlsx whose own index will not parse still imports — readXlsx falls back to the
+             first worksheet file it can find — but then there is no tab list, so no picker, and
+             nothing on screen to say why. Silence here reads as "the feature does not work". */
+          if (!xlsxTabs.length) {
+            $("impNote").innerHTML += '<br><span class="mut">' + esc(t("sheet_unknown")) + "</span>";
+          }
+        });
+      }).catch(function (e) {
+        // name the file that failed — "Excel পড়া গেল না" alone left you guessing which one
+        clearSheetPicker();
+        setSource("📄 " + file.name, "");
+        $("impNote").textContent = importSrc + " — " + t("imp_excel_fail") + " (" + (e.message || e) + ")";
+      });
+    };
+    r.readAsArrayBuffer(file);
+  }
   function onImport(file) {
     const r = new FileReader();
     r.onload = function () {
       const u8 = new Uint8Array(r.result);
       const zip = u8.length > 3 && u8[0] === 0x50 && u8[1] === 0x4B && (u8[2] === 0x03 || u8[2] === 0x05 || u8[2] === 0x07);
-      if (zip) {
-        $("impNote").textContent = t("imp_excel");
-        readXlsx(r.result).then(function (x) { setSource("📄 " + file.name, x.sheet); applyImported(x.rows); })
-          // name the file that failed — "Excel পড়া গেল না" alone left you guessing which one
-          .catch(function (e) { setSource("📄 " + file.name, ""); $("impNote").textContent = importSrc + " — " + t("imp_excel_fail") + " (" + (e.message || e) + ")"; });
-      } else { setSource("📄 " + file.name, ""); applyImported(parseCSV(new TextDecoder("utf-8").decode(u8))); }
+      if (zip) { loadXlsx(file); return; }
+      // a .csv has one sheet by definition — leave no picker behind from a previous workbook
+      clearSheetPicker();
+      setSource("📄 " + file.name, "");
+      applyImported(parseCSV(new TextDecoder("utf-8").decode(u8)));
     };
     r.readAsArrayBuffer(file);
   }
 
   // ---------- CSV / xlsx export ----------
+  const STLBL_SRV = { ok: "Identical", no: "Data differs", error: "Error",
+    cw: "Missing on Actual", zero: "Extra on Actual", nf: "Page not read" };
   const STLBL = { ok: "Matched", no: "Mismatch", error: "Error", cw: "CW Empty", zero: "Zero Pay", nf: "Program Not Found" };
   function statusColor(st) { return (st === "ok" || st === "zero") ? "g" : ((st === "no" || st === "error") ? "r" : "y"); }
-  function flatRows() {
+  /* all: ignore the on-screen filter. The buttons honour it — that is the point of exporting
+     "only mismatches" — but an automatic archive that quietly held whatever chip happened to be
+     selected would be worse than no archive at all. */
+  function flatRows(all) {
     const out = [];
     students.forEach(function (stu) {
       stu.results.forEach(function (x) {
-        if (!matchFilter(x.res.st)) return;   // export honours the selected filter
+        if (!all && !matchFilter(x.res.st)) return;   // export honours the selected filter
         const spid = x.res.spid || "";
         out.push({
-          status: (x.res.manual ? "Matched (manual)" : (STLBL[x.res.st] || x.res.st)),
+          status: (x.res.manual ? "Matched (manual)" : ((srvMode ? STLBL_SRV : STLBL)[x.res.st] || x.res.st)),
           reg: stu.reg,
           spid: spid,
           program: x.res.program || x.item.program || "",
           link: spid ? pwUrl(stu.reg, spid) : "",
+          link2: (srvMode && spid) ? pwUrl(stu.reg, spid, baseUrl2) : "",
           /* Remarks used to carry detailFull — the long internal listing — while the screen showed
              the short line, so the file never matched what was read on screen. Remarks is now that
              same sentence, and the listing moves to its own column for whoever needs it. */
@@ -851,7 +1262,10 @@
   function dl(blob, ext) { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = "ums-verify-" + stamp() + "." + ext; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 1000); }
   function exportHtml() {
     const rows = flatRows(); if (!rows.length) return;
-    const LBL = STLBL;
+    dl(new Blob([buildHtml(rows)], { type: "text/html;charset=utf-8;" }), "html");
+  }
+  function buildHtml(rows) {
+    const LBL = srvMode ? STLBL_SRV : STLBL;
     const cnt = {}; rows.forEach(function (r) { cnt[r.result] = (cnt[r.result] || 0) + 1; });
     const regSet = {}; rows.forEach(function (r) { regSet[r.reg] = 1; }); const nStu = Object.keys(regSet).length;
     const chip = function (k, lbl) { return cnt[k] ? '<span class="chip ' + (LBL[k] ? k : "") + '"><b>' + cnt[k] + '</b> ' + (lbl || LBL[k] || k) + '</span>' : ''; };
@@ -862,6 +1276,7 @@
         '<td class="st st-' + r.color + '">' + xesc(LBL[r.result] || r.result) + '</td>' +
         '<td>' + xesc(r.reg) + '</td><td>' + xesc(r.spid) + '</td>' +
         '<td class="lk">' + linkCell + '</td>' +
+        (srvMode ? '<td class="lk">' + (r.link2 ? '<a href="' + xesc(r.link2) + '" target="_blank">Open ↗</a>' : "—") + '</td>' : "") +
         '<td class="dt">' + xesc(r.remarks || "") + '</td>' +
         '<td class="dt sm">' + xesc(r.details || "") + '</td></tr>';
     });
@@ -888,18 +1303,20 @@
       '<div class="chips">' + chip("ok") + chip("no") + chip("error") + chip("cw") + chip("zero") + chip("nf") + '</div>' +
       '<div class="bar">' +
       '<button class="f active" data-f="all">All</button>' +
-      '<button class="f" data-f="no">Mismatch</button>' +
-      '<button class="f" data-f="cw">CW Empty</button>' +
-      '<button class="f" data-f="zero">Zero Pay</button>' +
-      '<button class="f" data-f="ok">Matched</button>' +
-      '<button class="f" data-f="nf">Program Not Found</button></div>' +
-      '<table><thead><tr><th>Status</th><th>Student Reg</th><th>Program Id</th><th>Payment History Link</th><th>Remarks</th><th>Details</th></tr></thead>' +
+      '<button class="f" data-f="no">' + xesc(LBL.no) + '</button>' +
+      '<button class="f" data-f="cw">' + xesc(LBL.cw) + '</button>' +
+      '<button class="f" data-f="zero">' + xesc(LBL.zero) + '</button>' +
+      '<button class="f" data-f="ok">' + xesc(LBL.ok) + '</button>' +
+      '<button class="f" data-f="nf">' + xesc(LBL.nf) + '</button></div>' +
+      '<table><thead><tr><th>Status</th><th>Student Reg</th><th>Program Id</th>' +
+      (srvMode ? '<th>Expected Link</th><th>Actual Link</th>' : '<th>Payment History Link</th>') +
+      '<th>Remarks</th><th>Details</th></tr></thead>' +
       '<tbody id="tb">' + body + '</tbody></table>' +
       '<script>(function(){var bar=document.querySelector(".bar");bar.addEventListener("click",function(e){var b=e.target.closest(".f");if(!b)return;' +
       '[].forEach.call(bar.children,function(x){x.classList.remove("active")});b.classList.add("active");var f=b.getAttribute("data-f");' +
       '[].forEach.call(document.querySelectorAll("#tb tr"),function(tr){var st=tr.getAttribute("data-st");var show=f==="all"||st===f||(f==="no"&&st==="error");tr.classList.toggle("hide",!show)})})})();<\/script>' +
       '</body></html>';
-    dl(new Blob([html], { type: "text/html;charset=utf-8;" }), "html");
+    return html;
   }
   const CRC = (function () { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
   function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
@@ -908,7 +1325,8 @@
   function cl(n) { let s = ""; n++; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
   function sheetXml(header, rows, colors) {
     const all = [header].concat(rows);
-    const W = [14, 12, 12, 46, 62, 90];   // Remarks and Details need room; the rest are short
+    // Remarks and Details need room; the rest are short. Two-server mode adds a second link column.
+    const W = header.length >= 7 ? [14, 12, 12, 40, 40, 62, 90] : [14, 12, 12, 46, 62, 90];
     let cols = '<cols>'; W.forEach(function (w, i) { cols += '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>'; }); cols += '</cols>';
     let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>';
     all.forEach(function (row, ri) { const rn = ri + 1; const cc = colors[ri - 1]; const s = ri === 0 ? 3 : (cc === "g" ? 1 : cc === "r" ? 2 : cc === "y" ? 4 : 0); x += '<row r="' + rn + '">'; row.forEach(function (cell, ci) { x += '<c r="' + cl(ci) + rn + '" t="inlineStr" s="' + s + '"><is><t xml:space="preserve">' + xesc(cell) + '</t></is></c>'; }); x += "</row>"; });
@@ -937,6 +1355,9 @@
   function exportRaw() {
     const rows = flatRows().filter(function (r) { return r.raw; });
     if (!rows.length) return;
+    dl(new Blob([buildRaw(rows)], { type: "text/plain;charset=utf-8;" }), "txt");
+  }
+  function buildRaw(rows) {
     const NL = "\n", RULE = "=".repeat(78) + NL, THIN = "-".repeat(78) + NL;
     let out = "UMS Payment Reconciler " + ver() + " · " + new Date().toLocaleString() +
       " · " + rows.length + " flagged" + NL + baseUrl + NL;
@@ -946,13 +1367,22 @@
         (r.program ? " · " + r.program : "") + NL +
         r.remarks + NL + THIN + r.raw;
     });
-    dl(new Blob([out], { type: "text/plain;charset=utf-8;" }), "txt");
+    return out;
   }
 
   function exportXlsx() {
     const rows = flatRows(); if (!rows.length) return;
-    const header = ["Status", "Student Reg", "Program Id", "Payment History Link", "Remarks", "Details"];
-    const mat = rows.map(function (r) { return [r.status, r.reg, r.spid, r.link, r.remarks, r.details]; });
+    dl(new Blob([buildXlsx(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "xlsx");
+  }
+  function buildXlsx(rows) {
+    const header = srvMode
+      ? ["Status", "Student Reg", "Program Id", "Expected Link", "Actual Link", "Remarks", "Details"]
+      : ["Status", "Student Reg", "Program Id", "Payment History Link", "Remarks", "Details"];
+    const mat = rows.map(function (r) {
+      return srvMode
+        ? [r.status, r.reg, r.spid, r.link, r.link2, r.remarks, r.details]
+        : [r.status, r.reg, r.spid, r.link, r.remarks, r.details];
+    });
     const colors = rows.map(function (r) { return r.color; });
     const enc = new TextEncoder();
     const bytes = zipStore([
@@ -960,7 +1390,149 @@
       { name: "xl/workbook.xml", data: enc.encode(WB) }, { name: "xl/_rels/workbook.xml.rels", data: enc.encode(WBR) },
       { name: "xl/styles.xml", data: enc.encode(STY) }, { name: "xl/worksheets/sheet1.xml", data: enc.encode(sheetXml(header, mat, colors)) }
     ]);
-    dl(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "xlsx");
+    return bytes;
+  }
+
+  /* ---------- saving a finished run ----------
+     Switched on, everything the run produced goes into a folder of its own, named for when the run
+     finished, so two runs never land on top of each other. */
+  let saveOnFinish = false, dirHandle = null, dirName = "";
+
+  /* A directory handle is not JSON, so chrome.storage cannot hold it; IndexedDB can, and that is
+     the only way the chosen folder survives closing the page. */
+  function idb(fn) {
+    return new Promise(function (res, rej) {
+      let rq;
+      try { rq = indexedDB.open("umsrec", 1); } catch (e) { rej(e); return; }
+      rq.onupgradeneeded = function () { rq.result.createObjectStore("kv"); };
+      rq.onerror = function () { rej(rq.error); };
+      rq.onsuccess = function () {
+        const db = rq.result;
+        let out;
+        try {
+          const tx = db.transaction("kv", "readwrite");
+          const r = fn(tx.objectStore("kv"));
+          tx.oncomplete = function () { db.close(); res(r ? r.result : undefined); };
+          tx.onerror = function () { db.close(); rej(tx.error); };
+        } catch (e) { db.close(); rej(e); }
+        return out;
+      };
+    });
+  }
+
+  /* Permission to write does not survive closing the page, and asking again needs a click — which
+     is exactly what there is none of at the end of a long run. So it is asked for when the folder
+     is chosen and only CHECKED when the run ends; if it has lapsed the run falls back to Downloads
+     rather than losing what it just spent an hour producing. */
+  async function dirUsable(h) {
+    if (!h || !h.queryPermission) return false;
+    try { return (await h.queryPermission({ mode: "readwrite" })) === "granted"; }
+    catch (e) { return false; }
+  }
+
+  /* Local time, and safe on every filesystem — no colons, no slashes. Seconds are in it because
+     re-running a small sheet twice in one minute is ordinary. */
+  function runFolder() {
+    const d = new Date(), p = function (n) { return String(n).padStart(2, "0"); };
+    return "UMS " + d.getFullYear() + "-" + p(d.getMonth() + 1) + "-" + p(d.getDate()) +
+      " " + p(d.getHours()) + "-" + p(d.getMinutes()) + "-" + p(d.getSeconds());
+  }
+
+  /* What the run was and what it found — so a folder from three weeks ago can still be read
+     without opening the reports and counting. */
+  function runSummary(rows) {
+    const LBL = srvMode ? STLBL_SRV : STLBL, cnt = {};
+    rows.forEach(function (r) { cnt[r.result] = (cnt[r.result] || 0) + 1; });
+    const reg = {}; rows.forEach(function (r) { reg[r.reg] = 1; });
+    return ["UMS Payment Reconciler " + ver(),
+      "finished        " + new Date().toLocaleString(),
+      "mode            " + (srvMode ? "Expected \u2194 Actual (two servers)" : "Program Wise \u2194 Course Wise"),
+      "expected url    " + baseUrl,
+      (srvMode ? "actual url      " + baseUrl2 : null),
+      "tolerance       " + tol,
+      "parallel        " + conc,
+      "",
+      "students        " + Object.keys(reg).length,
+      "rows            " + rows.length,
+      ""].filter(Boolean)
+      .concat(Object.keys(cnt).map(function (k) {
+        return ((LBL[k] || k) + "                    ").slice(0, 20) + cnt[k];
+      })).join("\n") + "\n";
+  }
+
+  function runFiles() {
+    const rows = flatRows(true);
+    if (!rows.length) return [];
+    const out = [
+      { name: "report.html", blob: new Blob([buildHtml(rows)], { type: "text/html;charset=utf-8" }) },
+      { name: "report.xlsx", blob: new Blob([buildXlsx(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) },
+      { name: "summary.txt", blob: new Blob([runSummary(rows)], { type: "text/plain;charset=utf-8" }) }
+    ];
+    const raw = rows.filter(function (r) { return r.raw; });
+    if (raw.length) out.push({ name: "table-data.txt", blob: new Blob([buildRaw(raw)], { type: "text/plain;charset=utf-8" }) });
+    return out;
+  }
+
+  /* Downloads cannot be given an absolute path — whatever is asked for lands inside the user's
+     Downloads folder — so this is the fallback, not the main road. */
+  function saveViaDownloads(folder, files) {
+    return new Promise(function (res) {
+      let n = 0;
+      const done = function () { if (++n >= files.length) res("Downloads / UMS Reconciler / " + folder); };
+      files.forEach(function (f) {
+        const url = URL.createObjectURL(f.blob);
+        try {
+          chrome.downloads.download({ url: url, filename: "UMS Reconciler/" + folder + "/" + f.name,
+            saveAs: false, conflictAction: "uniquify" }, function () {
+              setTimeout(function () { URL.revokeObjectURL(url); }, 30000);
+              done();
+            });
+        } catch (e) { URL.revokeObjectURL(url); done(); }
+      });
+      if (!files.length) res("");
+    });
+  }
+
+  /** Returns where it went, or "" if it did not run or produced nothing. */
+  async function saveRun() {
+    if (!saveOnFinish) return "";
+    const files = runFiles();
+    if (!files.length) return "";
+    const folder = runFolder();
+    if (await dirUsable(dirHandle)) {
+      try {
+        const sub = await dirHandle.getDirectoryHandle(folder, { create: true });
+        for (let i = 0; i < files.length; i++) {
+          const fh = await sub.getFileHandle(files[i].name, { create: true });
+          const w = await fh.createWritable();
+          await w.write(files[i].blob);
+          await w.close();
+        }
+        return dirName + " / " + folder;
+      } catch (e) { /* the folder moved, was deleted, or is not writable — fall through */ }
+    }
+    return saveViaDownloads(folder, files);
+  }
+
+  function paintSaveRow() {
+    const sw = $("saveSw"); if (sw) { sw.checked = saveOnFinish; if (sw.parentNode) sw.parentNode.classList.toggle("on", saveOnFinish); }
+    const btn = $("pickDir"); if (btn) btn.disabled = !saveOnFinish;
+    const el = $("saveWhere");
+    if (el) el.textContent = saveOnFinish
+      ? (dirName ? "→ " + dirName + " / " + t("save_folder") : "→ " + t("save_downloads"))
+      : "";
+  }
+
+  async function pickDir() {
+    if (!window.showDirectoryPicker) { const el = $("saveWhere"); if (el) el.textContent = t("save_nopicker"); return; }
+    try {
+      const h = await window.showDirectoryPicker({ mode: "readwrite", id: "umsrec" });
+      if (h.requestPermission && (await h.requestPermission({ mode: "readwrite" })) !== "granted") return;
+      dirHandle = h; dirName = h.name;
+      try { await idb(function (st) { return st.put(h, "dir"); }); } catch (e) {}
+      try { chrome.storage.local.set({ saveDirName: dirName }); } catch (e) {}
+      paintSaveRow();
+    } catch (e) { /* the picker was cancelled — nothing to say */ }
   }
 
   // ---------- misc ----------
@@ -972,19 +1544,96 @@
     const btn = $("run");
     if (btn && !run) { btn.disabled = n === 0; btn.title = n ? "" : t("p_input"); }
   }
-  async function testConn() {
-    $("conn").textContent = t("checking"); $("conn").className = "badge mut";
-    try { const r = await fetchHtml(payBase() + "PaymentHistory"); const ok = r.ok && !/Account\/Login/i.test(r.html) && /stdRollOrRegistrationNo/i.test(r.html); $("conn").textContent = ok ? t("conn_ok") : t("conn_no"); $("conn").className = "badge " + (ok ? "ok" : "no"); }
-    catch (e) { $("conn").textContent = t("conn_fail"); $("conn").className = "badge no"; }
+  /* What the last test found on each server: null = never tested, "busy" = asking now.
+     Both badges are drawn from here and nowhere else — they used to carry their own data-i18n, so
+     switching language repainted a tested badge back to "not checked" and asked for the test
+     again for no reason. */
+  const connState = { conn: null, conn2: null };
+  const CONN_CLS = { ok: "ok", no: "no", fail: "no" };
+  function paintConn() {
+    const c2 = $("conn2"); if (c2) c2.style.display = srvMode ? "" : "none";
+    [["conn", "conn_exp"], ["conn2", "conn_act"]].forEach(function (p) {
+      const el = $(p[0]); if (!el) return;
+      const st = connState[p[0]];
+      /* Two badges side by side must say which is which, or a red one sends you to the wrong
+         server. With one server there is nothing to disambiguate, so the tag stays off. */
+      const tag = srvMode ? t(p[1]) + " · " : "";
+      el.textContent = tag + (st === null ? t("conn_unchecked") : st === "busy" ? t("checking")
+        : st === "ok" ? t("conn_ok") : st === "no" ? t("conn_no") : t("conn_fail"));
+      el.className = "badge " + (st === null || st === "busy" ? "mut" : CONN_CLS[st] || "no");
+    });
   }
-  function saveCfg() { try { chrome.storage.local.set({ baseUrl: baseUrl, appConc: conc, appTol: tol }); $("saveCfg").textContent = t("saved"); setTimeout(function () { $("saveCfg").textContent = t("save"); }, 1500); } catch (e) {} }
+  async function testOneConn(badge, base) {
+    if (!$(badge)) return;
+    connState[badge] = "busy"; paintConn();
+    try {
+      const r = await fetchHtml(payBase(base) + "PaymentHistory");
+      const ok = r.ok && !/Account\/Login/i.test(r.html) && /stdRollOrRegistrationNo/i.test(r.html);
+      connState[badge] = ok ? "ok" : "no";
+    } catch (e) { connState[badge] = "fail"; }
+    paintConn();
+  }
+  /* Both servers, because a run needs a session on both — one green badge would say the run is
+     ready when half of it cannot load a page. */
+  async function testConn() {
+    await testOneConn("conn", baseUrl);
+    if (srvMode) await testOneConn("conn2", baseUrl2);
+  }
+  function saveCfg() { try { chrome.storage.local.set({ baseUrl: baseUrl, baseUrl2: baseUrl2, srvMode: srvMode, appConc: conc, appTol: tol }); $("saveCfg").textContent = t("saved"); setTimeout(function () { $("saveCfg").textContent = t("save"); }, 1500); } catch (e) {} }
+
+  /* Show what the chosen mode needs and relabel everything for it. t() already resolves the s_
+     twins, so applyLang() repainting the data-i18n nodes is the whole relabelling — the tiles, the
+     filters and the pills follow from it. */
+  function applySrvMode() {
+    const row = $("base2row"); if (row) row.style.display = srvMode ? "" : "none";
+    /* the track has to gain a column with the field, or the buttons land in the wrong one */
+    const cg = $("connGrid"); if (cg) cg.classList.toggle("two", srvMode);
+    /* The tiles and chips are the same six buckets in both modes, but not the same severities:
+       grey means "nothing to do here" on a single-server run and "money did not survive the
+       migration" on a two-server one. One class on body, and the colours follow the meaning. */
+    document.body.classList.toggle("srv", srvMode);
+    const sh = $("srvHint"); if (sh) sh.style.display = srvMode ? "" : "none";
+    const sw = $("srvSw"); if (sw && sw.parentNode) sw.parentNode.classList.toggle("on", srvMode);
+    /* every mode-dependent word, in one sweep: t() resolves the s_ twins and applyLang() repaints
+       each data-i18n node from it, so nothing here writes a label by hand and no label can be set
+       and then quietly overwritten. */
+    applyLang(lang);
+  }
+  function setSrvMode(v) {
+    srvMode = !!v;
+    applySrvMode();
+    /* A finished run answered the other question — its verdicts do not carry over, and leaving the
+       cards on screen under the new labels would put two different meanings on one word. */
+    students = []; $("list").innerHTML = "";
+    ["ok", "no", "cw", "zero", "nf", "err", "stu", "done"].forEach(function (k) { T[k] = 0; });
+    T.total = 0; paintTiles(); $("fill").style.width = "0%";
+    $("html").disabled = true; $("xlsx").disabled = true; $("raw").disabled = true;
+    $("prog").textContent = t("ready");
+    try { chrome.storage.local.set({ srvMode: srvMode }); } catch (e) {}
+  }
 
   // ---------- wire ----------
-  function applyTheme(t) { document.body.className = (t === "light" ? "light" : ""); const b = $("theme"); if (b) b.textContent = (t === "light" ? "🌙 Dark" : "☀ Light"); }
+  /* toggle, not assign: body also carries .srv, which says the tiles are counting a different set
+     of things, and an outright assignment threw that away every time the theme was switched. */
+  function applyTheme(t) { document.body.classList.toggle("light", t === "light"); const b = $("theme"); if (b) b.textContent = (t === "light" ? "🌙 Dark" : "☀ Light"); }
   function wire() {
     try { const v = chrome.runtime.getManifest().version; const el = $("ver"); if (el) el.textContent = "v" + v; } catch (e) {}
     $("base").value = baseUrl; $("conc").value = conc; $("tol").value = tol;
     $("base").addEventListener("input", function () { baseUrl = this.value.trim() || "https://ums-5.osl.team"; });
+    if ($("base2")) {
+      $("base2").value = baseUrl2;
+      $("base2").addEventListener("input", function () { baseUrl2 = this.value.trim() || "https://ums-41.osl.team"; });
+    }
+    if ($("srvSw")) {
+      $("srvSw").checked = srvMode;
+      $("srvSw").addEventListener("change", function () { setSrvMode(this.checked); testConn(); });
+    }
+    applySrvMode();
+    /* Painted from the settings that are already loaded, not from the folder handle: the handle
+       arrives later, or never (IndexedDB can be unavailable), and until it did the switch read OFF
+       while saving was on — so the run wrote files the page said it would not. All the handle adds
+       is the folder name. */
+    paintSaveRow();
     $("conc").addEventListener("input", function () { let v = parseInt(this.value, 10); if (isNaN(v)) return; conc = Math.max(1, Math.min(300, v)); if (v !== conc) this.value = conc; try { chrome.storage.local.set({ appConc: conc }); } catch (e) {} });
     $("tol").addEventListener("input", function () { const v = parseFloat(this.value); tol = isNaN(v) ? 0 : Math.max(0, v); try { chrome.storage.local.set({ appTol: tol }); } catch (e) {} });
     $("theme").addEventListener("click", function () { const th = document.body.classList.contains("light") ? "dark" : "light"; applyTheme(th); try { chrome.storage.local.set({ theme: th }); } catch (e) {} });
@@ -993,6 +1642,7 @@
     // file, the preview and its search — so the next import starts from nothing.
     $("clearImp").addEventListener("click", function () {
       entries = []; importedRows = null; importedHeader = null; importSrc = "";
+      clearSheetPicker();
       ["paste", "link", "pvSearch", "file"].forEach(function (id) {
         const el = $(id); if (el) el.value = "";
       });
@@ -1005,10 +1655,22 @@
     $("run").addEventListener("click", startRun);
     $("stop").addEventListener("click", function () { if (run) { run.stop = true; run.paused = false; if (run.ac) try { run.ac.abort(); } catch (e) {} } this.disabled = true; $("pause").disabled = true; $("prog").textContent = t("stopping"); });
     $("pause").addEventListener("click", function () { if (!run) return; run.paused = !run.paused; this.textContent = run.paused ? t("resume") : t("pause"); });
+    if ($("saveSw")) $("saveSw").addEventListener("change", function () {
+      saveOnFinish = this.checked;
+      try { chrome.storage.local.set({ saveOnFinish: saveOnFinish }); } catch (e) {}
+      paintSaveRow();
+      /* Asking for the folder the moment it is switched on: this is the click, and at the end of
+         the run there will not be another one. */
+      if (saveOnFinish && !dirHandle) pickDir();
+    });
+    if ($("pickDir")) $("pickDir").addEventListener("click", pickDir);
     $("html").addEventListener("click", exportHtml);
     $("xlsx").addEventListener("click", exportXlsx);
     $("raw").addEventListener("click", exportRaw);
     $("file").addEventListener("change", function (ev) { const f = ev.target.files && ev.target.files[0]; if (f) onImport(f); });
+    /* Changing tab re-imports from the same file, so column detection, the swap probe, the
+       de-duplication and the preview all run again — a different tab is a different sheet. */
+    if ($("sheetSel")) $("sheetSel").addEventListener("change", function () { if (xlsxFile) loadXlsx(xlsxFile, this.value); });
     $("linkBtn").addEventListener("click", importFromLink);
     $("pasteBtn").addEventListener("click", importFromPaste);
     // Ctrl/Cmd+Enter runs it without reaching for the button
@@ -1069,6 +1731,7 @@
       .map(function (l) { return cut(l).map(function (c) { return c.trim(); }).filter(function (c) { return c !== ""; }); });
     if (!rows.length) { $("impNote").textContent = t("paste_empty"); return; }
     importedHeader = null;
+    clearSheetPicker();
     setSource(t("src_paste"), "");
     applyImported(rows);
   }
@@ -1098,6 +1761,7 @@
       if (/^\s*<(!doctype|html)/i.test(txt)) { $("impNote").textContent = t("imp_login"); return; }
       // the tab is the part after the last " - "; a title containing one is still shown whole
       const cut = nm.lastIndexOf(" - ");
+      clearSheetPicker();
       if (nm && cut > 0) setSource("↧ " + nm.slice(0, cut), nm.slice(cut + 3));
       else setSource("↧ " + (nm || t("src_link")), nm ? "" : "gid " + gid);
       applyImported(parseCSV(txt));
@@ -1106,7 +1770,11 @@
     });
   }
 
-  try { chrome.storage.local.get(["baseUrl", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk"], function (o) { if (o.manualOk) manualOk = o.manualOk; if (o.baseUrl) baseUrl = o.baseUrl; if (o.appConc) conc = o.appConc;
+  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName"], function (o) { if (o.manualOk) manualOk = o.manualOk;
+    saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
+    /* The handle comes back from IndexedDB, but the permission on it may not have — dirUsable()
+       decides that at the end of the run, when it matters. */
+    idb(function (st) { return st.get("dir"); }).then(function (h) { if (h) dirHandle = h; paintSaveRow(); }).catch(function () { paintSaveRow(); }); if (o.baseUrl) baseUrl = o.baseUrl; if (o.baseUrl2) baseUrl2 = o.baseUrl2; srvMode = o.srvMode === true; if (o.appConc) conc = o.appConc;
     // 1 was the old default and it hides exactly the ৳1 mismatches — drop it once, keep any other choice
     if (o.appTol != null) { if (o.appTol === 1 && !o.tolMigrated) { tol = 0; try { chrome.storage.local.set({ appTol: 0, tolMigrated: true }); } catch (e) {} } else tol = o.appTol; } wire(); applyTheme(o.theme || "dark"); applyLang(o.lang || "en"); testConn(); }); }
   catch (e) { wire(); applyTheme("dark"); applyLang("en"); }

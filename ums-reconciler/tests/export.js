@@ -148,9 +148,12 @@ check("the broken dead CSV export is gone", !/function exportCsv/.test(APP) && !
    fetching that back out of UMS by hand, page by page and student by student, was the slow part of
    every round. One file, every flagged receipt, both pages, verbatim. */
 {
-  const src = APP.match(/  function exportRaw\(\) \{[\s\S]*?\n  \}/);
-  check("exportRaw() exists", !!src, "app.js");
-  let out = null;
+  /* buildRaw() makes the text; exportRaw() hands it to the browser. Testing the builder needs no
+     Blob and no dl(), and it is the half that can actually be wrong. */
+  const src = APP.match(/  function buildRaw\(rows\) \{[\s\S]*?\n  \}/);
+  check("buildRaw() exists", !!src, "app.js");
+  const buildRaw = new Function("baseUrl", "ver",
+    src[0] + "; return buildRaw;")("https://ums-5.osl.team", () => "v13.5.0");
   const rows = [
     { status: "Mismatch", reg: "2365277", spid: "2394829", program: "", remarks: "Cash Back মিলছে না",
       raw: "## Program Wise — 2 rows\ndate\tmrn\n27/03/2023\t3121353558\n\n## Course Wise — 4 rows\ndate\tcourse\n15/10/2023\tEngineering\n" },
@@ -158,10 +161,8 @@ check("the broken dead CSV export is gone", !/function exportCsv/.test(APP) && !
       raw: "## Program Wise — 1 rows\ndate\n01/01/2024\n" },
     { status: "Matched", reg: "999", spid: "1", program: "", remarks: "সব মিলেছে", raw: "" }
   ];
-  new Function("flatRows", "dl", "Blob", "baseUrl", "ver", "Date", src[0] + "; return exportRaw;")(
-    () => rows, (b) => { out = b; }, function (parts) { this.text = parts.join(""); },
-    "https://ums-5.osl.team", () => "v13.5.0", Date)();
-  const txt = out.text;
+  /* exportRaw() drops the clean students before handing over; buildRaw() is given what to write */
+  const txt = buildRaw(rows.filter((r) => r.raw));
 
   check("the file names the version and the count", /v13\.5\.0/.test(txt) && /2 flagged/.test(txt), txt.split("\n")[0]);
   /* a clean student has nothing to argue about and would bury the ones that do — 10,160 of them in
@@ -176,12 +177,10 @@ check("the broken dead CSV export is gone", !/function exportCsv/.test(APP) && !
   check("students are divided", (txt.match(/^={70,}$/gm) || []).length === 2,
     (txt.match(/^={70,}$/gm) || []).length + " rules");
 
-  check("nothing flagged → no empty file", (function () {
-    let hit = null;
-    new Function("flatRows", "dl", "Blob", "baseUrl", "ver", "Date", src[0] + "; return exportRaw;")(
-      () => [rows[2]], (b) => { hit = b; }, function () {}, "u", () => "v", Date)();
-    return hit === null;
-  })());
+  /* the guard against an empty file lives in exportRaw(), which returns before building anything */
+  check("nothing flagged → no empty file",
+    /const rows = flatRows\(\)\.filter\(function \(r\) \{ return r\.raw; \}\);\s*\n\s*if \(!rows\.length\) return;/.test(APP),
+    "app.js");
 }
 
 /* the wiring: the button, the filter it honours, and when it becomes usable */

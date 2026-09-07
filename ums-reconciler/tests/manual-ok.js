@@ -35,14 +35,16 @@ function lift(names) {
     throw new Error("unbalanced " + n);
   }).join("\n");
   // the bits markStudent() calls to repaint — irrelevant here, so they are no-ops
+  // srvMode: notOk() bends on it (a two-server run has no free "zero" bucket) — false is the
+  // single-server rule these tests are about
   return new Function("manualOk", "saveManual", "recountAll", "paintTiles", "rerenderList",
-    "applyFilterAll", src + "\n; return { applyManual: applyManual, markStudent: markStudent, notOk: notOk };");
+    "applyFilterAll", "srvMode", src + "\n; return { applyManual: applyManual, markStudent: markStudent, notOk: notOk };");
 }
 const build = lift(["notOk", "manualKey", "applyManual", "markStudent"]);
 function fresh(store) {
   const saved = { n: 0 };
   const api = build(store, function () { saved.n++; }, function () {}, function () {},
-    function () {}, function () {});
+    function () {}, function () {}, false);
   api.saved = saved;
   return api;
 }

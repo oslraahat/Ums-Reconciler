@@ -6,7 +6,11 @@
 <title>UMS Payment Reconciler</title>
 <style>
   :root{--btnw:158px; --bg:#0d0f1a; --card:#161a2b; --line:#2a3050; --text:#eef1fb; --mut:#8b91b4;
-         --accent:#7c6cff; --ok:#37d18b; --no:#ff6b7d; --warn:#ffb454; --info:#5b8cff; --fld:#10131f; }
+         --accent:#7c6cff; --ok:#37d18b; --no:#ff6b7d; --warn:#ffb454; --info:#5b8cff; --fld:#10131f;
+         /* the height of a form control on the settings row: 10px padding + 1px border, above and
+            below, around a 14px line. Anything standing beside an input has to match it, or the
+            row ends up with two or three different bottoms on one line. */
+         --ctl-h:41px; }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
        font:14px/1.5 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif}
@@ -20,7 +24,7 @@
   .wrap{max-width:1020px;margin:0 auto;padding:22px 16px 60px}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px;
         box-shadow:0 8px 24px rgba(0,0,0,.25)}
-  .ch{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+  .ch{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
   .ch .n{width:26px;height:26px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
   .ch h2{margin:0;font-size:16px;font-weight:700}
   .ch .badge{background:rgba(124,108,255,.16);color:#bcb2ff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;font-variant-numeric:tabular-nums}
@@ -32,7 +36,10 @@
   textarea{min-height:140px;font-family:ui-monospace,monospace;font-size:13px;resize:vertical}
   .grid{display:grid;gap:14px}
   .g3{grid-template-columns:1fr 1fr 1fr}
-  .g4{grid-template-columns:1fr 1fr 1fr minmax(200px,1.1fr);align-items:start}
+  /* Tolerance and Parallel hold two or three characters — they were taking an equal quarter of
+     the row for no reason. The width goes to the save controls, which have a toggle and a button
+     to fit on one line. */
+  .g4{grid-template-columns:minmax(110px,.6fr) minmax(130px,.6fr) minmax(250px,1.3fr) minmax(200px,1.1fr);align-items:start}
   /* Start/Pause/Stop live in the last column so they sit at the right edge; the negative margin
      lifts them level with the inputs, which carry a label above. */
   .runbtns{grid-column:4;align-self:start;display:grid;grid-template-columns:1fr 1fr;gap:8px;
@@ -86,6 +93,11 @@
   .filters .fb[data-f="nf"]{color:var(--warn)}
   .filters .fb.active{background:var(--accent);color:#fff;border-color:var(--accent)}
   .filters .fb:disabled{opacity:.5;cursor:default}
+  /* The exports are actions, not another way to narrow the list, and side by side in the same grey
+     chip they read as more filters. Same size and rhythm, different weight and edge. */
+  .filters .fb.dl{background:var(--fld);border-color:#3b4370;color:var(--text);font-weight:700}
+  .filters .fb.dl:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+  body.light .filters .fb.dl{background:#f3f4fb;border-color:#d7dbef}
   .list{border:1px solid var(--line);border-radius:12px;max-height:60vh;overflow-y:auto;overflow-x:hidden}
   .stu{border-bottom:1px solid var(--line)}
   .stu:last-child{border-bottom:none}
@@ -149,10 +161,76 @@
   body.light .ch .badge{background:#eceafe;color:#5b4ff0}
   body.light .btn.g{background:#f3f4fb} body.light .btn.g:hover{background:#e9ebf7}
   body.light .bar2{background:#e7e9f6}
+  /* Two-server mode reuses the six buckets for different verdicts, and two of them change gravity:
+     "Missing on Actual" is money that did not survive the move — the most serious thing the run can
+     find — and it was wearing the grey of "CW empty", which is the one that means nothing is wrong.
+     "Extra on Actual" counts as a problem there too (see notOk), so it stops being grey as well. */
+  body.srv .tile[data-f="cw"] .dot{background:var(--no)!important}
+  body.srv .tile[data-f="cw"] .v{color:var(--no)}
+  body.srv .tile[data-f="zero"] .dot{background:var(--warn)!important}
+  body.srv .tile[data-f="zero"] .v{color:var(--warn)}
+  body.srv .filters .fb[data-f="cw"]{color:var(--no)}
+  body.srv .filters .fb[data-f="zero"]{color:var(--warn)}
   body.light .tile{background:#fafbff} body.light .stu .sh{background:#fbfbfe}
   body.light .filters .fb{background:#fff} body.light .filters .fb.active{background:#2b2f52;border-color:#2b2f52}
   body.light .stu .sh .reg{color:#5b4ff0}
+  /* One address or two, with the buttons on the end. The second field takes an equal share rather
+     than sitting under the first, and min-width:0 lets both actually shrink — grid items refuse to
+     go below their content width without it, so a long URL would push the buttons off the card. */
+  .connGrid{grid-template-columns:1fr auto auto;align-items:end}
+  .connGrid.two{grid-template-columns:1fr 1fr auto auto}
+  .connGrid > div{min-width:0}
+  /* Narrow: an address gets the full width and the two buttons share the row under them —
+     stacking all four left the card a column of full-width blocks. */
+  @media (max-width:860px){
+    .connGrid, .connGrid.two{grid-template-columns:1fr 1fr}
+    .connGrid > div:first-child, .connGrid > #base2row{grid-column:1/-1}
+  }
+
+  /* the space to the right of the heading and the count — margin-left:auto is what puts it there.
+     Appearance is in .srvsw / .sheetrow above; this is placement only. */
+  .ch .srvsw{margin-left:auto}
+  .ch .sheetrow{margin-left:auto;display:flex;align-items:center;gap:8px;min-width:0}
+  .ch .sheetrow label{margin:0;font-size:12px;color:var(--mut);font-weight:600;white-space:nowrap}
+  .ch .sheetrow select{width:auto;min-width:150px;max-width:230px;padding:5px 10px;font-size:12px;
+    font-weight:600;border-radius:8px;background:var(--fld)}
   body.light select option{background:#fff}
+  /* mode switch — a pill in the card header, sitting in the space to the right of the badges.
+     margin-left:auto is what puts it there: the heading and the badges keep their own gap and
+     everything left over goes between them and this. */
+  /* The toggle's look, wherever it is used — the card header, the settings row. Its PLACEMENT is
+     the header's business and lives in .ch .srvsw below, so a second one elsewhere does not
+     inherit a margin that only makes sense beside a heading. */
+  .srvsw{display:inline-flex;align-items:center;gap:9px;cursor:pointer;
+    padding:5px 11px 5px 9px;border:1px solid var(--line);border-radius:8px;font-size:12px;
+    font-weight:600;color:var(--mut);background:var(--fld);user-select:none;white-space:nowrap;
+    transition:border-color .12s,color .12s,background .12s}
+  .srvsw:hover{border-color:var(--accent);color:var(--text)}
+  /* switched on, it is answering a different question — it says so without being read */
+  .srvsw.on{border-color:var(--accent);color:var(--accent);background:rgba(124,108,255,.12)}
+  /* The input keeps the clicking, the label and the keyboard; the browser just stops painting it.
+     Hidden with opacity rather than display:none so it stays focusable. */
+  .srvsw input{position:absolute;opacity:0;width:0;height:0;margin:0}
+  .srvsw .tg{position:relative;flex:0 0 auto;width:28px;height:16px;border-radius:8px;
+    background:var(--line);transition:background .15s}
+  .srvsw .tg::after{content:"";position:absolute;top:2px;left:2px;width:12px;height:12px;
+    border-radius:50%;background:var(--mut);transition:transform .15s,background .15s}
+  /* the knob is driven by :checked, not by a class — it cannot disagree with the input it sits on */
+  .srvsw input:checked + .tg{background:var(--accent)}
+  .srvsw input:checked + .tg::after{transform:translateX(12px);background:#fff}
+  .srvsw input:focus-visible + .tg{outline:2px solid var(--accent);outline-offset:2px}
+  body.light .srvsw{background:#fff}
+  body.light .srvsw.on{background:#eceafe;color:#5b4ff0;border-color:#5b4ff0}
+  /* the third column of the settings grid, on the same line as Tolerance and Parallel */
+  /* One line, and level with the inputs beside them: a 30px pill and a 32px button next to a 41px
+     box line up at the top and part company at the bottom, which is the first thing the eye finds. */
+  .saverow{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
+  .saverow .srvsw, .saverow .btn{min-height:var(--ctl-h)}
+  .saverow .srvsw{min-width:0}
+  .saverow .btn{padding:8px 12px;font-size:12px}
+  /* the folder path needs room, so it sits on the hint line where there is some */
+  .where{font-weight:700;color:var(--text)}
+  .where:not(:empty){display:block;margin-bottom:4px;overflow-wrap:anywhere}
 </style>
 </head>
 <body>
@@ -169,17 +247,25 @@
   <div class="wrap">
 
     <div class="card">
-      <div class="ch"><span class="n">1</span><h2 data-i18n="conn_h">সংযোগ</h2><span id="conn" class="badge mut" data-i18n="conn_unchecked">যাচাই করা হয়নি</span></div>
-      <div class="grid" style="grid-template-columns:1fr auto auto;align-items:end">
+      <div class="ch"><span class="n">1</span><h2 data-i18n="conn_h">সংযোগ</h2><span id="conn" class="badge mut">যাচাই করা হয়নি</span><span id="conn2" class="badge mut" style="display:none">—</span><label class="srvsw"><input type="checkbox" id="srvSw"><i class="tg"></i><span data-i18n="srv_mode">দুই সার্ভার মেলাও (Expected ↔ Actual)</span></label></div>
+      <!-- One grid for both addresses, side by side: they are the same kind of thing and the mode
+           is about comparing them. The column count follows the mode (see .connGrid.two) — with one
+           server there is no second field, and a four-column track would leave a hole where the
+           buttons go. A single-server run looks exactly as it always did. -->
+      <div class="grid connGrid" id="connGrid">
         <div><label data-i18n="base_l">UMS ঠিকানা (Base URL)</label><input id="base" spellcheck="false" placeholder="https://ums-5.osl.team"></div>
+        <div id="base2row" style="display:none"><label data-i18n="base_act_l">Actual URL (যেটা যাচাই হবে)</label><input id="base2" spellcheck="false" placeholder="https://ums-41.osl.team"></div>
         <div><button class="btn g" id="testConn" data-i18n="test">Test Connection</button></div>
         <div><button class="btn g" id="saveCfg" data-i18n="save">সেভ করুন</button></div>
       </div>
+      <div class="hint" id="srvHint" style="display:none" data-i18n="srv_hint">একই Reg + StudentProgramId দুই সার্ভারে খুলে প্রতিটা সারির প্রতিটা ঘর মিলিয়ে দেখা হবে। দুই সার্ভারেই লগইন থাকতে হবে।</div>
       <div class="hint" data-i18n="sess_hint">এই ব্রাউজারে UMS-এ লগইন থাকা অবস্থায় চলবে (সেশন ব্যবহার করে)। আলাদা email/password লাগে না।</div>
     </div>
 
     <div class="card">
-      <div class="ch"><span class="n">2</span><h2 data-i18n="verify_h">কী যাচাই হবে</h2><span id="cnt" class="badge">০ টি</span></div>
+      <!-- The sheet picker shows only for a workbook with more than one tab; a .csv, a Google
+           Sheet or a pasted block has nothing to choose between, so it stays hidden. -->
+      <div class="ch"><span class="n">2</span><h2 data-i18n="verify_h">কী যাচাই হবে</h2><span id="cnt" class="badge">০ টি</span><div id="sheetRow" class="sheetrow" style="display:none"><label for="sheetSel" data-i18n="sheet_l">কোন শিট পড়া হবে</label><select id="sheetSel"></select></div></div>
       <div class="hint" style="margin:0 0 10px" data-i18n="in_hint">Excel / CSV বা Google Sheet import করো — Reg ও spid/Program অটো-ধরবে।</div>
       <div class="row-actions">
         <label class="btn g impbtn" for="file" style="cursor:pointer" data-i18n="import_btn">⬆ Import Excel</label>
@@ -206,12 +292,22 @@
       <div class="grid g4">
         <div><label data-i18n="tol_l">গ্রহণযোগ্য পার্থক্য</label><input id="tol" type="number" min="0" step="any" value="0"></div>
         <div><label data-i18n="conc_l">একসাথে কয়টি অনুরোধ</label><input id="conc" type="number" min="1" max="300" value="25" title="সর্বোচ্চ 300"></div>
+        <!-- A run can take hours; at the end of one nobody wants to remember to press three
+             buttons. An extension cannot write to its own folder, so the folder is picked once. -->
+        <div>
+          <label data-i18n="save_l">রান শেষে</label>
+          <div class="saverow">
+            <label class="srvsw"><input type="checkbox" id="saveSw"><i class="tg"></i><span data-i18n="save_run">ফল সেভ করো</span></label>
+            <button class="btn g" id="pickDir" data-i18n="save_pick_b" data-title="save_pick" disabled>📁 ফোল্ডার</button>
+          </div>
+        </div>
         <div class="runbtns">
           <button class="btn p" id="run" disabled style="grid-column:1;grid-row:1/3;align-self:stretch" data-i18n="run_btn">▶ Start</button>
           <button class="btn g" id="pause" style="grid-column:2;grid-row:1" disabled>⏸ Pause</button>
           <button class="btn g" id="stop" style="grid-column:2;grid-row:2" disabled>⏹ Stop</button>
         </div>
       </div>
+      <div class="hint"><span class="where" id="saveWhere"></span><span data-i18n="save_hint">report.html · report.xlsx · table-data.txt · summary.txt — ফিল্টার যা-ই থাক, পুরোটাই সেভ হয়।</span></div>
     </div>
 
     <div class="card">
@@ -232,10 +328,11 @@
         <span class="fb" data-f="cw" data-i18n="f_cw">শুধু CW ফাঁকা</span>
         <span class="fb" data-f="zero" data-i18n="f_zero">Zero Pay</span>
         <span class="fb" data-f="nf" data-i18n="f_nf">Program পাওয়া যায়নি</span>
-        <button class="fb" id="html" disabled style="margin-left:auto">⬇ HTML Report</button>
-        <button class="fb" id="xlsx" disabled>⬇ Excel Report</button>
-        <button class="fb" id="raw" disabled title="Program Wise + Course Wise tables for every student that still needs work — one .txt file">⬇ Table Data</button>
+        <button class="fb dl" id="html" disabled style="margin-left:auto">⬇ HTML Report</button>
+        <button class="fb dl" id="xlsx" disabled>⬇ Excel Report</button>
+        <button class="fb dl" id="raw" disabled title="Program Wise + Course Wise tables for every student that still needs work — one .txt file">⬇ Table Data</button>
       </div>
+      <div class="note" id="listNote" style="display:none;margin-top:12px"></div>
       <div class="list" id="list" style="margin-top:12px"></div>
     </div>
 

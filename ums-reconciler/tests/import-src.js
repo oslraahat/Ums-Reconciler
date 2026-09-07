@@ -4,10 +4,14 @@
  * week's copy of the same file — so a run against the wrong sheet was invisible until the numbers
  * came out strange, if ever. The import note now leads with the source.
  *
- * The tab name is the awkward part: the order of <sheet> elements in workbook.xml is NOT the order
- * of the sheetN.xml files, so the name has to be looked up through the relationship id. That
- * lookup is what this checks — with a small XML shim, since node has no DOMParser (the XML parsing
- * itself is the browser's job; the mapping is ours).
+ * The tabs are the awkward part: the order of <sheet> elements in workbook.xml is NOT the order of
+ * the sheetN.xml files, so both the name and the ORDER have to be followed through the relationship
+ * id. That mapping is what this checks — with a small XML shim, since node has no DOMParser (the
+ * XML parsing itself is the browser's job; the mapping is ours).
+ *
+ * It matters twice over now: readXlsx() used to take whichever worksheet was called sheet1.xml,
+ * which is regularly not the first tab, so a workbook whose Summary sat in sheet4.xml imported the
+ * wrong sheet without a word. The fixture below has always described that; now it fails on it.
  *
  *   node tests/import-src.js
  */
@@ -20,7 +24,7 @@ const APP = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
 let fail = 0;
 const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  " : "FAIL  ") + name + (!ok && extra ? "   " + extra : "")); };
 
-/* ---- the smallest XML DOM sheetNameOf() actually touches ---- */
+/* ---- the smallest XML DOM sheetsOf() actually touches ---- */
 const RELS_NS = "http://schemas.openxmlformats.org/officeDocument/2006/relationships";
 function el(tag, attrs) {
   return {
@@ -41,20 +45,30 @@ DOMParserShim.prototype.parseFromString = function (str) {
   return { getElementsByTagName: (n) => nodes.filter((x) => x.tagName === n) };
 };
 
-/* ---- lift sheetNameOf() straight out of app.js so this cannot drift from what ships ---- */
-const at = APP.search(/\n  function sheetNameOf\s*\(/);
-if (at < 0) { console.log("FAIL  sheetNameOf not found in app.js"); process.exit(1); }
+/* ---- lift sheetsOf() straight out of app.js so this cannot drift from what ships ---- */
+const at = APP.search(/\n  function sheetsOf\s*\(/);
+if (at < 0) { console.log("FAIL  sheetsOf not found in app.js"); process.exit(1); }
 let i = APP.indexOf("{", at), depth = 0, end = -1;
 for (let j = i; j < APP.length; j++) {
   if (APP[j] === "{") depth++;
   else if (APP[j] === "}") { depth--; if (!depth) { end = j + 1; break; } }
 }
-const sheetNameOf = new Function("DOMParser", "RELS_NS",
-  APP.slice(at, end) + "; return sheetNameOf;")(DOMParserShim, RELS_NS);
+const sheetsOf = new Function("DOMParser", "RELS_NS",
+  APP.slice(at, end) + "; return sheetsOf;")(DOMParserShim, RELS_NS);
+/* what the old sheetNameOf() did, out of the list — the picker needs the whole list, the note
+   still needs just the one name */
+const nameOf = (f, key, dec) => {
+  const hit = sheetsOf(f, dec).filter((x) => x.target.toLowerCase() === String(key).toLowerCase())[0];
+  return hit ? hit.name : "";
+};
 
 const enc = (s) => new TextEncoder().encode(s);
 const dec = new TextDecoder("utf-8");
 
+const SHEETS = {
+  "xl/worksheets/sheet1.xml": new TextEncoder().encode("<worksheet/>"),
+  "xl/worksheets/sheet4.xml": new TextEncoder().encode("<worksheet/>")
+};
 const WB = '<?xml version="1.0"?><workbook><sheets>' +
   '<sheet name="Summary" sheetId="1" r:id="rId7"/>' +
   '<sheet name="ছাত্র তালিকা" sheetId="2" r:id="rId3"/>' +
@@ -66,14 +80,31 @@ const RELS = '<?xml version="1.0"?><Relationships>' +
 
 /* ---- the name follows the relationship, not the position ---- */
 {
-  const f = { "xl/workbook.xml": enc(WB), "xl/_rels/workbook.xml.rels": enc(RELS) };
-  // readXlsx prefers sheet1.xml — which here is the SECOND tab, not the first
+  const f = Object.assign({ "xl/workbook.xml": enc(WB), "xl/_rels/workbook.xml.rels": enc(RELS) }, SHEETS);
   check("the tab is found through its r:id, not its order",
-    sheetNameOf(f, "xl/worksheets/sheet1.xml", dec) === "ছাত্র তালিকা",
-    sheetNameOf(f, "xl/worksheets/sheet1.xml", dec));
+    nameOf(f, "xl/worksheets/sheet1.xml", dec) === "ছাত্র তালিকা",
+    nameOf(f, "xl/worksheets/sheet1.xml", dec));
   check("…and the other file maps to the other tab",
-    sheetNameOf(f, "xl/worksheets/sheet4.xml", dec) === "Summary",
-    sheetNameOf(f, "xl/worksheets/sheet4.xml", dec));
+    nameOf(f, "xl/worksheets/sheet4.xml", dec) === "Summary",
+    nameOf(f, "xl/worksheets/sheet4.xml", dec));
+
+  /* the order a person sees along the bottom of Excel, which is the order of the <sheet> elements
+     and has nothing to do with the filenames */
+  const tabs = sheetsOf(f, dec);
+  check("every tab is offered", tabs.length === 2, tabs.length + ": " + tabs.map((x) => x.name).join(", "));
+  check("…in the workbook's order, not the files'",
+    tabs[0].name === "Summary" && tabs[1].name === "ছাত্র তালিকা",
+    tabs.map((x) => x.name).join(" | "));
+  /* THE bug: the first tab here lives in sheet4.xml, so taking sheet1.xml by name took the second
+     tab. Every workbook whose tabs were reordered or added out of sequence imported the wrong one. */
+  check("…so the first tab is sheet4.xml, not sheet1.xml",
+    tabs[0].target === "xl/worksheets/sheet4.xml", tabs[0].target);
+
+  /* a <sheet> whose worksheet is not in the zip (a chart sheet) has no rows to import */
+  const noFile = { "xl/workbook.xml": enc(WB), "xl/_rels/workbook.xml.rels": enc(RELS),
+    "xl/worksheets/sheet1.xml": enc("<worksheet/>") };
+  check("a tab with no worksheet in the file is not offered",
+    sheetsOf(noFile, dec).length === 1, JSON.stringify(sheetsOf(noFile, dec).map((x) => x.name)));
 }
 
 /* ---- writers that spell the target with a leading path ---- */
@@ -82,31 +113,77 @@ const RELS = '<?xml version="1.0"?><Relationships>' +
     "xl/workbook.xml": enc('<?xml version="1.0"?><workbook><sheets><sheet name="Data" r:id="rId1"/></sheets></workbook>'),
     "xl/_rels/workbook.xml.rels": enc('<?xml version="1.0"?><Relationships><Relationship Id="rId1" Target="/xl/worksheets/sheet1.xml"/></Relationships>')
   };
-  check("an absolute Target still matches", sheetNameOf(f, "xl/worksheets/sheet1.xml", dec) === "Data",
-    sheetNameOf(f, "xl/worksheets/sheet1.xml", dec));
+  f["xl/worksheets/sheet1.xml"] = enc("<worksheet/>");
+  check("an absolute Target still matches", nameOf(f, "xl/worksheets/sheet1.xml", dec) === "Data",
+    nameOf(f, "xl/worksheets/sheet1.xml", dec));
 }
 
 /* ---- a missing or broken workbook costs the name, never the import ---- */
 {
-  check("no workbook.xml → no name, no throw", sheetNameOf({}, "xl/worksheets/sheet1.xml", dec) === "");
-  const noRels = { "xl/workbook.xml": enc(WB) };
-  check("no rels → falls back to the first tab", sheetNameOf(noRels, "xl/worksheets/sheet1.xml", dec) === "Summary",
-    sheetNameOf(noRels, "xl/worksheets/sheet1.xml", dec));
+  check("no workbook.xml → no tabs, no throw", sheetsOf({}, dec).length === 0);
+  /* without the rels there is no link from a name to a file, so nothing can be offered — and
+     readXlsx falls back to its filename guess, which is what it always did */
+  const noRels = Object.assign({ "xl/workbook.xml": enc(WB) }, SHEETS);
+  check("no rels → no tabs, no throw", sheetsOf(noRels, dec).length === 0);
   const junk = { "xl/workbook.xml": enc("<<<not xml at all") };
-  check("junk → still no throw", sheetNameOf(junk, "xl/worksheets/sheet1.xml", dec) === "");
+  check("junk → still no throw", sheetsOf(junk, dec).length === 0);
 }
 
 /* ---- the wiring around it ---- */
 {
   check("unzip() keeps workbook.xml and its rels",
     /workbook\\\.xml\|_rels\\\/workbook\\\.xml\\\.rels/.test(APP), "app.js");
-  check("readXlsx() hands the tab name back with the rows",
-    /return \{ rows: sheet\(dec\.decode\(f\[key\]\), sh\), sheet: sheetNameOf\(f, key, dec\) \}/.test(APP), "app.js");
+  check("readXlsx() hands the tab name and the tab list back with the rows",
+    /return \{ rows: sheet\(dec\.decode\(f\[key\]\), sh\), sheet: hit \? hit\.name : "", sheets: tabs, target: key \};/.test(APP), "app.js");
+  /* the workbook's own first tab, not whatever is called sheet1.xml */
+  check("…defaulting to the workbook's first tab",
+    /let key = \(want && f\[want\]\) \? want : \(\(tabs\[0\] && tabs\[0\]\.target\) \|\| ""\);/.test(APP), "app.js");
+  check("…and only guessing by filename when the workbook will not parse",
+    APP.indexOf("if (!key) {") < APP.indexOf("sheet1\\.xml$/i.test(x)"), "app.js");
+
+  /* the picker itself */
+  check("a workbook with tabs offers them", /function paintSheetPicker\(\)/.test(APP), "app.js");
+  /* It decides which rows these are, so it belongs beside the heading and the count — under the
+     paste box it sat below the very rows it chooses. */
+  {
+    const HTML = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
+    const hdr = HTML.slice(HTML.indexOf('data-i18n="verify_h"'));
+    check("…in the card header, not under the paste box",
+      hdr.indexOf('id="sheetRow"') >= 0 && hdr.indexOf('id="sheetRow"') < hdr.indexOf("</div>\n"),
+      "app.html");
+    check("…pushed into the space on the right",
+      /\.ch \.sheetrow\{margin-left:auto/.test(HTML), "app.html");
+  }
+  check("…but one tab is not a choice", /if \(xlsxTabs\.length < 2\) \{ row\.style\.display = "none"/.test(APP), "app.js");
+  check("…and choosing one re-imports from that tab",
+    /addEventListener\("change", function \(\) \{ if \(xlsxFile\) loadXlsx\(xlsxFile, this\.value\); \}\)/.test(APP), "app.js");
+  /* a .csv, a Google Sheet and a pasted block have no tabs — a picker left over from the last
+     workbook would offer tabs that have nothing to do with the rows on screen */
+  check("…and anything without tabs clears it",
+    (APP.match(/clearSheetPicker\(\);/g) || []).length >= 4,
+    (APP.match(/clearSheetPicker\(\);/g) || []).length + " call sites");
+  /* the File is kept, not the unzipped parts: a workbook with a 100,000-row tab would otherwise
+     sit inflated in memory for as long as the page is open, for tabs nobody asked for */
+  check("…by re-reading the file, not by holding every sheet in memory",
+    /let xlsxFile = null, xlsxTabs = \[\], xlsxTarget = "";/.test(APP) &&
+    /r\.readAsArrayBuffer\(file\);/.test(APP), "app.js");
+  /* a sheet name goes into an <option value> and a Reg into data-reg — esc() has to close them */
+  check("…and a tab named with a quote cannot break out of the option",
+    /\.replace\(\/"\/g, "&quot;"\)/.test(APP), "app.js");
   check("a file import names the file", /setSource\("📄 " \+ file\.name, x\.sheet\)/.test(APP), "app.js");
   check("…a CSV too, which has no tab", /setSource\("📄 " \+ file\.name, ""\)/.test(APP), "app.js");
-  check("…and a failed read still says which file failed",
-    /catch\(function \(e\) \{ setSource\("📄 " \+ file\.name, ""\); \$\("impNote"\)/.test(APP.replace(/\s*\n\s*/g, "")) ||
-    /setSource\("📄 " \+ file\.name, ""\); \$\("impNote"\)\.textContent = importSrc/.test(APP), "app.js");
+  /* structural rather than literal: the catch block has grown a line (the tab list is cleared
+     too), and pinning its exact spelling made a correct change read as a regression */
+  {
+    const at = APP.indexOf("}).catch(function (e) {", APP.indexOf("function loadXlsx"));
+    const blk = APP.slice(at, APP.indexOf("});", at));
+    check("…and a failed read still says which file failed",
+      /setSource\("📄 " \+ file\.name, ""\)/.test(blk) &&
+      /\$\("impNote"\)\.textContent = importSrc \+ " — " \+ t\("imp_excel_fail"\)/.test(blk),
+      "app.js");
+    /* a workbook that would not open must not leave its tab list behind for the next import */
+    check("…and forgets the tabs it could not read", /clearSheetPicker\(\);/.test(blk), "app.js");
+  }
 
   check("a Google Sheet reads its name off Content-Disposition",
     /r\.headers\.get\("content-disposition"\)/.test(APP), "app.js");

@@ -141,9 +141,22 @@ const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  "
 
 {
   check("testOne re-fetches while Course Wise has not answered",
-    /while \(cwTries < 3 && !cwSettled\(c, cw\)\)/.test(APP), "app.js");
-  check("…up to three times in all", /let cwTries = 1;/.test(APP), "app.js");
-  check("…pausing longer each time", /await sleep\(600 \* cwTries\)/.test(APP), "app.js");
+    /while \(cwTries < CW_TRIES && !cwSettled\(c, cw\)\)/.test(APP), "app.js");
+  /* The bound is a named constant, not a number written into the loop: it has been raised once
+     already (3 → 6) and the guard must protect the behaviour, not the figure. What it may never
+     become is 1 — that is "ask once and file whatever came back", which is the bug. */
+  check("…and how many times is a named, generous bound",
+    /const CW_TRIES = (\d+);/.test(APP) && +/const CW_TRIES = (\d+);/.exec(APP)[1] >= 3,
+    (/const CW_TRIES = (\d+);/.exec(APP) || [])[1]);
+  check("…starting the count at one", /let cwTries = 1;/.test(APP), "app.js");
+  /* Exponential and jittered now, not a flat multiple: at 25 parallel workers a fixed pause brings
+     everyone that hit the same hiccup back at the same instant to hit it together again. */
+  check("…pausing longer each time", /await backoff\(cwTries - 1\)/.test(APP), "app.js");
+  check("…and the pause really does grow, with jitter",
+    /Math\.min\(800 \* Math\.pow\(2, attempt\), 20000\)/.test(APP) &&
+    /0\.75 \+ Math\.random\(\) \* 0\.5/.test(APP), "app.js");
+  check("…honouring Retry-After when the server sends one",
+    /backoff\(a, r\.headers\.get\("retry-after"\)\)/.test(APP), "app.js");
   check("…only the Course Wise page, not the whole student",
     /c = await fetchHtml\(cwUrl\(reg, spid\)\)/.test(APP), "app.js");
   check("…and Stop cuts the wait short",
@@ -154,6 +167,55 @@ const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  "
   // a settled No Data must never be re-requested — hundreds of them in one run
   const body = APP.slice(APP.indexOf("let cwTries = 1;"), APP.indexOf("const cwEmpty ="));
   check("a genuine No Data is not fetched again", /!cwSettled\(c, cw\)/.test(body), "app.js");
+}
+
+/* ---- a slow server may delay the result; it may never decide it ----
+   Three quick tries and then "load error" filed the network under the student's name: the row read
+   as a finding about the money when nothing had been read at all. Every one of these is a way that
+   can come back. */
+{
+  check("a hung request is cut off and asked again, not waited on forever",
+    /setTimeout\(function \(\) \{ timedOut = true; stopIt\(\); \}, reqTimeout\(a\)\)/.test(APP), "app.js");
+  /* the timeout aborts THAT request; run.ac stays the Stop button, or Stop and a slow page would
+     be indistinguishable and one of them would cancel the wrong thing */
+  check("…on its own controller, so Stop still means Stop",
+    /if \(run && run\.stop\) \{ const a2 = new Error\("stopped"\); a2\.name = "AbortError"; throw a2; \}/.test(APP) &&
+    /if \(e && e\.name === "AbortError" && !timedOut\) throw e;/.test(APP), "app.js");
+  /* a server that is slow rather than broken has to be given the time it needs, so the allowance
+     grows with each attempt instead of cutting off at the same mark every time */
+  check("…allowing longer on each retry", /Math\.min\(45000 \* \(a \+ 1\), 180000\)/.test(APP), "app.js");
+
+  check("refusals make the whole run back off instead of piling on",
+    /function netPressure\(bad\)/.test(APP) && /await breathe\(\)/.test(APP), "app.js");
+
+  /* the heart of it: a page that never answered is not an answer, and must not be left standing
+     as one — no rows, No Data and "nothing came back" are three different things */
+  check("a non-answer is marked as one", /function unanswered\(out\)/.test(APP), "app.js");
+  check("…a No Data table is NOT a non-answer",
+    !/noData/.test(APP.slice(APP.indexOf("function unanswered(out)"), APP.indexOf("function countUnanswered"))),
+    "app.js");
+  check("…and the run sweeps them until they answer",
+    /await sweepUnanswered\(t0\);/.test(APP) && /const SWEEP_ROUNDS = \d+;/.test(APP), "app.js");
+  check("…re-asking more gently than the first pass did",
+    /Math\.ceil\(conc \/ 2\)/.test(APP), "app.js");
+  /* and it does not stop while the server is the reason. A barren round against a healthy
+     server means the answer is not coming; a barren round against a struggling one means
+     nothing at all, and stopping there is the "three quick tries" bug in a new hat. */
+  check("giving up needs several barren rounds AND a server that is answering fine",
+    /barren = fixed \? 0 : barren \+ 1;[\s\S]*?if \(barren >= 3 && !pressure\) return;/.test(APP), "app.js");
+  check("…and Stop ends the sweep at once",
+    /for \(let round = 1; round <= SWEEP_ROUNDS && run && !run\.stop; round\+\+\)/.test(APP), "app.js");
+  /* and then it says so, with the count — "load error" alone sent people to look at the data */
+  check("the line says the server never answered, and how often it was asked",
+    /res0\.detail \+= " · " \+ t\("d_noanswer"\)\.replace\("\{n\}", res0\.tried\)/.test(APP), "app.js");
+  check("…and the attempt count carries across sweep rounds",
+    /res0\.tried = \(\(prior && prior\.tried\) \|\| 0\) \+ attempts;/.test(APP), "app.js");
+  check("…and the finished run reports what is still outstanding",
+    /t\("p_unanswered"\)\.replace\("\{n\}", left\)/.test(APP), "app.js");
+  ["p_retry", "p_unanswered", "d_noanswer"].forEach(function (k) {
+    const m = APP.match(new RegExp(k + ': \\{ bn: "[^"]*", en: "([^"]*)" \\}'));
+    check(k + " has clean English", !!m && !/[ঀ-৿]/.test(m[1]), m ? m[1] : "not found");
+  });
 }
 
 

@@ -146,6 +146,13 @@
       const vals = spread(cells, width);
       const rec = {};
       Object.keys(cols).forEach(function (k) { rec[k] = vals[cols[k]] == null ? "" : vals[cols[k]]; });
+      /* Every cell as the page printed it, aligned to header[]. The named fields above cover the
+         columns the rules care about; the server-to-server diff has to answer for the ones they do
+         not (Payment Method, Remarks, User, Special Note, Branch …), and those have no home in
+         PW_COLS/CW_COLS. Non-enumerable, so the shape of a row is unchanged for everything that
+         walks its keys. */
+      try { Object.defineProperty(rec, "__raw", { value: vals, enumerable: false }); }
+      catch (e) { rec.__raw = vals; }
       data.push(rec);
     }
     return { ok: true, header: header, cols: cols, rows: data, totalRow: totalRow, noData: noData };
@@ -1128,6 +1135,10 @@
      them, so the page is named the way it is named on UMS. */
   function sideOf(e) {
     const f = String(e.field || "");
+    /* An Expected ↔ Actual finding is about ONE page on TWO servers, the mirror image of everything
+       else here (two pages on one server). Say which, or "Program Wise" alone would read as the
+       same-server comparison. */
+    if (e.srv) return "Expected ↔ Actual · " + (e.side || "");
     if (/^Program Wise/.test(f)) return "Program Wise";
     if (/^Course Wise/.test(f)) return "Course Wise";
     if (e.key === "FOOTER" || e.key === "মোট") return "দুই পাতার মোট";
@@ -1142,13 +1153,32 @@
 
   function shortError(e) {
     // where: ledger · course · receipt · date   —   enough to find the exact row on the page
-    const at = "[" + sideOf(e) + "] " + (e.course ? String(e.course).slice(0, 22) + " · " : "") +
+    /* The course is skipped when the receipt key already carries it. On the two-server Course Wise
+       comparison it always does — a receipt holds several courses, so the key has to name one to
+       tell them apart — and the line came out reading
+       "UDVASH Varsity Math · MRN 2220262250 · UDVASH Varsity Math". */
+    const inKey = e.course && String(e.key).indexOf(String(e.course).trim()) >= 0;
+    const at = "[" + sideOf(e) + "] " + (e.course && !inKey ? String(e.course).slice(0, 22) + " · " : "") +
       e.key + (e.date ? " · " + e.date : "");
     const ref = e.ref ? "  {" + e.ref + "}" : "";
     const shown = money(e.pw !== undefined && e.pw !== "—" ? e.pw : e.cw);
     const d = typeof e.delta === "number" ? e.delta : 0;
     const sign = d > 0 ? "+" : "";
     switch (e.kind) {
+      /* Expected ↔ Actual. "হওয়ার কথা / আছে" is the wrong phrasing here — nothing is being derived,
+         two stored values simply disagree — so both are named for what they are. */
+      case "srvcell":
+        return fieldOf(e) + " আলাদা · " + at + " — Expected " + e.pw + ", Actual " + e.cw +
+          " (" + sign + fmt(d) + ")" + ref;
+      case "srvtext":
+        return fieldOf(e) + " আলাদা · " + at + " — Expected " + e.pw + ", Actual " + e.cw + ref;
+      case "srvlost":
+        return "Actual-এ নেই · " + at + (money(e.amount) ? " — " + fmt(Math.abs(money(e.amount))) + " টাকার" : "") + ref;
+      case "srvextra":
+        return "Actual-এ বাড়তি · " + at + (money(e.amount) ? " — " + fmt(Math.abs(money(e.amount))) + " টাকার" : "") + ref;
+      case "srvcol":
+      case "srvside":
+        return fieldOf(e) + " · " + at + " — " + (e.note || "") + ref;
       case "identity":
         return "Due ভুল · " + at + " — হওয়ার কথা " + fmt(shown - d) + ", আছে " + fmt(shown) + " (" + sign + fmt(d) + ")" + ref;
       case "chain":
@@ -1339,6 +1369,319 @@
       block("Program Wise", pw, RAW_PW) + "\n" + block("Course Wise", cw, RAW_CW);
   }
 
+  /* ============= server ↔ server — Expected vs Actual (migration check) =============
+   *
+   * A different question from everything above. compare() asks whether ONE server's two views of a
+   * student agree with each other; this asks whether TWO servers hold the same student at all.
+   * No rule is re-derived here and no arithmetic is judged: a receipt is simply expected to arrive
+   * on the other server carrying every cell it left with.
+   *
+   * Columns are matched by NAME, not by position — a server that reorders or inserts a column
+   * would otherwise report every row as different. Numbers go through money(), because "1,000" and
+   * "1000" are one amount and a thousand lines saying otherwise would bury the real finding;
+   * everything else is compared as text, with "-" and "" both read as empty since the pages use
+   * them interchangeably.
+   */
+
+  /* header labels → stable keys. Unnamed columns (SL, an action button) stay out of the comparison
+     entirely: there is no name to match them on and they carry nothing. */
+  function headerKeys(header) {
+    const seen = {}, out = [];
+    (header || []).forEach(function (h) {
+      const base = norm(h);
+      if (!base) { out.push(null); return; }
+      seen[base] = (seen[base] || 0) + 1;
+      out.push(seen[base] > 1 ? base + "#" + seen[base] : base);
+    });
+    return out;
+  }
+
+  /* Columns that describe the TABLE rather than the payment, and so cannot be compared as data.
+     A row's serial number is its position in the list: one extra row near the top of one server
+     renumbers every row below it, and each of those was reported as "two servers, two amounts" —
+     the most serious category there is — for receipts where nothing about the money differs.
+     reg 1956107 MRN 2220262250: Sl. 4 against Sl. 5, on a row that matches to the taka.
+     The difference in position is real, but it is the missing or extra row that caused it, and
+     that row is already reported on its own. An Action column is buttons, not figures. */
+  const NOT_DATA = { sl: 1, slno: 1, sln: 1, sino: 1, sino1: 1, serial: 1, serialno: 1, sn: 1,
+    snno: 1, srl: 1, srno: 1, srlno: 1, no: 1, rowno: 1, rowno1: 1, action: 1, actions: 1 };
+  const isNotData = function (k) { return !!NOT_DATA[String(k).replace(/#\d+$/, "")]; };
+
+  /* Columns that describe the STUDENT or the venue rather than the payment. UMS repeats the same
+     value on every row of the table, so one edit on one server came back as one finding per row,
+     each the same sentence — reg 1956423 carries "Adiba Alam" against "Adiba" on four course rows.
+     Said once instead, with how many rows carry it.
+
+     They are also never treated as amounts, however numeric they look. A Registration No. is
+     digits, and going down the money path filed a changed roll number under "একই ঘরে দুই সার্ভারে
+     দুই অঙ্ক — সবচেয়ে গুরুতর", the category that means money has gone missing. */
+  const PROFILE_COLS = { registrationno: 1, regno: 1, roll: 1, rollno: 1, nickname: 1, name: 1,
+    studentname: 1, mobilenumber: 1, mobile: 1, phone: 1, programsession: 1, session: 1,
+    program: 1, branch: 1, campus: 1 };
+  const isProfile = function (k) { return !!PROFILE_COLS[String(k).replace(/#\d+$/, "")]; };
+  /* one value for the whole table, or null if it varies (the single-server structure() check is
+     what reports a profile column that varies — here it just means there is nothing to collapse) */
+  const oneValue = function (rows, col) {
+    if (!rows.length) return null;
+    const v = rows[0].cells[col] == null ? "" : rows[0].cells[col];
+    for (let i = 1; i < rows.length; i++) if ((rows[i].cells[col] || "") !== v) return null;
+    return { v: v };
+  };
+
+  const cellText = function (v) {
+    const s = String(v == null ? "" : v).replace(/\s+/g, " ").trim();
+    return (s === "-" || s === "--") ? "" : s;
+  };
+  const looksNum = function (s) { return s === "" || /^\(?-?[\d,]*\.?[\d,]+\)?$/.test(s); };
+
+  /* one table → its rows as { column key: cell }, plus the labels to print them under */
+  function byName(tbl) {
+    const keys = headerKeys(tbl && tbl.header);
+    const label = {};
+    keys.forEach(function (k, i) {
+      if (k && label[k] === undefined) label[k] = String(((tbl && tbl.header) || [])[i] || "").trim() || k;
+    });
+    const rows = ((tbl && tbl.rows) || []).map(function (r) {
+      const m = {}, raw = r.__raw || [];
+      keys.forEach(function (k, i) { if (k) m[k] = cellText(raw[i]); });
+      return { rec: r, cells: m };
+    });
+    return { rows: rows, label: label, keys: keys.filter(Boolean) };
+  }
+
+  /* MRN/CRN names the receipt; on Course Wise the course splits it further. A receipt that really
+     does carry the same course twice (the §5.4 fault) would collapse two rows onto one key, so
+     repeats are numbered — the two sides still line up and neither loses a row. */
+  function srvKey(rec, which, seen) {
+    let k = rowKey(rec);
+    if (which === "cw") {
+      const c = String(rec.course || "").trim();
+      k += " · " + (c && c !== "-" ? c : "—");
+    }
+    seen[k] = (seen[k] || 0) + 1;
+    return seen[k] > 1 ? k + " #" + seen[k] : k;
+  }
+
+  /* what the row is worth — so "a receipt is missing" can also say how much money went with it */
+  function srvWorth(r) {
+    return money(r.netReceived) || money(r.grossReceived) || money(r.received) ||
+      money(r.consideration) || money(r.receivable) || money(r.currentDue) || 0;
+  }
+
+  function diffTable(e, a, side, which, errors, notes, tol) {
+    const near = function (x, y) { return Math.abs(x - y) <= tol + 1e-6; };
+    const eOk = !!(e && e.ok), aOk = !!(a && a.ok);
+    if (!eOk && !aOk) {
+      notes.push({ key: side, detail: side + ": দুই সার্ভারের কোনোটাতেই টেবিল পাওয়া যায়নি" });
+      return;
+    }
+    /* One side unread is not "the data differs" — nothing was compared at all, and calling that a
+       mismatch sends someone hunting for a difference that was never measured. */
+    if (!eOk || !aOk) {
+      errors.push({ key: side, field: side + ": এক পাশের টেবিল পড়া যায়নি", ref: "মেলাতে দুই পাশেই টেবিল লাগে",
+        srv: true, side: side, kind: "srvside", delta: 0, course: "", cancel: false,
+        pw: eOk ? (e.rows.length + " সারি") : "পড়া যায়নি",
+        cw: aOk ? (a.rows.length + " সারি") : "পড়া যায়নি", diff: "—",
+        note: side + ": " + (eOk ? "Actual" : "Expected") + " সার্ভারে টেবিলটা পাওয়া যায়নি — মেলানো হয়নি" });
+      return;
+    }
+    const E = byName(e), A = byName(a);
+
+    /* A column one server has and the other does not is said once, here — not once per receipt.
+       A dropped column would otherwise raise a finding on every single row and bury everything
+       else the student has. */
+    const eSet = {}, aSet = {};
+    E.keys.forEach(function (k) { eSet[k] = 1; });
+    A.keys.forEach(function (k) { aSet[k] = 1; });
+    const onlyE = E.keys.filter(function (k) { return !aSet[k]; });
+    const onlyA = A.keys.filter(function (k) { return !eSet[k]; });
+    if (onlyE.length || onlyA.length) {
+      errors.push({ key: side, field: side + ": কলাম আলাদা", ref: "দুই সার্ভারে একই কলাম থাকার কথা",
+        srv: true, side: side, kind: "srvcol", delta: 0, course: "", cancel: false,
+        pw: E.keys.length + " টি কলাম", cw: A.keys.length + " টি কলাম", diff: "—",
+        note: side + ": " +
+          (onlyE.length ? "Expected-এ আছে, Actual-এ নেই — " + onlyE.map(function (k) { return E.label[k]; }).join(", ") : "") +
+          (onlyE.length && onlyA.length ? " · " : "") +
+          (onlyA.length ? "Actual-এ আছে, Expected-এ নেই — " + onlyA.map(function (k) { return A.label[k]; }).join(", ") : "") });
+    }
+    const shared = E.keys.filter(function (k) { return aSet[k]; });
+    /* Split them: the payment columns are compared cell by cell, the table's own bookkeeping is
+       counted and mentioned once. */
+    const dataCols = shared.filter(function (k) { return !isNotData(k); });
+    const posCols = shared.filter(isNotData);
+    let posDiff = 0;
+
+    /* A student's own details, said once. Only where the value really is the same on every row —
+       with a single row there is nothing to collapse, and naming the receipt is more use. */
+    const collapsed = {};
+    if (E.rows.length + A.rows.length > 2) {
+      dataCols.forEach(function (col) {
+        if (!isProfile(col)) return;
+        const e1 = oneValue(E.rows, col), a1 = oneValue(A.rows, col);
+        if (!e1 || !a1 || e1.v === a1.v) return;
+        collapsed[col] = true;
+        errors.push({ key: "ছাত্রের তথ্য", field: side + ": " + E.label[col],
+          ref: "দুই সার্ভারে ছাত্রের তথ্য এক থাকার কথা",
+          srv: true, side: side, kind: "srvtext", delta: 0, course: "", cancel: false,
+          pw: e1.v || "(ফাঁকা)", cw: a1.v || "(ফাঁকা)", diff: "—",
+          note: E.label[col] + ": Expected " + (e1.v ? "«" + e1.v + "»" : "(ফাঁকা)") +
+            ", Actual " + (a1.v ? "«" + a1.v + "»" : "(ফাঁকা)") +
+            " — ছাত্রের তথ্য, " + E.rows.length + " টি সারিতেই একই, তাই একবারই বলা হলো" });
+      });
+    }
+
+    const eSeen = {}, aSeen = {}, eMap = new Map(), aMap = new Map();
+    E.rows.forEach(function (r) { eMap.set(srvKey(r.rec, which, eSeen), r); });
+    A.rows.forEach(function (r) { aMap.set(srvKey(r.rec, which, aSeen), r); });
+
+    /* Rows that never made it across, and rows that appeared out of nowhere. Not the same fault —
+       one is money gone missing, the other a receipt counted twice — so they are named separately
+       rather than as one "row count differs". */
+    eMap.forEach(function (r, k) {
+      if (aMap.has(k)) return;
+      const w = srvWorth(r.rec);
+      errors.push({ key: k, field: side + ": সারিটা Actual-এ নেই", ref: "Expected-এর প্রতিটা সারি Actual-এ থাকার কথা",
+        srv: true, side: side, kind: "srvlost", delta: 0,
+        course: which === "cw" ? String(r.rec.course || "").slice(0, 30) : "",
+        cancel: isCancel(r.rec), date: r.rec.date, amount: w,
+        pw: "আছে", cw: "নেই", diff: "—",
+        note: side + ": Expected-এ সারিটা আছে, Actual-এ নেই" + (w ? " — " + fmt(Math.abs(w)) + " টাকার" : "") });
+    });
+    aMap.forEach(function (r, k) {
+      if (eMap.has(k)) return;
+      const w = srvWorth(r.rec);
+      errors.push({ key: k, field: side + ": Actual-এ বাড়তি সারি", ref: "Expected-এ নেই এমন সারি Actual-এ থাকার কথা নয়",
+        srv: true, side: side, kind: "srvextra", delta: 0,
+        course: which === "cw" ? String(r.rec.course || "").slice(0, 30) : "",
+        cancel: isCancel(r.rec), date: r.rec.date, amount: w,
+        pw: "নেই", cw: "আছে", diff: "—",
+        note: side + ": Actual-এ সারিটা আছে, Expected-এ নেই" + (w ? " — " + fmt(Math.abs(w)) + " টাকার" : "") });
+    });
+
+    /* Cell by cell, for every column both servers carry. */
+    eMap.forEach(function (er, k) {
+      const ar = aMap.get(k);
+      if (!ar) return;
+      /* the serial number, said once at the end instead of once per row */
+      if (posCols.some(function (c) { return (er.cells[c] || "") !== (ar.cells[c] || ""); })) posDiff++;
+      dataCols.forEach(function (col) {
+        if (collapsed[col]) return;          // already said once, for the whole table
+        const ev = er.cells[col] == null ? "" : er.cells[col];
+        const av = ar.cells[col] == null ? "" : ar.cells[col];
+        if (ev === av) return;
+        const at = which === "cw" ? String(er.rec.course || "").slice(0, 30) : "";
+        /* a profile column is never an amount, however numeric it looks */
+        if (!isProfile(col) && looksNum(ev) && looksNum(av)) {
+          const en = money(ev), an = money(av);
+          if (near(en, an)) return;   // "1,000" ↔ "1000" ↔ "-" ↔ "" is not a difference
+          errors.push({ key: k, field: side + ": " + E.label[col], ref: "দুই সার্ভারে একই ঘরে একই অঙ্ক থাকার কথা",
+            srv: true, side: side, kind: "srvcell", delta: an - en, course: at,
+            cancel: isCancel(er.rec), date: er.rec.date,
+            pw: fmt(en), cw: fmt(an), diff: fmt(an - en),
+            note: E.label[col] + ": Expected " + fmt(en) + ", Actual " + fmt(an) + " (Δ" + fmt(an - en) + ")" });
+        } else {
+          errors.push({ key: k, field: side + ": " + E.label[col], ref: "দুই সার্ভারে একই ঘরে একই লেখা থাকার কথা",
+            srv: true, side: side, kind: "srvtext", delta: 0, course: at,
+            cancel: isCancel(er.rec), date: er.rec.date,
+            pw: ev || "(ফাঁকা)", cw: av || "(ফাঁকা)", diff: "—",
+            note: E.label[col] + ": Expected " + (ev ? "«" + ev + "»" : "(ফাঁকা)") +
+              ", Actual " + (av ? "«" + av + "»" : "(ফাঁকা)") });
+        }
+      });
+    });
+
+    /* Said once, as a note, because it is not a fault: the numbering moved, which is what happens
+       when a row is added or removed above these — and that row has its own finding. */
+    if (posDiff) {
+      notes.push({ key: side, detail: side + ": " + posDiff +
+        " টি সারির ক্রমিক নম্বর (" + posCols.map(function (k) { return E.label[k]; }).join(", ") +
+        ") দুই সার্ভারে আলাদা — টাকার হিসাবে কিছু বদলায় না, উপরে সারি কম/বেশি হলে নিচের সব নম্বর সরে যায়" });
+    }
+  }
+
+  /** exp/act = { pw, cw } — each the parseTable() output of that server's page. */
+  function compareServers(exp, act, opts) {
+    opts = opts || {};
+    const errors = [], notes = [];
+    exp = exp || {}; act = act || {};
+    diffTable(exp.pw, act.pw, "Program Wise", "pw", errors, notes, opts.tolerance || 0);
+    diffTable(exp.cw, act.cw, "Course Wise", "cw", errors, notes, opts.tolerance || 0);
+    const n = function (t) { return (t && t.rows) ? t.rows.length : 0; };
+    /* The list is already built page by page, Program Wise first, so the first finding IS the
+       headline — no equivalent of markPrimary()'s row-order search is needed here. */
+    if (errors.length) errors[0].primary = true;
+    return { srv: true, errors: errors, warnings: [], notes: notes, groups: [],
+      ePwCount: n(exp.pw), aPwCount: n(act.pw), eCwCount: n(exp.cw), aCwCount: n(act.cw) };
+  }
+
+  const SRV_CATS = [
+    { code: "srvside", label: "এক পাশের পাতা পড়া যায়নি",
+      why: "দুই সার্ভারের একটাতে টেবিলটাই পাওয়া যায়নি — কিছু মেলানো হয়নি, পার্থক্য আছে কিনা জানাই যায়নি" },
+    { code: "srvlost", label: "Actual-এ সারি নেই — ডেটা হারিয়েছে",
+      why: "Expected-এ যে সারি আছে Actual-এ সেটা নেই — মাইগ্রেশনে সারিটা যায়নি" },
+    { code: "srvextra", label: "Actual-এ বাড়তি সারি",
+      why: "Expected-এ নেই এমন সারি Actual-এ বসেছে — দুবার ঢুকেছে, বা আগের কিছু রয়ে গেছে" },
+    { code: "srvcol", label: "দুই সার্ভারে কলাম আলাদা",
+      why: "একটা সার্ভারে যে কলাম আছে অন্যটায় নেই — ঘর ধরে মেলানোর আগে এটাই ঠিক করতে হবে" },
+    { code: "srvcell", label: "একই ঘরে দুই সার্ভারে দুই অঙ্ক",
+      why: "সারিটা দুই সার্ভারেই আছে, কিন্তু টাকার অঙ্ক আলাদা — সবচেয়ে গুরুতর" },
+    { code: "srvtext", label: "একই ঘরে দুই সার্ভারে দুই লেখা",
+      why: "টাকা এক, কিন্তু কোনো লেখার ঘর (Remarks · User · Payment Method · Course নাম) আলাদা" },
+    { code: "srvok", label: "দুই সার্ভারে এক", why: "প্রতিটা সারির প্রতিটা ঘর মিলে গেছে" }
+  ];
+  const SRV_LABEL = {}, SRV_WHY = {}, SRV_ORDER = {};
+  SRV_CATS.forEach(function (c, i) { SRV_LABEL[c.code] = c.label; SRV_WHY[c.code] = c.why; SRV_ORDER[c.code] = i; });
+
+  /* One student, one verdict — the most serious thing found, in the order of the list above:
+     a page never read outranks everything (nothing was measured), then money gone missing, then
+     money that changed, and a differing Remarks column last. */
+  function classifyServers(p) {
+    const errs = (p && p.errors) || [];
+    if (!errs.length) return null;
+    const has = {};
+    errs.forEach(function (e) { has[e.kind] = (has[e.kind] || 0) + 1; });
+    const code = ["srvside", "srvlost", "srvextra", "srvcol", "srvcell", "srvtext"]
+      .filter(function (c) { return has[c]; })[0] || "srvcell";
+    let maxAbs = 0, sum = 0;
+    errs.forEach(function (e) {
+      if (typeof e.delta !== "number" || !isFinite(e.delta)) return;
+      sum += e.delta; if (Math.abs(e.delta) > maxAbs) maxAbs = Math.abs(e.delta);
+    });
+    const cells = (has.srvcell || 0) + (has.srvtext || 0);
+    const lines = (has.srvlost || 0) + (has.srvextra || 0);
+    const shp = bn(cells) + "টি ঘর · " + bn(lines) + "টি সারি";
+    return { code: code, label: SRV_LABEL[code], why: SRV_WHY[code], order: SRV_ORDER[code],
+      selfEvident: false, shape: shp, key: code + "|" + shp,
+      errorCount: errs.length, maxDiff: maxAbs, netDiff: Math.round(sum) };
+  }
+
+  function summaryServers(r) {
+    if (!r) return "";
+    const errs = r.errors || [];
+    if (!errs.length) {
+      return "দুই সার্ভারে হুবহু এক — Program Wise " + (r.ePwCount || 0) +
+        " · Course Wise " + (r.eCwCount || 0) + " সারি মিলেছে";
+    }
+    const cat = r.category || classifyServers(r);
+    const head = errs.filter(function (e) { return e.primary; })[0] || errs[0];
+    const rest = errs.length - 1;
+    return cat.label + " — মূল: " + shortError(head).replace(/\s*\{[^}]*\}\s*$/, "") +
+      (rest > 0 ? " · আরও " + bn(rest) + " টি" : "");
+  }
+
+  /* All four tables verbatim — Expected beside Actual, so a disputed verdict is settled on the
+     numbers without opening two servers side by side and reading eleven columns off each. */
+  function rawTextServers(exp, act, meta) {
+    meta = meta || {};
+    return "UMS Reconciler — Expected ↔ Actual raw rows" +
+      (meta.spid ? " · studentProgramId " + meta.spid : "") +
+      (meta.reg ? " · reg " + meta.reg : "") + "\n" +
+      (meta.expUrl ? "Expected · " + meta.expUrl + "\n" : "") +
+      (meta.actUrl ? "Actual   · " + meta.actUrl + "\n" : "") + "\n" +
+      "########## EXPECTED ##########\n" + rawText((exp || {}).pw, (exp || {}).cw, {}) + "\n" +
+      "########## ACTUAL ##########\n" + rawText((act || {}).pw, (act || {}).cw, {});
+  }
+
   g.UMSREC = {
     rawText: rawText, RAW_PW: RAW_PW, RAW_CW: RAW_CW,
     money: money, norm: norm, spread: spread, resolveCols: resolveCols,
@@ -1348,6 +1691,8 @@
     fmt: fmt, COMPARE: COMPARE, shortError: shortError, shortWarnings: shortWarnings, summary: summary,
     pwFindings: pwFindings,
     CATS: CATS, classify: classify, group: group, shape: shape, bn: bn,
+    compareServers: compareServers, classifyServers: classifyServers, summaryServers: summaryServers,
+    rawTextServers: rawTextServers, SRV_CATS: SRV_CATS,
     renderReport: renderReport
   };
 })(typeof self !== "undefined" ? self : this);

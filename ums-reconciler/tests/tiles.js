@@ -80,8 +80,11 @@ check("both counting sites use Reg + PID",
   (APP.match(/notOk\(/g) || []).length + " notOk site(s)");
 /* one definition of "needs a person", shared by the tile, its ⟳ and the filter — three copies of
    the same condition is how "zero" ends up excluded in one place and counted in another */
+/* Two-server mode reuses the "zero" slot for "Actual has a row Expected never had", which IS a
+   problem — so the rule now bends on the mode. Still ONE definition: the tile, its ⟳ and the
+   filter must keep reading it from the same place. */
 check("Total Problem, its re-run and its filter share one rule",
-  /const notOk = function \(st\) \{ return st !== "ok" && st !== "zero"; \};/.test(APP) &&
+  /const notOk = function \(st\) \{ return srvMode \? st !== "ok" : \(st !== "ok" && st !== "zero"\); \};/.test(APP) &&
   /st === "prob" \? notOk\(x\.res\.st\)/.test(APP) &&
   /if \(filter === "prob"\) return notOk\(st\);/.test(APP), "app.js");
 check("nobody counts by Reg alone any more",
@@ -181,8 +184,11 @@ check("…not once per card", !/running--; T\.done\+\+/.test(APP), "app.js");
 
 /* a load failure has no tile any more, so it must retry itself */
 {
-  check("a failed student is tried three times in all", /for \(let a = 0; a < 3; a\+\+\) \{\s*try \{ out = await testOne/.test(APP), "app.js");
-  check("…with a growing pause between", /if \(a < 2\) await sleep\(500 \* \(a \+ 1\)\)/.test(APP), "app.js");
+  check("a failed student is tried again, a named number of times",
+    /for \(let a = 0; a < ITEM_TRIES; a\+\+\) \{\s*attempts = a \+ 1;\s*try \{ out = srvMode \? await testOneServers\(stu\.reg, spid\) : await testOne\(/.test(APP) &&
+    +(/const ITEM_TRIES = (\d+);/.exec(APP) || [0, 0])[1] >= 3,
+    (/const ITEM_TRIES = (\d+);/.exec(APP) || [])[1]);
+  check("…with a growing pause between", /if \(a < ITEM_TRIES - 1\) await backoff\(a\)/.test(APP), "app.js");
   check("…but Stop cuts it short at once", /if \(e && e\.name === "AbortError"\) break;/.test(APP), "app.js");
 }
 
@@ -216,9 +222,19 @@ check("…not once per card", !/running--; T\.done\+\+/.test(APP), "app.js");
     [lbl("f_ok"), lbl("f_no"), lbl("f_zero")].join(" / "));
   check("no 'Only …' label survives", !/en: "Only /.test(APP), (APP.match(/en: "Only [^"]*"/g) || []).join(", "));
 
-  /* the exported HTML report has its own hard-coded buttons — they must not drift from the app */
-  check("the exported report uses the same words",
-    />CW Empty<\/button>/.test(APP) && />Program Not Found<\/button>/.test(APP), "app.js");
+  /* The exported HTML report used to hard-code its own filter buttons, which is exactly how they
+     drifted from the app's. Every one of them now reads out of the same label table the tiles and
+     the Status column use, so the guard is that none of them has grown its own copy again — and
+     that the table still spells the buckets the way the tiles do. */
+  check("the exported report takes its buttons from the label table, not its own copy",
+    ["no", "cw", "zero", "ok", "nf"].every(function (k) {
+      return new RegExp('data-f="' + k + '">. \\+ xesc\\(LBL\\.' + k + '\\)').test(APP);
+    }), (APP.match(/data-f="\w+">[A-Z][^<']*</g) || []).join(", ") || "app.js");
+  check("…and both label tables name every bucket",
+    /const STLBL_SRV = \{[\s\S]*?nf: "[^"]+"[\s\S]*?\};/.test(APP) &&
+    ["ok", "no", "error", "cw", "zero", "nf"].every(function (k) {
+      return new RegExp("STLBL_SRV = \\{[\\s\\S]*?" + k + ': "').test(APP);
+    }), "app.js");
 
   // the warn bucket went with v13.0.0; its labels lingered and would have shown up in a lang sweep
   check("no leftover Warning labels", !/t_warn|f_warn|pill_warn/.test(APP),
