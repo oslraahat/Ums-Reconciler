@@ -692,17 +692,34 @@
   /* Rows must run one way from top to bottom — either oldest→newest or newest→oldest, whichever the
      page uses. A row that sits out of sequence breaks the due chain that is read off that order, so
      it is a real fault, not a cosmetic one. Equal dates are fine. */
+  /* Which way this table runs, decided by counting every step rather than by the first pair of
+     differing dates to turn up. That first pair used to settle it, so one row out of place at the
+     top set the direction for the whole table and every row below it was then reported as broken —
+     three findings for one misplaced row, and never the row that moved.
+
+     A tie (or a single date) is "cannot say", and the caller decides what to do about that. */
+  function sortedWay(d, fallback) {
+    let up = 0, down = 0, last = null;
+    for (let i = 0; i < d.length; i++) {
+      if (d[i] == null) continue;
+      if (last !== null) {
+        if (d[i] > last) up++;
+        else if (d[i] < last) down++;
+      }
+      last = d[i];
+    }
+    if (up === down) return fallback;
+    return up > down;
+  }
+
   function sortOrder(rows, side, errors) {
     const d = rows.map(function (r) { return toDate(r.date); });
-    let asc = null;
-    outer:
-    for (let i = 0; i < d.length; i++) {
-      for (let j = i + 1; j < d.length; j++) {
-        if (d[i] == null || d[j] == null) continue;
-        if (d[i] !== d[j]) { asc = d[i] < d[j]; break outer; }
-      }
-    }
-    if (asc === null) return;   // one date, or none — nothing to order
+    /* On a tie the ledger's own convention settles it — Program Wise runs oldest→newest and
+       Course Wise newest→oldest. Three rows with one step each way is a genuine tie and also a
+       genuinely out-of-order table, so answering "cannot say" there would drop a real finding;
+       the convention is what the table was supposed to be doing in the first place.
+       A table of one date, or of none, produces no steps either way and so no findings. */
+    const asc = sortedWay(d, side !== "Course Wise");
     const way = asc ? "পুরনো→নতুন" : "নতুন→পুরনো";
     for (let i = 1; i < d.length; i++) {
       if (d[i] == null || d[i - 1] == null) continue;
@@ -744,15 +761,11 @@
   /* The ledgers sort opposite ways (Program Wise old→new, Course Wise new→old).
      Read the direction off the dates and always hand back old→new. */
   function chronological(rows, defaultAsc) {
-    const d = rows.map(function (r) { return toDate(r.date); });
-    let asc = defaultAsc;
-    outer:
-    for (let i = 0; i < d.length; i++) {
-      for (let j = i + 1; j < d.length; j++) {
-        if (d[i] == null || d[j] == null) continue;
-        if (d[i] !== d[j]) { asc = d[i] < d[j]; break outer; }
-      }
-    }
+    /* The same counting, and it matters more here: this is not reporting anything, it is putting
+       the rows in the order the due chain is read in. Backwards, and every link opens on the wrong
+       figure — a student comes back covered in "Previous Due ভুল" lines that are all consequences
+       of one misread sort. */
+    const asc = sortedWay(rows.map(function (r) { return toDate(r.date); }), defaultAsc);
     return asc ? rows.slice() : rows.slice().reverse();
   }
 
@@ -1176,6 +1189,9 @@
         return "Actual-এ নেই · " + at + (money(e.amount) ? " — " + fmt(Math.abs(money(e.amount))) + " টাকার" : "") + ref;
       case "srvextra":
         return "Actual-এ বাড়তি · " + at + (money(e.amount) ? " — " + fmt(Math.abs(money(e.amount))) + " টাকার" : "") + ref;
+      case "srvempty":
+        return (e.cw === "নেই" ? "Actual-এ নেই" : "Actual-এ বাড়তি") + " · " + at +
+          " — সারিটায় কোনো টাকা নেই, হিসাবে কিছু বদলায়নি" + ref;
       case "srvcol":
       case "srvside":
         return fieldOf(e) + " · " + at + " — " + (e.note || "") + ref;
@@ -1462,11 +1478,32 @@
     return seen[k] > 1 ? k + " #" + seen[k] : k;
   }
 
+  /* Every column that can hold an amount — the same list the single-server engine checks before
+     it decides a receipt is worth arguing about. srvWorth() below answers "how much is this row
+     worth"; this answers the different question "is there any money on it at all", which is what
+     separates a row that took money with it from one that took nothing. */
+  /* Every column that can hold an amount, in the order that answers "what is this row worth" —
+     what actually came in first, then what was taken back, then what was owed, then the parts.
+
+     It used to be two lists: a long one for "is there money on this row" and a short one for "how
+     much". A cancellation falls between them — its money is in Cash Back and Due Adjustment, in
+     neither of the short list's six columns — so reg 1633497 CRN 9643297957 was reported as money
+     that did not survive the migration and could not say how much, on a row carrying 1,815 written
+     off and 5,185 handed back. One list, and the two questions have one answer. */
+  const SRV_MONEY = ["netReceived", "grossReceived", "received", "consideration", "cashBack",
+    "receivable", "currentDue", "income", "previousDue", "dueAdjustment", "deducted",
+    "prevStd", "booking", "special"];
+
   /* what the row is worth — so "a receipt is missing" can also say how much money went with it */
   function srvWorth(r) {
-    return money(r.netReceived) || money(r.grossReceived) || money(r.received) ||
-      money(r.consideration) || money(r.receivable) || money(r.currentDue) || 0;
+    for (let i = 0; i < SRV_MONEY.length; i++) {
+      const v = money(r[SRV_MONEY[i]]);
+      if (v) return v;
+    }
+    return 0;
   }
+  /* the same question, asked the other way round — never a second list to fall out of step */
+  function rowHasMoney(r) { return srvWorth(r) !== 0; }
 
   function diffTable(e, a, side, which, errors, notes, tol) {
     const near = function (x, y) { return Math.abs(x - y) <= tol + 1e-6; };
@@ -1537,26 +1574,29 @@
     /* Rows that never made it across, and rows that appeared out of nowhere. Not the same fault —
        one is money gone missing, the other a receipt counted twice — so they are named separately
        rather than as one "row count differs". */
-    eMap.forEach(function (r, k) {
-      if (aMap.has(k)) return;
-      const w = srvWorth(r.rec);
-      errors.push({ key: k, field: side + ": সারিটা Actual-এ নেই", ref: "Expected-এর প্রতিটা সারি Actual-এ থাকার কথা",
-        srv: true, side: side, kind: "srvlost", delta: 0,
+    /* A row with no money on it anywhere is still a row that did not cross, and still worth
+       saying — two servers should hold the same rows, not merely the same totals. But it is not
+       money going missing, so it does not wear that name or that rank. */
+    const gone = function (r, k, lost) {
+      const w = srvWorth(r.rec), dead = !rowHasMoney(r.rec);
+      const what = lost ? "Actual-এ নেই" : "Actual-এ বাড়তি";
+      errors.push({
+        key: k, srv: true, side: side, delta: 0,
+        field: side + ": " + (lost ? "সারিটা Actual-এ নেই" : "Actual-এ বাড়তি সারি") + (dead ? " (টাকা নেই)" : ""),
+        ref: dead ? "দুই সার্ভারে একই সারি থাকার কথা"
+          : (lost ? "Expected-এর প্রতিটা সারি Actual-এ থাকার কথা" : "Expected-এ নেই এমন সারি Actual-এ থাকার কথা নয়"),
+        kind: dead ? "srvempty" : (lost ? "srvlost" : "srvextra"),
         course: which === "cw" ? String(r.rec.course || "").slice(0, 30) : "",
         cancel: isCancel(r.rec), date: r.rec.date, amount: w,
-        pw: "আছে", cw: "নেই", diff: "—",
-        note: side + ": Expected-এ সারিটা আছে, Actual-এ নেই" + (w ? " — " + fmt(Math.abs(w)) + " টাকার" : "") });
-    });
-    aMap.forEach(function (r, k) {
-      if (eMap.has(k)) return;
-      const w = srvWorth(r.rec);
-      errors.push({ key: k, field: side + ": Actual-এ বাড়তি সারি", ref: "Expected-এ নেই এমন সারি Actual-এ থাকার কথা নয়",
-        srv: true, side: side, kind: "srvextra", delta: 0,
-        course: which === "cw" ? String(r.rec.course || "").slice(0, 30) : "",
-        cancel: isCancel(r.rec), date: r.rec.date, amount: w,
-        pw: "নেই", cw: "আছে", diff: "—",
-        note: side + ": Actual-এ সারিটা আছে, Expected-এ নেই" + (w ? " — " + fmt(Math.abs(w)) + " টাকার" : "") });
-    });
+        pw: lost ? "আছে" : "নেই", cw: lost ? "নেই" : "আছে", diff: "—",
+        note: side + ": " + (lost ? "Expected-এ সারিটা আছে, Actual-এ নেই" : "Actual-এ সারিটা আছে, Expected-এ নেই") +
+          (dead ? " — তবে সারিটার কোনো ঘরেই টাকা নেই, তাই টাকার হিসাবে কিছুই বদলায়নি"
+                : (w ? " — " + fmt(Math.abs(w)) + " টাকার" : ""))
+      });
+      return what;
+    };
+    eMap.forEach(function (r, k) { if (!aMap.has(k)) gone(r, k, true); });
+    aMap.forEach(function (r, k) { if (!eMap.has(k)) gone(r, k, false); });
 
     /* Cell by cell, for every column both servers carry. */
     eMap.forEach(function (er, k) {
@@ -1607,12 +1647,25 @@
     diffTable(exp.pw, act.pw, "Program Wise", "pw", errors, notes, opts.tolerance || 0);
     diffTable(exp.cw, act.cw, "Course Wise", "cw", errors, notes, opts.tolerance || 0);
     const n = function (t) { return (t && t.rows) ? t.rows.length : 0; };
-    /* The list is already built page by page, Program Wise first, so the first finding IS the
-       headline — no equivalent of markPrimary()'s row-order search is needed here. */
-    if (errors.length) errors[0].primary = true;
+    /* The headline has to explain the verdict. It used to be errors[0] — whichever page was read
+       first — so reg 1628880, filed under "a row did not cross", opened with a differing username
+       from the other page and the two lines contradicted each other. It is the first finding of
+       the kind that decided the category, using the same ranking classifyServers uses, so the
+       label and the line it is followed by cannot part company again. */
+    if (errors.length) {
+      const seen = {};
+      errors.forEach(function (e) { seen[e.kind] = 1; });
+      const top = SRV_RANK.filter(function (c) { return seen[c]; })[0];
+      (errors.filter(function (e) { return e.kind === top; })[0] || errors[0]).primary = true;
+    }
     return { srv: true, errors: errors, warnings: [], notes: notes, groups: [],
       ePwCount: n(exp.pw), aPwCount: n(act.pw), eCwCount: n(exp.cw), aCwCount: n(act.cw) };
   }
+
+  /* How serious each kind is, most first. classifyServers() files the student by it and
+     compareServers() picks the headline by it — one list, so a verdict and the line under it are
+     always about the same finding. */
+  const SRV_RANK = ["srvside", "srvlost", "srvextra", "srvcol", "srvcell", "srvempty", "srvtext"];
 
   const SRV_CATS = [
     { code: "srvside", label: "এক পাশের পাতা পড়া যায়নি",
@@ -1625,6 +1678,8 @@
       why: "একটা সার্ভারে যে কলাম আছে অন্যটায় নেই — ঘর ধরে মেলানোর আগে এটাই ঠিক করতে হবে" },
     { code: "srvcell", label: "একই ঘরে দুই সার্ভারে দুই অঙ্ক",
       why: "সারিটা দুই সার্ভারেই আছে, কিন্তু টাকার অঙ্ক আলাদা — সবচেয়ে গুরুতর" },
+    { code: "srvempty", label: "সারি নেই, তবে ওতে টাকাও নেই",
+      why: "সারিটা এক সার্ভারে আছে অন্যটায় নেই — কিন্তু ওর কোনো ঘরেই টাকা নেই, তাই টাকার হিসাবে কিছু বদলায়নি" },
     { code: "srvtext", label: "একই ঘরে দুই সার্ভারে দুই লেখা",
       why: "টাকা এক, কিন্তু কোনো লেখার ঘর (Remarks · User · Payment Method · Course নাম) আলাদা" },
     { code: "srvok", label: "দুই সার্ভারে এক", why: "প্রতিটা সারির প্রতিটা ঘর মিলে গেছে" }
@@ -1640,15 +1695,17 @@
     if (!errs.length) return null;
     const has = {};
     errs.forEach(function (e) { has[e.kind] = (has[e.kind] || 0) + 1; });
-    const code = ["srvside", "srvlost", "srvextra", "srvcol", "srvcell", "srvtext"]
-      .filter(function (c) { return has[c]; })[0] || "srvcell";
+    /* srvempty sits below everything that involves money: a row that carried nothing is still a
+       row that did not cross, but a student who also has a wrong amount is filed under the amount,
+       which is the thing someone has to go and fix. */
+    const code = SRV_RANK.filter(function (c) { return has[c]; })[0] || "srvcell";
     let maxAbs = 0, sum = 0;
     errs.forEach(function (e) {
       if (typeof e.delta !== "number" || !isFinite(e.delta)) return;
       sum += e.delta; if (Math.abs(e.delta) > maxAbs) maxAbs = Math.abs(e.delta);
     });
     const cells = (has.srvcell || 0) + (has.srvtext || 0);
-    const lines = (has.srvlost || 0) + (has.srvextra || 0);
+    const lines = (has.srvlost || 0) + (has.srvextra || 0) + (has.srvempty || 0);
     const shp = bn(cells) + "টি ঘর · " + bn(lines) + "টি সারি";
     return { code: code, label: SRV_LABEL[code], why: SRV_WHY[code], order: SRV_ORDER[code],
       selfEvident: false, shape: shp, key: code + "|" + shp,

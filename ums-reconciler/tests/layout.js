@@ -25,9 +25,13 @@ const g4 = (HTML.match(/\.g4\{([^}]*)\}/) || [])[1] || "";
 const tracks = ((/grid-template-columns:([^;]*)/.exec(g4) || [])[1] || "").match(/minmax\([^)]*\)|[\d.]+fr|auto/g) || [];
 check("the settings row is a 4-column grid", tracks.length === 4, tracks.join(" | "));
 /* Tolerance and Parallel hold two or three characters; an equal quarter each was width the save
-   controls needed to fit a toggle and a button on one line. */
-check("…with the narrow fields narrower than the rest",
-  /minmax\(110px,\.6fr\) minmax\(130px,\.6fr\)/.test(g4), g4);
+   controls needed to fit a toggle and a button on one line. The exact fractions have been tuned
+   more than once, so what is checked is the ordering, not the numbers. */
+{
+  const fr = tracks.map(function (t) { return parseFloat((/([\d.]+)fr/.exec(t) || [0, 0])[1]); });
+  check("…with the two short fields taking a smaller share than the rest",
+    fr[0] < fr[2] && fr[1] < fr[2] && fr[0] < fr[3] && fr[1] < fr[3], fr.join(" / "));
+}
 
 const kids = (HTML.match(/<div class="grid g4">([\s\S]*?)\n      <\/div>/) || [])[1] || "";
 const childDivs = (kids.match(/\n        <div[ >]/g) || []).length;
@@ -53,6 +57,33 @@ check("…with the folder button beside the toggle, on one line",
   check("…and it is the height an input really is",
     /padding:10px 12px/.test(inp) && /border:1px/.test(inp) && /--ctl-h:41px/.test(HTML),
     inp.slice(0, 60));
+}
+
+/* ---- and level, and flush ----
+   Measured on the settings row: the four controls were 41px each and their bottoms still did not
+   line up, and 93px of nothing sat between the Folder button and the run buttons.
+
+   The gap was the column being wider than what it held. The 2px was stranger: the toggle is a
+   <label>, and the page gives field labels a 5px bottom margin so they stand off their input. That
+   margin made the flex row 46px tall while the toggle stayed 41, and align-items:center then put
+   everything else 2px lower — the row read as uneven for a reason that was nowhere near the row. */
+{
+  check("the toggle is not carrying a field label's margin",
+    /\.srvsw\{margin:0;/.test(HTML), (/\.srvsw\{[^;]*/.exec(HTML) || [""])[0]);
+  /* the header still needs its own margin-left, and is more specific, so it survives that reset */
+  check("…while the header toggle keeps the margin that places it",
+    /\.ch \.srvsw\{margin-left:auto\}/.test(HTML), "app.html");
+  /* a label rule that no longer sets a bottom margin would make the reset above pointless, and the
+     next person to widen the row would not know why it was there */
+  check("…and that margin is really where it comes from",
+    /label\{[^}]*margin-bottom:5px/.test(HTML), (/label\{[^}]*\}/.exec(HTML) || [""])[0]);
+
+  check("the toggle fills what the button leaves",
+    /\.saverow \.srvsw\{flex:1 1 auto;min-width:0\}/.test(HTML) &&
+    /\.saverow \.btn\{flex:0 0 auto\}/.test(HTML), "app.html");
+  /* the column had a third of the row and its contents needed a quarter of it */
+  check("…and its column is no wider than they need",
+    /minmax\(240px,1fr\)/.test(HTML), (/\.g4\{[^}]*\}/.exec(HTML) || [""])[0]);
 }
 
 /* ---- the buttons take the spare column ---- */
@@ -97,6 +128,16 @@ check("the same query collapses the grid to one column",
       new RegExp('body\\.srv \\.filters \\.fb\\[data-f="' + f + '"\\]\\{color:var\\(--(no|warn)\\)').test(HTML),
       "app.html");
   });
+  /* A selected chip IS the accent block, so its text is white whatever colour its bucket wears.
+     The base rule says that, but the two srv rules above are a class more specific than it — and
+     come later — so a selected "Missing on Actual" kept its red on the purple and went muddy. */
+  check("a selected chip is white whatever its bucket colour",
+    /body\.srv \.filters \.fb\.active\{color:#fff\}/.test(HTML), "app.html");
+  /* equal weight, so it only wins by being last: it has to stay below them */
+  check("…and says so after the rules it has to beat",
+    HTML.indexOf('body.srv .filters .fb.active{color:#fff}') >
+      HTML.lastIndexOf('body.srv .filters .fb[data-f='), "app.html");
+
   check("…while a single-server run keeps the colours it had",
     /\.filters \.fb\[data-f="cw"\]\{color:#9aa3bd\}/.test(HTML), "app.html");
 }
@@ -109,7 +150,39 @@ check("the same query collapses the grid to one column",
     (HTML.match(/class="fb dl"/g) || []).length === 3,
     (HTML.match(/class="fb dl"/g) || []).length + " of 3");
   check("…and look it", /\.filters \.fb\.dl\{/.test(HTML), "app.html");
+  /* Loose in the row they wrap one at a time: in Bengali, where the filter chips are longer, the
+     third ended up alone on the next line at the far left, reading as a stray control. */
+  check("…and wrap as one group, not one at a time",
+    /<div class="dlgroup">[\s\S]*?id="html"[\s\S]*?id="xlsx"[\s\S]*?id="raw"[\s\S]*?<\/div>/.test(HTML) &&
+    /\.filters \.dlgroup\{margin-left:auto/.test(HTML), "app.html");
+  check("…with no leftover inline push on the first one",
+    !/id="html"[^>]*margin-left:auto/.test(HTML), "app.html");
   check("…in both themes", /body\.light \.filters \.fb\.dl\{/.test(HTML), "app.html");
+}
+
+/* ---- the parts the browser draws, not the page ----
+   Scrollbars, the caret, the selection highlight, a number input's spinner and the list a <select>
+   drops down are all painted by the browser, and it paints them light unless told the surface is
+   dark. On the dark theme that put a white bar down the side of every scrolling box. */
+{
+  const APP = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+  const CONTENT = fs.readFileSync(path.join(__dirname, "..", "content.js"), "utf8");
+  const PANEL = fs.readFileSync(path.join(__dirname, "..", "panel.html"), "utf8");
+
+  check("the page says which way round it is", /color-scheme:dark/.test(HTML), "app.html");
+  check("…and says so again on the light theme",
+    /body\.light\{[^}]*color-scheme:light/.test(HTML), "app.html");
+  /* The viewport's own scrollbar follows the ROOT element, and the theme class lives on <body> —
+     so the stylesheet reaches every box inside the page but not the one down the side of it. */
+  check("…and the theme switch reaches the root, where the page's own bar lives",
+    /document\.documentElement\.style\.colorScheme = \(t === "light" \? "light" : "dark"\)/.test(APP),
+    "app.js");
+  /* the in-page panel scrolls inside UMS's own page, which is light — without this its bar is
+     drawn to match the page behind it rather than the dark panel it is in */
+  check("the in-page panel says so too", /#umsrec\{color-scheme:dark/.test(CONTENT), "content.js");
+  check("…and follows the system theme", /#umsrec\{color-scheme:light/.test(CONTENT), "content.js");
+  check("the pop-out window says so", /color-scheme:dark/.test(PANEL) && /color-scheme:light/.test(PANEL),
+    "panel.html");
 }
 
 /* ---- no leftover inline copy to drift out of sync ---- */

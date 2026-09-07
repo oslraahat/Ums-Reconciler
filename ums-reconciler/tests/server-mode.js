@@ -150,7 +150,7 @@ function src(name) {
   /* Look and placement are separate rules: the settings row uses the same toggle and must not
      inherit a margin that only makes sense beside a heading. */
   check("…and its look is not tied to the card header",
-    /\n  \.srvsw\{display:inline-flex/.test(HTML) && /\.ch \.srvsw\{margin-left:auto\}/.test(HTML),
+    /\n  \.srvsw\{[^}]*display:inline-flex/.test(HTML) && /\.ch \.srvsw\{margin-left:auto\}/.test(HTML),
     "app.html");
   /* the knob follows :checked, so it cannot end up pointing the other way from the input it is
      drawn on — the one failure a hand-painted toggle actually has */
@@ -179,6 +179,19 @@ function src(name) {
     (APP.match(/textContent = t\(srvMode \?[^;]*/g) || []).join(" / "));
   /* a run needs a session on BOTH servers; one green badge would say it is ready when half of it
      cannot load a page */
+  /* Opening the page is one thing; pasting the address into a message, or into another browser
+     profile, is another — and the only way to get the text was to open it and copy the address bar.
+     Both links get the ⧉ the Reg and the SPID already have. */
+  check("each link can be copied, not only opened",
+    (APP.match(/data-copy="' \+ esc\((e|a)Url\)/g) || []).length === 2,
+    (APP.match(/data-copy="' \+ esc\(\w+Url\)/g) || []).join(" "));
+  /* the click handler already reads data-copy — the same one the Reg and SPID chips use */
+  check("…through the copier that is already there",
+    /const c = e\.target\.closest \? e\.target\.closest\("\.cpy"\) : null;/.test(APP), "app.js");
+  check("…and each says which server it is",
+    /title="' \+ \(srvMode \? "Copy the Expected link" : "Copy the link"\) \+ '"/.test(APP) &&
+    /title="Copy the Actual link"/.test(APP), "app.js");
+
   check("Test Connection checks both servers", /if \(srvMode\) await testOneConn\("conn2", baseUrl2\)/.test(APP), "app.js");
   /* two badges side by side have to say which server each is, or a red one sends you to the
      wrong place — and with one server there is nothing to disambiguate, so the tag stays off */

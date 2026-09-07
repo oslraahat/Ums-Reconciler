@@ -5,6 +5,9 @@
   "use strict";
   const U = self.UMSREC;
   const spid = (location.search.match(/spid=([^&]+)/) || [])[1] || "unknown";
+  /* The same tolerance the panel and the Batch page use. It was hard-wired to 0 here, so one
+     student could pass in one window and fail in the other with nothing to say why. */
+  let tol = 0;
   const KP = "program_" + spid, KC = "course_" + spid;
 
   document.getElementById("spid").textContent = "Program " + spid;
@@ -33,7 +36,7 @@
         out.innerHTML = '<div class="verdict vno">দুইটা পেজেই (Program Wise + Course Wise) একবার করে ভিজিট করো, তারপর Verify।</div>';
         return;
       }
-      out.innerHTML = U.renderReport(U.compare(pw.data, cw.data, { tolerance: 0 }), pw.data, cw.data);
+      out.innerHTML = U.renderReport(U.compare(pw.data, cw.data, { tolerance: tol }), pw.data, cw.data);
     });
   }
 
@@ -48,9 +51,14 @@
 
   // live update when the UMS tabs capture new data
   chrome.storage.onChanged.addListener(function (changes) {
+    if (changes.appTol && changes.appTol.newValue != null) { tol = changes.appTol.newValue; runVerify(); }
     if (changes[KP] || changes[KC]) { refreshStatus(); runVerify(); }
   });
 
-  refreshStatus();
-  runVerify();
+  /* read once, and follow it afterwards — the Batch page can change it while this is open */
+  chrome.storage.local.get(["appTol"], function (o) {
+    if (o && o.appTol != null) tol = o.appTol;
+    refreshStatus();
+    runVerify();
+  });
 })();

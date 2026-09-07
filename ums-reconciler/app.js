@@ -10,13 +10,13 @@
 
   // tol 0 like the CLI: at 1 the near() test swallows exactly the ৳1 row-wise differences we are
   // hunting for. Still editable in Settings if a run needs slack.
-  let baseUrl = "https://ums-5.osl.team", conc = 25, tol = 0, inputMode = "auto";
+  let baseUrl = "https://ums-5.osl.team", conc = 25, tol = 0;
   /* Two-server mode. baseUrl is the Expected (reference) server and baseUrl2 the Actual one being
      checked; srvMode says which question a run is answering — one server's two views against each
      other, or one page across two servers. Off by default: the single-server run is what this page
      has always done and nothing about it changes. */
   let baseUrl2 = "https://ums-41.osl.team", srvMode = false;
-  let importedRows = null, importedHeader = null, entries = [];
+  let entries = [];
   let students = [], run = null, _token = null, renderBuf = null;
 
   // b omitted = the Expected server, so every existing caller keeps its meaning
@@ -51,12 +51,63 @@
      late and finishing with a page full of "load error". */
   let pressure = 0;
   function netPressure(bad) { pressure = bad ? Math.min(pressure + 1, 20) : Math.max(0, pressure - 1); }
-  function breathe() { return pressure > 2 ? sleep(Math.min(pressure * 150, 3000)) : Promise.resolve(); }
+  /* Shorter than it was. It used to reach three seconds because it was the only brake there was;
+     now that the number of workers comes down too, a long blanket sleep on top of a narrower run
+     is braking twice for one problem — and it is the pause everyone takes together, which is the
+     part that bunches the traffic back up when it ends. */
+  function breathe() { return pressure > 2 ? sleep(Math.min(pressure * 120, 1500)) : Promise.resolve(); }
+
+  /* How many workers may be running right now, against how many the user allowed.
+
+     Falling is quick: by the time refusals have been counted the server has been struggling for a
+     while already, and 30% off each time reaches a gentle rate in a few steps. Climbing is slow
+     and only while nothing at all is being refused — a server that has just stopped refusing is
+     not yet a server that wants twenty-five more pages. The floor is 2 rather than 1 so a run can
+     always still make progress, and the ceiling is always conc. */
+  let live = 0, liveAt = 0;
+  function pace() {
+    const now = Date.now();
+    if (pressure > 3) {
+      if (now - liveAt < 4000) return;
+      liveAt = now;
+      live = Math.max(2, Math.floor(live * 0.7));
+    } else if (pressure === 0 && live < conc) {
+      if (now - liveAt < 12000) return;
+      liveAt = now;
+      live = Math.min(conc, live + Math.max(1, Math.round(conc / 10)));
+    }
+  }
 
   // ---------- i18n ----------
   let lang = "bn";
   const DICT = {
     subtitle: { bn: "Program Wise ⇄ Course Wise — Registration No. ও StudentProgramId দিন, রান চাপুন, রিপোর্ট পান", en: "Program Wise ⇄ Course Wise — enter Registration No. & StudentProgramId, run, get the report" },
+    p_eased: { bn: "সার্ভার চাপে — একসাথে {n}টি", en: "server under strain — {n} at a time" },
+    /* The number, in the units the box above is set in — "all of them" named nothing a reader
+       could point at, and the protocol that explains it belongs with the rest of the explanation,
+       in the tooltip. */
+    conc_real: { bn: "✓ {n}টিই একসাথে যাচ্ছে", en: "✓ all {n} really go at once" },
+    conc_capped: { bn: "⚠ {n}টি যাচ্ছে, {c}টি নয়", en: "⚠ {n} go at once, not {c}" },
+    /* The ✓ has two different reasons behind it and they lead to opposite advice, so it gets two
+       tooltips. Saying "the server speaks HTTP/2" under a ✓ that only means "4 is under the
+       browser's 6" would be false — and it is the sentence someone reads before deciding whether
+       raising the number is worth anything. */
+    conc_why_h2: { bn: "সার্ভার HTTP/2 ({p}) বলে, তাই সব অনুরোধ একটাই সংযোগে ভাগাভাগি হয় — ব্রাউজারের ৬টির সীমা এখানে খাটে না। বাকি সীমাটা সার্ভারের নিজের (সাধারণত ১০০-র কাছাকাছি), তাই সংখ্যা বাড়িয়ে দেখা যায়: সার্ভার আপত্তি করলে রান নিজেই সরু হবে আর progress লাইনে তা লিখে জানাবে।", en: "The server speaks HTTP/2 ({p}), so every request shares one connection and the browser's six-per-host limit does not apply. What is left is the server's own limit (commonly around 100), so the number is worth raising: if the server objects, the run narrows itself and says so on the progress line." },
+    conc_why_room: { bn: "সার্ভার {p} বলে। এতে ব্রাউজার এক সার্ভারে একসাথে ৬টির বেশি সংযোগ রাখে না — তোমার সংখ্যাটা এখনো তার নিচে, তাই পুরোটাই সার্ভারে পৌঁছাচ্ছে। ৬-এর (দুই সার্ভারে ১২-র) বেশি লিখলে বাড়তিগুলো ব্রাউজারেই লাইনে দাঁড়াবে, রান দ্রুত হবে না।", en: "The server speaks {p}, so the browser keeps at most 6 connections to one server — your number is still under that, so all of it reaches the server. Above 6 (12 across two servers) the extra ones queue in the browser and the run gets no faster." },
+    conc_why_capped: { bn: "সার্ভার {p} বলে। এতে ব্রাউজার এক সার্ভারে একসাথে ৬টির বেশি সংযোগ রাখে না — বাকিগুলো ব্রাউজারেই লাইনে দাঁড়িয়ে থাকে, সার্ভারে পৌঁছায় না। এর চেয়ে বড় সংখ্যা লিখলে রান দ্রুত হয় না।", en: "The server speaks {p}, so the browser keeps at most 6 connections to one server — the rest queue inside the browser and never reach it. A bigger number here will not make the run faster." },
+    ck_upto: { bn: "পর্যন্ত সেভ করা আছে", en: "saved so far" },
+    ck_go: { bn: "▶ বাকিটা চালাও", en: "▶ Carry on" },
+    ck_drop: { bn: "✕ বাদ দাও", en: "✕ Discard" },
+    ck_loading: { bn: "⏳ সেভ করা ফল ফিরিয়ে আনা হচ্ছে…", en: "⏳ Loading the saved answers…" },
+    ck_src: { bn: "আগের অসম্পূর্ণ রান", en: "an unfinished run" },
+    ck_hint: { bn: "আগের রানটা শেষ হয়নি — ট্যাব বন্ধ হয়েছিল বা তুমি থামিয়েছিলে। শিট আবার import করতে হবে না।", en: "The last run did not finish — the tab closed, or you stopped it. The sheet does not need importing again." },
+    /* not s_-prefixed: t() looks for "s_" + key first, so a key that already begins with s_ and
+       has no base reads as a twin whose base has been deleted */
+    srv_tag: { bn: "দুই সার্ভার", en: "two servers" },
+    ago_now: { bn: "এই মাত্র", en: "just now" },
+    ago_min: { bn: "{n} মিনিট আগে", en: "{n} min ago" },
+    ago_hr: { bn: "{n} ঘণ্টা আগে", en: "{n} hr ago" },
+    ago_day: { bn: "{n} দিন আগে", en: "{n} days ago" },
     conn_h: { bn: "সংযোগ", en: "Connection" }, conn_unchecked: { bn: "যাচাই করা হয়নি", en: "not checked" },
     base_l: { bn: "UMS ঠিকানা (Base URL)", en: "UMS address (Base URL)" }, test: { bn: "Test Connection", en: "Test Connection" }, save: { bn: "সেভ করুন", en: "Save" },
     sess_hint: { bn: "এই ব্রাউজারে UMS-এ লগইন থাকা অবস্থায় চলবে (সেশন ব্যবহার করে)। আলাদা email/password লাগে না।", en: "Works while you are logged in to UMS in this browser (uses the session). No separate email/password needed." },
@@ -68,22 +119,22 @@
     paste_btn: { bn: "✓ Check", en: "✓ Check" },
     paste_empty: { bn: "পেস্ট বক্সটা ফাঁকা — Reg ও Program Id বসিয়ে আবার Check চাপো", en: "Paste box is empty — put Reg and Program Id in it, then press Check" },
     paste_norow: { bn: "কোনো Reg পাওয়া গেল না — প্রতি লাইনে Reg (ও চাইলে Program Id) থাকতে হবে", en: "No Reg found — each line needs a Reg (and optionally a Program Id)" },
-    imp_default: { bn: "", en: "" }, clear_btn: { bn: "✕ Clear", en: "✕ Clear" }, pv_reg: { bn: "Reg No.", en: "Reg No." },
+    clear_btn: { bn: "✕ Clear", en: "✕ Clear" }, pv_reg: { bn: "Reg No.", en: "Reg No." },
     pv_search_ph: { bn: "খুঁজুন…", en: "Search…" },
     pv_more: { bn: "দেখাচ্ছে {a}টি / মোট {b}টি", en: "showing {a} of {b}" }, pv_none: { bn: "কিছু মিলল না", en: "no match" },
-    imp_uniq: { bn: "টি ইউনিক Reg", en: "unique Reg" },
-    imp_uniq_pair: { bn: "টি ইউনিক (Reg+Id)", en: "unique (Reg+Id)" }, imp_dropped: { bn: "টি ডুপ্লিকেট বাদ", en: "duplicate(s) dropped" }, imp_will_run: { bn: "টি চলবে", en: "will run" }, imp_noreg: { bn: "টিতে Reg নেই", en: "without a Reg" }, imp_trim: { bn: "টিতে Reg ঘরে একাধিক সংখ্যা ছিল, প্রথমটা নেওয়া হয়েছে", en: "had more than one number in the Reg cell — first one used" },
+    
+    imp_dropped: { bn: "টি ডুপ্লিকেট বাদ", en: "duplicate(s) dropped" }, imp_will_run: { bn: "টি চলবে", en: "will run" }, imp_noreg: { bn: "টিতে Reg নেই", en: "without a Reg" }, imp_trim: { bn: "টিতে Reg ঘরে একাধিক সংখ্যা ছিল, প্রথমটা নেওয়া হয়েছে", en: "had more than one number in the Reg cell — first one used" },
     imp_checking: { bn: "কোন কলামে কী, UMS-এ মিলিয়ে দেখা হচ্ছে…", en: "checking with UMS which column is which…" },
     imp_swap: { bn: "কলাম উল্টো ছিল — Reg আর Student PID বদলে নেওয়া হয়েছে", en: "columns were the wrong way round — Reg and Student PID swapped back" },
     rr_run: { bn: "টি আবার চালাও", en: "to re-run" }, rr_none: { bn: "কিছু নেই", en: "nothing here" }, rr_busy: { bn: "চলছে…", en: "running…" },
     settings_h: { bn: "সেটিংস ও রান", en: "Settings & Run" }, tol_l: { bn: "গ্রহণযোগ্য পার্থক্য", en: "Tolerance" }, conc_l: { bn: "একসাথে কয়টি অনুরোধ", en: "Parallel requests" },
     run_btn: { bn: "▶ Start", en: "▶ Start" },
-    imp_row: { bn: "টি", en: "entries" }, imp_more: { bn: "আরও ফাইল দিতে ক্লিক করুন", en: "click to add more files" }, imp_empty: { bn: "ফাইল খালি", en: "File empty" },
+    imp_row: { bn: "টি", en: "entries" }, imp_empty: { bn: "ফাইল খালি", en: "File empty" },
     imp_excel: { bn: "⏳ Excel পড়ছি…", en: "⏳ Reading Excel…" }, imp_excel_fail: { bn: "Excel পড়া গেল না", en: "Could not read Excel" },
     imp_sheet: { bn: "⏳ Sheet আনছি…", en: "⏳ Fetching Sheet…" }, imp_login: { bn: "Google লগইন/অ্যাক্সেস দরকার", en: "Google login/access needed" }, imp_fail: { bn: "আনা গেল না", en: "Could not fetch" }, imp_badlink: { bn: "লিংক ঠিক নয়", en: "Invalid link" },
-    e_need: { bn: "spid বা program দাও", en: "give spid or program" }, e_pw: { bn: "Program Wise data নেই (redirect/ভুল spid?)", en: "No Program Wise data (redirect/wrong spid?)" }, e_cw: { bn: "Course Wise redirect — reg/permission?", en: "Course Wise redirect — reg/permission?" }, e_perm: { bn: "search permission নেই", en: "no search permission" }, e_regspid: { bn: "reg == spid — কলাম ভুল?", en: "reg == spid — wrong column?" },
+    e_need: { bn: "spid বা program দাও", en: "give spid or program" }, e_pw: { bn: "Program Wise data নেই (redirect/ভুল spid?)", en: "No Program Wise data (redirect/wrong spid?)" }, e_perm: { bn: "search permission নেই", en: "no search permission" }, e_regspid: { bn: "এই সারিতে Reg আর Student PID একই সংখ্যা — এক ঘরের নম্বরই দুই ঘরে বসে গেছে কিনা দেখো (কলাম উল্টে দিলেও এই সারিতে কিছু বদলাত না)", en: "Reg and Student PID are the same number on this row — check one value has not been pasted into both cells (swapping the columns would change nothing here)" },
     results_h: { bn: "ফলাফল", en: "Results" }, ready: { bn: "প্রস্তুত", en: "Ready" },
-    t_ok: { bn: "মিলেছে", en: "Matched" }, t_no: { bn: "অমিল", en: "Mismatch" }, t_cw: { bn: "CW ফাঁকা", en: "CW Empty" }, t_zero: { bn: "Zero Pay", en: "Zero Pay" }, t_stu: { bn: "Total Problem", en: "Total Problem" }, t_nf: { bn: "Program পাওয়া যায়নি", en: "Program Not Found" }, t_err: { bn: "লোড এরর", en: "Load error" },
+    t_ok: { bn: "মিলেছে", en: "Matched" }, t_no: { bn: "অমিল", en: "Mismatch" }, t_cw: { bn: "CW ফাঁকা", en: "CW Empty" }, t_zero: { bn: "Zero Pay", en: "Zero Pay" }, t_stu: { bn: "Total Problem", en: "Total Problem" }, t_nf: { bn: "Program পাওয়া যায়নি", en: "Program Not Found" }, 
     tt_prob: { bn: "অমিল + CW ফাঁকা + Program পাওয়া যায়নি + লোড এরর — সব মিলিয়ে (Reg + Student PID ধরে)। Zero Pay এতে নেই — টাকাই ওঠেনি, মেলানোর কিছু নেই", en: "Mismatch + CW empty + Program not found + Load error, all together (by Reg + Student PID). Zero Pay is not in it — no money was ever taken, so there is nothing to reconcile" },
     f_all: { bn: "সব", en: "All" }, f_no: { bn: "শুধু অমিল", en: "Mismatch" }, f_ok: { bn: "শুধু মিলেছে", en: "Matched" }, f_cw: { bn: "শুধু CW ফাঁকা", en: "CW Empty" }, f_zero: { bn: "Zero Pay", en: "Zero Pay" }, f_nf: { bn: "Program পাওয়া যায়নি", en: "Program Not Found" },
     pill_ok: { bn: "✓ মিলেছে", en: "✓ Matched" }, pill_no: { bn: "✕ অমিল", en: "✕ Mismatch" }, pill_cw: { bn: "CW ফাঁকা", en: "CW Empty" }, pill_zero: { bn: "Zero Pay", en: "Zero Pay" }, pill_nf: { bn: "Program পাওয়া যায়নি", en: "Program Not Found" }, pill_error: { bn: "লোড এরর", en: "Load error" },
@@ -94,7 +145,7 @@
     d_cwredir: { bn: "Course Wise পাতাটা খুললই না (reg ভুল, নাকি permission নেই?) — Program Wise ঠিকই এসেছে", en: "Course Wise page did not open (wrong reg, or no permission?) — Program Wise loaded fine" },
     d_cwnotable: { bn: "Course Wise পাতা এসেছে, কিন্তু টেবিলটাই পাওয়া গেল না (permission, নাকি পাতার markup বদলেছে?) — ফাঁকা নয়, কিছুই পড়া হয়নি", en: "Course Wise page loaded but its table was not found (permission, or the page markup changed?) — not empty, nothing was read at all" },
     d_noprog: { bn: "এই Student-এর এমন কোনো Program নেই", en: "This student has no such program" }, d_has: { bn: "· আছে:", en: "· has:" },
-    d_onlyprog: { bn: "শুধু Program-এ", en: "only in Program" }, d_onlycourse: { bn: "শুধু Course-এ", en: "only in Course" }, d_deduction: { bn: "Deduction", en: "Deduction" }, d_cross: { bn: "cross-view/timing", en: "cross-view/timing" },
+    
     sheet_l: { bn: "কোন শিট পড়া হবে", en: "Which sheet to read" },
     sheet_unknown: { bn: "শিটের তালিকা পড়া গেল না — ফাইলের প্রথম worksheet নেওয়া হয়েছে, তাই শিট বাছার বাক্সটা নেই", en: "could not read the workbook’s sheet list — the first worksheet in the file was used, so there is no sheet picker" },
     src_sheet: { bn: "শিট", en: "Sheet" }, src_link: { bn: "Google Sheet", en: "Google Sheet" }, src_paste: { bn: "✎ পেস্ট বক্স", en: "✎ Paste box" },
@@ -152,6 +203,10 @@
     /* a tooltip is the third thing an element can say, and an icon-only button has nothing else */
     document.querySelectorAll("[data-title]").forEach(function (el) { const s = t(el.getAttribute("data-title")); if (s != null) el.setAttribute("title", s); });
     const b = $("lang"); if (b) b.textContent = (lang === "bn" ? "EN" : "BN");
+    /* The import summary is a sentence built at import time out of counts and the file's name;
+       there is nothing to translate it back from, so switching language clears it. The count it
+       carried is still on the card's badge, which updateCount() repaints below. */
+    const imp = $("impNote"); if (imp) imp.innerHTML = "";
     const pv = $("preview"); if (pv) pv.removeAttribute("data-col"); // force head rebuild in the new language
     /* Everything whose words are written by JS rather than by a data-i18n node has to be
        repainted here too, or it keeps the language it was first drawn in. paintSaveRow() runs
@@ -169,9 +224,15 @@
      and the old test (row one must hold mrn AND current due AND received) then missed the table
      entirely. The student came back "Program পাওয়া যায়নি" while the in-page panel, which already
      scored the region, read the very same page. */
+  /* The header, as TEXT — which is what content.js hands headScore() from a rendered page.
+     Handing it markup instead meant also searching tag names and attribute values, so a table
+     whose header reads "Sl. Reg Date Course" but whose markup carries data-col="current due" and
+     class="received" scored 0 in the panel and 4 here: the same page, a different table read, and
+     two different reports about one student. */
   function headOf(frag) {
     const th = frag.match(/<thead[\s\S]*?<\/thead>/i);
-    return th ? th[0] : (frag.match(/(?:<tr[\s\S]*?<\/tr>\s*){1,3}/i) || [""])[0];
+    const part = th ? th[0] : (frag.match(/(?:<tr[\s\S]*?<\/tr>\s*){1,3}/i) || [""])[0];
+    return part.replace(/<[^>]*>/g, " ");
   }
   function sliceTable(html, type) {
     if (type === "course") { const i = html.indexOf('id="courseWisePaymentTable"'); if (i < 0) return null; const s = html.lastIndexOf("<table", i), e = html.indexOf("</table>", i); return (s >= 0 && e >= 0) ? html.slice(s, e + 8) : null; }
@@ -354,21 +415,6 @@
       || list.find(function (p) { return norm(p.program).indexOf(wp) >= 0 || wp.indexOf(norm(p.program)) >= 0; }) || null;
   }
 
-  // ---------- input parsing ----------
-  function parseEntries(text) {
-    return text.split(/\n+/).map(function (ln) {
-      const t = ln.trim(); if (!t) return null;
-      let reg, rest;
-      const ci = t.indexOf(",");
-      if (ci >= 0) { reg = t.slice(0, ci).trim(); rest = t.slice(ci + 1).trim(); }
-      else { const m = t.match(/^(\S+)\s+(.+)$/); if (m) { reg = m[1]; rest = m[2].trim(); } else { reg = t; rest = ""; } }
-      if (!reg) return null;
-      if (!rest) return { reg: reg };
-      if (inputMode === "spid") return { reg: reg, spid: rest };
-      if (inputMode === "program") return { reg: reg, program: rest };
-      return /^\d+$/.test(rest) ? { reg: reg, spid: rest } : { reg: reg, program: rest };
-    }).filter(Boolean);
-  }
   function buildStudents(entries) {
     const map = {}; const order = [];
     entries.forEach(function (e) {
@@ -456,7 +502,9 @@
     /* numbered, so a cell holding six findings can be read; "✕ … · ✕ …" ran together */
     (r.errors || []).forEach(function (e, i) { parts.push((i + 1) + ") " + U.shortError(e)); });
     U.shortWarnings(r.warnings).forEach(function (w) { parts.push("⚠ " + w); });
-    return parts.join("   ") || (st === "warn" ? t("d_cross") : "");
+    /* No status function returns "warn" any more, so the fallback this used to have could not
+       be reached — and the phrase it reached for was never translated. */
+    return parts.join("   ");
   }
 
   /* prior: the result being re-asked about, if this is a sweep round — its attempt count carries
@@ -471,7 +519,10 @@
       if (!m) return { st: "nf", detail: t("d_noprog") + (stu._resolved.length ? " " + t("d_has") + " " + stu._resolved.map(function (x) { return x.program; }).join(", ") : ""), spid: "" };
       spid = m.spid;
     }
-    if (String(spid).trim() === String(stu.reg).trim()) return { st: "error", detail: t("e_regspid"), spid: spid };
+    /* Equal numbers are a hint, not a verdict — see the note on e_regspid. The student is checked
+       like any other; the hint is added below only if UMS then has no such programme, which is
+       where it explains something. */
+    const regEqSpid = String(spid).trim() === String(stu.reg).trim();
     /* A load failure is the session or the network, not the data, so it retries itself — twice
        more, with a growing pause. There is no Load error tile to press ⟳ on any more (the slot is
        Zero Pay now), and a fault that clears on its own should never have needed a person.
@@ -505,6 +556,12 @@
     /* Say it on the line. "লোড এরর" alone reads as a fact about the student; what happened is that
        the server was asked N times and never replied, and the difference decides whether anyone
        goes and looks at the data or at the network. */
+    /* …and here, where it is the likeliest explanation for a programme UMS says it does not have.
+       On a student who checks out fine it is said nowhere, because there is nothing to explain. */
+    if (regEqSpid && out.notFound) {
+      res0.detail += " · " + t("e_regspid");
+      if (res0.detailFull) res0.detailFull += " · " + t("e_regspid");
+    }
     res0.unanswered = unanswered(out);
     res0.tried = ((prior && prior.tried) || 0) + attempts;
     if (res0.unanswered) res0.detail += " · " + t("d_noanswer").replace("{n}", res0.tried);
@@ -623,7 +680,12 @@
     saveManual(); recountAll(); paintTiles(); rerenderList(); applyFilterAll();
   }
   const T = { ok: 0, no: 0, cw: 0, zero: 0, nf: 0, err: 0, stu: 0, done: 0, total: 0 };
-  function bumpTile(st) { if (st === "ok") T.ok++; else if (st === "no") T.no++; else if (st === "cw") T.cw++; else if (st === "zero") T.zero++; else if (st === "nf") T.nf++; else T.err++; }
+  /* which counter a verdict belongs to — one definition, so the tally can be moved both ways */
+  const tileKey = function (st) {
+    return (st === "ok" || st === "no" || st === "cw" || st === "zero" || st === "nf") ? st : "err";
+  };
+  function bumpTile(st) { T[tileKey(st)]++; if (notOk(st)) T.stu++; }
+  function dropTile(st) { T[tileKey(st)]--; if (notOk(st)) T.stu--; }
   function paintTiles() {
     $("t-ok").textContent = T.ok; $("t-no").textContent = T.no;
     $("t-cw").textContent = T.cw; $("t-stu").textContent = T.stu; $("t-nf").textContent = T.nf;
@@ -655,7 +717,6 @@
     students.forEach(function (stu) {
       (stu.results || []).forEach(function (x) {
         bumpTile(x.res.st);
-        if (notOk(x.res.st)) T.stu++;
       });
     });
   }
@@ -701,9 +762,15 @@
         try { res = await processItem(j.stu, j.slot.item, j.slot.res); }
         catch (e) { res = { st: "error", detail: String((e && e.message) || e), spid: j.slot.res.spid || "" }; }
         if (run.stop) return;
+        /* Move the two counters this slot touches instead of re-counting the sheet. recountAll()
+           walks every student, and running it every ten items cost about four seconds of pure
+           counting on 50,000 — time the re-run needed for its own fetches, growing with the square
+           of the sheet. The recount in the finally block below still has the last word. */
+        dropTile(j.slot.res.st);
         j.slot.res = res;            // replace in place — order and student grouping stay put
+        bumpTile(res.st);
         done++; tick();
-        if (done % 10 === 0) { recountAll(); paintTiles(); }   // tiles move while it runs
+        if (done % 10 === 0) paintTiles();   // tiles move while it runs
       }
     }
     try {
@@ -719,27 +786,217 @@
     }
   }
 
-  async function startRun() {
-    if (!entries.length) { $("prog").textContent = t("p_input"); return; }
+  /* ---------- the checkpoint ----------
+     Written as the run goes, so that closing the page costs the students still in flight and
+     nothing else. Batched, because writing a hundred thousand answers every few seconds would
+     cost more than the work it protects: each write appends only what has finished since the
+     last one, and the run is never re-read to make it.
+
+     Nothing here may stop a run. A database that is full, blocked by another tab, or turned off
+     entirely sets ckOff and the run carries on exactly as it did before — unprotected, but
+     running, which is the way round that matters. */
+  const CK_EVERY = 300;      // students between writes
+  const CK_MS = 15000;       // …and never longer than this, so a slow run still checkpoints
+  let ckKey = "", ckSeq = 0, ckBuf = [], ckLast = 0, ckOff = false;
+
+  /* What this run is: the sheet, the servers, and the question being asked. Resuming into a
+     different sheet — or into the other mode — would graft answers onto the wrong students, so
+     the signature has to move when any of those move. FNV-1a over the pairs in order: a few
+     milliseconds at 100,000 rows, and it changes if two rows merely swap places, which is right,
+     because the students are addressed by their position in the list. */
+  function ckSig() {
+    let h = 2166136261 >>> 0;
+    const add = function (s) {
+      s = String(s == null ? "" : s);
+      for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) >>> 0; }
+    };
+    entries.forEach(function (e) {
+      add(e.reg); add("\u0001"); add(e.spid); add("\u0001"); add(e.program); add("\u0002");
+    });
+    add(srvMode ? "srv" : "one"); add(baseUrl); add(srvMode ? baseUrl2 : ""); add(String(tol));
+    return entries.length + "-" + h.toString(36);
+  }
+  function ckMeta(done) {
+    return { sig: ckKey, total: T.total, done: done, at: Date.now(), srv: srvMode,
+      url: baseUrl, url2: srvMode ? baseUrl2 : "", tol: tol, lang: lang };
+  }
+  /* Every key this run owns, and only this run's: the sheet, the meta line, and the chunks. */
+  function ckWipe(sig) {
+    return idb(function (st) {
+      st.delete(IDBKeyRange.bound(sig + "|", sig + "|\uffff"));
+      st.delete("last");
+    }, "ck").catch(function () {});
+  }
+  function ckStart() {
+    ckKey = ckSig(); ckSeq = 0; ckBuf = []; ckLast = Date.now(); ckOff = false;
+    return ckWipe(ckKey).then(function () {
+      return idb(function (st) {
+        /* the sheet travels with the checkpoint, so resuming does not ask for the file again */
+        st.put(entries, ckKey + "|ent");
+        st.put(ckMeta(0), ckKey + "|meta");
+        st.put(ckKey, "last");
+      }, "ck");
+    }).catch(function () { ckOff = true; });
+  }
+  function ckFlush() {
+    if (ckOff || !ckKey || !ckBuf.length) return Promise.resolve();
+    const rows = ckBuf, seq = ckSeq++;
+    ckBuf = []; ckLast = Date.now();
+    const meta = ckMeta(T.done);
+    return idb(function (st) {
+      st.put(rows, ckKey + "|c" + seq);
+      st.put(meta, ckKey + "|meta");
+      st.put(ckKey, "last");
+    }, "ck").catch(function () { ckOff = true; });
+  }
+  /* Only whole students are checkpointed. A student stopped between its two programmes would come
+     back on resume looking answered with half its rows missing, and no tile would ever disagree. */
+  function ckPush(i, stu) {
+    if (ckOff || !ckKey) return;
+    ckBuf.push({ i: i, r: stu.results.map(function (x) { return x.res; }) });
+    if (ckBuf.length >= CK_EVERY || Date.now() - ckLast >= CK_MS) ckFlush();
+  }
+  /* Read one back. Returns null for anything incomplete or unreadable — a checkpoint that cannot
+     be trusted whole is worth less than no checkpoint at all. */
+  function ckRead(sig) {
+    return idb(function (st) { return st.getAllKeys(IDBKeyRange.bound(sig + "|", sig + "|\uffff")); }, "ck")
+      .then(function (keys) {
+        if (!keys || !keys.length) return null;
+        return idb(function (st) {
+          const out = {};
+          keys.forEach(function (k) { const r = st.get(k); r.onsuccess = function () { out[k] = r.result; }; });
+          return { result: out };
+        }, "ck").then(function (out) {
+          const meta = out[sig + "|meta"], ent = out[sig + "|ent"];
+          if (!meta || !ent || !ent.length) return null;
+          const chunks = [];
+          keys.forEach(function (k) {
+            const m = String(k).match(/\|c(\d+)$/);
+            if (m) chunks.push({ seq: +m[1], rows: out[k] || [] });
+          });
+          chunks.sort(function (a, b) { return a.seq - b.seq; });
+          return { sig: sig, meta: meta, entries: ent, chunks: chunks,
+            seq: chunks.length ? chunks[chunks.length - 1].seq + 1 : 0 };
+        });
+      }).catch(function () { return null; });
+  }
+
+  /* Show it, hide it, or say what it found. Kept apart from ckOffer() so that finishing a run
+     can take the bar down without having to know anything about how it was put up. */
+  let ckFound = null;
+  function ckBar(found) {
+    ckFound = found || null;
+    const bar = $("ckBar"); if (!bar) return;
+    if (!ckFound) { bar.style.display = "none"; return; }
+    const m = ckFound.meta, n = ckFound.done;
+    const num = function (v) { return lang === "bn" ? Number(v).toLocaleString("bn-BD") : Number(v).toLocaleString(); };
+    $("ckTxt").innerHTML = "<b>" + num(n) + "</b> / " + num(m.total) + " " +
+      t("ck_upto") + " · " + ago(m.at) + (m.srv ? " · " + t("srv_tag") : "");
+    bar.style.display = "";
+  }
+  /* "3 minutes ago" beats a timestamp here: the question the bar answers is whether this is the
+     run you were watching or one from last week. */
+  function ago(ts) {
+    const s = Math.max(0, Math.round((Date.now() - ts) / 1000));
+    if (s < 90) return t("ago_now");
+    const mn = Math.round(s / 60);
+    if (mn < 90) return t("ago_min").replace("{n}", mn);
+    const hr = Math.round(mn / 60);
+    if (hr < 36) return t("ago_hr").replace("{n}", hr);
+    return t("ago_day").replace("{n}", Math.round(hr / 24));
+  }
+  /* Is there something to come back to? Only ever one — the last run to be interrupted. */
+  async function ckOffer() {
+    if (run) return;
+    let sig = "";
+    try { sig = await idb(function (st) { return st.get("last"); }, "ck"); } catch (e) { return; }
+    if (!sig) return;
+    const got = await ckRead(sig);
+    if (!got) { ckWipe(sig); return; }
+    let done = 0;
+    got.chunks.forEach(function (c) { (c.rows || []).forEach(function (r) { done += (r.r || []).length; }); });
+    if (!done || done >= got.meta.total) { ckWipe(sig); return; }
+    got.done = done;
+    ckBar(got);
+  }
+  /* Put the saved half back on screen, then run only the other half. Everything is rebuilt from
+     the sheet that travelled with the checkpoint — buildStudents() is deterministic, so student i
+     here is the same student i that was saved, and the tiles are counted up from the answers
+     rather than trusted from the meta line. */
+  async function ckResume() {
+    const got = ckFound; if (!got || run) return;
+    ckBar(null);
+    $("prog").textContent = t("ck_loading");
+    /* the mode the run was asking in, or the answers would meet a different question */
+    if (!!got.meta.srv !== srvMode) { srvMode = !!got.meta.srv; $("srvSw").checked = srvMode; applySrvMode(); }
+    if (got.meta.url) { baseUrl = got.meta.url; $("base").value = baseUrl; }
+    if (got.meta.url2) { baseUrl2 = got.meta.url2; $("base2").value = baseUrl2; }
+    if (got.meta.tol != null) { tol = got.meta.tol; $("tol").value = tol; }
+
+    entries = got.entries;
+    importSrc = t("ck_src");
     students = buildStudents(entries);
-    run = { stop: false, paused: false, ac: (typeof AbortController !== "undefined" ? new AbortController() : null) };
     ["ok", "no", "cw", "zero", "nf", "err", "stu", "done"].forEach(function (k) { T[k] = 0; });
+    T.total = entries.length;
+    got.chunks.forEach(function (c) {
+      (c.rows || []).forEach(function (row) {
+        const stu = students[row.i]; if (!stu || stu._ck) return;
+        const rs = row.r || [];
+        /* a chunk that does not line up with the sheet is a checkpoint from another run wearing
+           this one's signature — vanishingly unlikely, and silently wrong if it were let through */
+        if (rs.length !== stu.items.length) return;
+        stu.results = rs.map(function (res, k) { return { item: stu.items[k], res: res }; });
+        stu._ck = 1;
+        rs.forEach(function (res) { bumpTile(res.st); T.done++; });
+      });
+    });
+    ckKey = got.sig; ckSeq = got.seq; ckBuf = []; ckLast = Date.now(); ckOff = false;
+    renderPreview(); updateCount();
+    $("impNote").innerHTML = '<span class="isrc">' + esc(importSrc) + "</span>";
+    rerenderList(); applyFilterAll(); paintTiles();
+    await startRun(true);
+  }
+
+  async function startRun(resumed) {
+    /* only ckResume() passes this, and only ever as true — anything else is a caller that did not
+       mean to say it, which is how the Start button once started a run with no students in it */
+    resumed = resumed === true;
+    if (!entries.length) { $("prog").textContent = t("p_input"); return; }
+    if (!resumed) students = buildStudents(entries);
+    run = { stop: false, paused: false, ac: (typeof AbortController !== "undefined" ? new AbortController() : null) };
+    if (!resumed) ["ok", "no", "cw", "zero", "nf", "err", "stu", "done"].forEach(function (k) { T[k] = 0; });
     /* One unit of work is one Reg + Student PID pair — the key duplicates are dropped on at import,
        and the basis every tile counts on. students[] groups by Reg alone (a Reg against two
        programs is ONE card carrying two rows), so its length is the card count, not the work
        count: a 10,515-pair sheet spread over 9,832 Regs read "Done · 9832/9832" while the tiles
        above it added up to 10,515. Count the pairs — entries.length is exactly Σ items.length. */
     T.total = entries.length;
-    $("list").innerHTML = ""; listShown = 0; listTotal = 0; paintListNote();
-    paintTiles(); $("fill").style.width = "0%";
+    if (!resumed) { $("list").innerHTML = ""; listShown = 0; listTotal = 0; paintListNote(); }
+    paintTiles(); $("fill").style.width = (T.total ? Math.round(T.done / T.total * 100) : 0) + "%";
+    /* Whichever way a run starts, the offer is over: resuming takes it, and starting afresh
+       wipes it in ckStart() below — leaving the bar up would keep offering a checkpoint that no
+       longer exists, and it would still be there when this run ended. */
+    ckBar(null);
     /* Nothing wrote the progress line until the first student came back, so on a big sheet — or a
-       slow server — Start looked like it had done nothing at all for minutes. */
+       slow server — Start looked like it had done nothing at all for minutes. Which is also why
+       the checkpoint is written after this line and not before it: opening a database and writing
+       a hundred thousand rows of sheet to it is a round trip, and putting one in front of the
+       first thing Start says would bring the silence straight back. */
     $("prog").textContent = "⏳ 0/" + T.total + " · " + t("p_running");
+    if (!resumed) await ckStart();
     $("run").disabled = true; $("stop").disabled = false; $("pause").disabled = false; $("pause").textContent = t("pause");
     $("html").disabled = true; $("xlsx").disabled = true; $("raw").disabled = true;
     const t0 = Date.now();
     let next = 0, running = 0;
-    function prog() { const pct = T.total ? Math.round(T.done / T.total * 100) : 0; $("prog").textContent = "⏳ " + T.done + "/" + T.total + " · " + pct + "% · ⏱ " + mmss(Date.now() - t0) + " · " + t("p_running") + " " + running; }
+    /* When the run has narrowed itself, say so. Without it the tool simply looks slow, and the
+       one thing worth knowing — that it is the server, and that the run is adapting rather than
+       failing — is the thing nobody can see. */
+    function prog() {
+      const pct = T.total ? Math.round(T.done / T.total * 100) : 0;
+      $("prog").textContent = "⏳ " + T.done + "/" + T.total + " · " + pct + "% · ⏱ " + mmss(Date.now() - t0) +
+        " · " + t("p_running") + " " + running +
+        (live < conc ? " · 🐢 " + t("p_eased").replace("{n}", live) : "");
+    }
     // Batched UI: DOM cards + tiles + progress repaint at most ~every 120ms so the main thread stays free to dispatch fetches.
     renderBuf = document.createDocumentFragment();
     let lastUI = 0, uiTimer = null;
@@ -758,35 +1015,65 @@
       if (T.done > 0) { $("html").disabled = false; $("xlsx").disabled = false; $("raw").disabled = false; }
     }
     function ui() { const now = Date.now(); if (now - lastUI >= 120) flushUI(); else if (!uiTimer) uiTimer = setTimeout(flushUI, 120 - (now - lastUI)); }
-    async function worker() {
+    /* A worker numbered beyond the current limit parks here rather than exiting, so the run can
+       widen again later without starting more workers than the user allowed — and it parks BEFORE
+       taking a student, so a parked worker is never sitting on work nobody is doing. */
+    async function slot(n) {
+      /* …and only while there is still work for the room to be made for. The queue can empty while
+         a worker is parked here, and pressure only moves when a fetch answers — so a run that had
+         narrowed itself would leave its parked workers waiting on a gauge that nothing could
+         change, and never finish at all. */
+      while (!run.stop && n >= live && next < students.length) { pace(); await sleep(200); }
+    }
+    async function worker(n) {
       while (!run.stop) {
         while (run.paused && !run.stop) { $("prog").textContent = t("paused"); await sleep(200); }
         if (run.stop) return;
+        await slot(n);
+        if (run.stop) return;
         const i = next++; if (i >= students.length) return;
+        const stu = students[i];
+        if (stu._ck) continue;    // answered before the tab closed — see the checkpoint above
         await breathe();          // the server is refusing — slow down rather than pile on
         if (run.stop) return;
         running++;
-        const stu = students[i];
         for (let j = 0; j < stu.items.length && !run.stop; j++) {
           const res = await processItem(stu, stu.items[j]);
           if (run.stop) break;   // aborted mid-flight — don't record partial/error result
           stu.results.push({ item: stu.items[j], res: res });
-          bumpTile(res.st);
-          if (notOk(res.st)) T.stu++;      // Reg + PID, same rule as recountAll()
+          bumpTile(res.st);              // Reg + PID, and T.stu with it
           T.done++;                       // per pair, like T.total — not once per card
           ui();                           // …so a Reg with many programs cannot stall the counter
         }
         renderStudent(stu);
+        /* Stop breaks out of the loop above mid-student, and renderStudent() still draws what
+           there is. Checkpointing that would freeze a half-answered student as answered. */
+        if (!run.stop && stu.results.length === stu.items.length) { stu._ck = 1; ckPush(i, stu); }
         running--;
+        pace();     // …and reconsider the width of the run, whether or not anyone is parked
         ui();
       }
     }
-    await Promise.all(Array.from({ length: Math.min(Math.max(1, conc), students.length) }, function () { return worker(); }));
+    /* Start at the ceiling: the user's number is what they asked for, and nothing has gone wrong
+       yet. pace() is what takes it down, and only a refusing server makes it do so.
+
+       Including the pressure gauge: it is what the LAST run met, and a run started by hand — maybe
+       hours later — should not begin already throttled by it. If the server is still struggling
+       the first refusals say so within seconds. */
+    const workers = Math.min(Math.max(1, conc), students.length);
+    live = workers; liveAt = Date.now(); pressure = 0;
+    await Promise.all(Array.from({ length: workers }, function (_, n) { return worker(n); }));
     flushUI(); renderBuf = null;
     /* Not done yet. Everything the servers never actually answered about goes round again before
        the run calls itself finished — nothing is left standing on a non-answer. */
     await sweepUnanswered(t0);
     const left = countUnanswered();
+    /* Stopped is the case the checkpoint exists for, so it stays and the bar offers it back.
+       Finished, it is only clutter — and a stale offer to resume a run that has already been
+       saved and exported is worse than clutter. */
+    const stopped = !!(run && run.stop);
+    await ckFlush();
+    if (!stopped) { await ckWipe(ckKey); ckKey = ""; ckBar(null); }
     /* Written before the buttons are re-enabled, so "finished" and "saved" are one moment and
        nobody closes the tab in between. */
     let saved = "";
@@ -799,6 +1086,7 @@
       (saved ? " · 💾 " + saved : (saveOnFinish ? " · ⚠ " + t("save_failed") : ""));
     $("run").disabled = !entries.length; $("stop").disabled = true; $("pause").disabled = true;
     run = null;
+    if (stopped) ckOffer();       // …and here is where you left off, should you want it back
     paintRerun();   // must come AFTER run is cleared — flushUI() painted them while still busy
   }
 
@@ -824,10 +1112,26 @@
   function rerenderList() {
     const l = $("list"); if (!l) return;
     l.innerHTML = ""; listShown = 0; listTotal = 0;
+    /* Straight into the list. During a run renderStudent() appends to the pending fragment, and
+       rendering into that would leave the list empty until the next flush — and would then add
+       these cards a second time. Whatever was pending is rebuilt here anyway. */
+    const buf = renderBuf;
+    renderBuf = null;
     students.forEach(function (s) { if (s.results && s.results.length) renderStudent(s); });
+    if (buf) renderBuf = document.createDocumentFragment();
     paintListNote();
   }
   function renderStudent(stu) {
+    /* Decide from the answers, before composing anything. The filter's verdict on a card is
+       already settled by the statuses it holds, and building a hundred thousand cards' worth of
+       HTML only to throw it away is what made re-rendering on a filter change unaffordable — which
+       is why it did not happen during a run, which is why the list disagreed with the tiles. */
+    const shows = (stu.results || []).some(function (x) { return matchFilter(x.res.st); });
+    if (!shows) return;
+    listTotal++;                 // matching students, so the note counts what the filter would show
+    if (listShown >= LIST_MAX) return;
+    listShown++;
+
     const total = stu._resolved ? stu._resolved.length : stu.items.length;
     const div = document.createElement("div"); div.className = "stu";
     /* Marking sits on the student header, not on each finding: the verdict is "I went and looked
@@ -850,9 +1154,18 @@
       pn += ' <span class="mut">—</span> <span class="mut">SPID:</span> ' + (spid || "—");
       if (x.res.spid) {
         pn += ' <span class="cpy" data-copy="' + spid + '" title="Copy SPID">⧉</span>';
-        pn += ' <span class="mut">—</span> <a href="' + pwUrl(stu.reg, x.res.spid) + '" target="_blank" style="color:#8fb4ff" title="' + (srvMode ? "Expected" : "Open Payment History") + '">↗' + (srvMode ? " E" : "") + '</a>';
+        /* Each address gets the ⧉ the Reg and the SPID already have: opening it is one thing,
+           pasting it into a message or another browser profile is another, and until now the only
+           way to get the text was to open the page and copy the address bar. */
+        const eUrl = pwUrl(stu.reg, x.res.spid);
+        pn += ' <span class="mut">—</span> <a href="' + eUrl + '" target="_blank" style="color:#8fb4ff" title="' + (srvMode ? "Expected" : "Open Payment History") + '">↗' + (srvMode ? " E" : "") + '</a>';
+        pn += ' <span class="cpy" data-copy="' + esc(eUrl) + '" title="' + (srvMode ? "Copy the Expected link" : "Copy the link") + '">⧉</span>';
         // both servers, one click each — the whole point of the mode is reading them side by side
-        if (srvMode) pn += ' <a href="' + pwUrl(stu.reg, x.res.spid, baseUrl2) + '" target="_blank" style="color:#ffb454" title="Actual">↗ A</a>';
+        if (srvMode) {
+          const aUrl = pwUrl(stu.reg, x.res.spid, baseUrl2);
+          pn += ' <a href="' + aUrl + '" target="_blank" style="color:#ffb454" title="Actual">↗ A</a>';
+          pn += ' <span class="cpy" data-copy="' + esc(aUrl) + '" title="Copy the Actual link">⧉</span>';
+        }
       }
       /* the headline names the fault; this says what it actually means, which until now was
          written but never shown anywhere */
@@ -862,15 +1175,8 @@
         '<div class="' + dcls + '">' + esc(x.res.detail) + "</div>" + why + "</div></div>";
     });
     div.innerHTML = h;
+    /* the card is shown; this hides the rows inside it that the filter does not want */
     applyFilterTo(div);
-    /* A card the filter hides costs nothing to leave out — and counting it against the cap spends
-       the whole allowance on cards nobody can see. Measured: 5,000 students with the 64 mismatches
-       sitting past row 1,200 (where a sheet sorted by Reg puts them), "শুধু অমিল" selected — 1,000
-       cards drawn, 0 of them visible, every mismatch missing from the one view meant to show them. */
-    if (div.style.display === "none") return;
-    listTotal++;   // matching students, so the note counts what the filter would have shown
-    if (listShown >= LIST_MAX) return;
-    listShown++;
     (renderBuf || $("list")).appendChild(div);   // during a run, cards accumulate in a fragment and flush in batches
   }
 
@@ -890,10 +1196,10 @@
   function setFilter(f) {
     filter = f;
     [].slice.call(document.querySelectorAll(".fb")).forEach(function (b) { b.classList.toggle("active", b.getAttribute("data-f") === f); });
-    /* With the list capped, hiding cards is not enough: the ones that match may be past the cap and
-       never drawn at all. Re-render so the filter chooses which LIST_MAX are on screen. While a run
-       is going the list is still filling, so leave it to the next flush. */
-    if (run) applyFilterAll(); else rerenderList();
+    /* Hiding what is on screen cannot show what was never drawn, and the cards past the cap are
+       exactly the ones a filter is chosen to find. This used to be skipped during a run — and a run
+       is when people filter, because a run at this size takes hours. */
+    rerenderList();
   }
   function applyFilterTo(stuDiv) {
     let visible = 0;
@@ -931,9 +1237,7 @@
     /* Remember whether a header actually named the columns. When it did not, reg and val below are
        nothing more than "first column" and "second column" — see swapCheck(), which asks UMS which
        way round they really are instead of trusting the order. */
-    if (inputMode === "spid") { mode = "spid"; val = spid >= 0 ? spid : 1; }
-    else if (inputMode === "program") { mode = "program"; val = prog >= 0 ? prog : 1; }
-    else if (spid >= 0) { mode = "spid"; val = spid; }
+    if (spid >= 0) { mode = "spid"; val = spid; }
     else if (prog >= 0 && prog !== reg) { mode = "program"; val = prog; }
     else { mode = "spid"; val = (reg === 1 ? 0 : 1); }
     return { reg: reg, val: val, mode: mode, hdr: hdr };
@@ -960,8 +1264,13 @@
    */
   async function swapCheck(rows, d) {
     if (d.hdr || d.mode !== "spid" || d.reg === d.val) return null;
+    /* A row whose two values are equal cannot tell the two readings apart — swapping them gives
+       the identical pair — yet has(a,b) and has(b,a) are then the same call, so it would cast a
+       free vote for "as written" while carrying no information. Out of three votes that is enough
+       to hold a genuinely swapped sheet the wrong way round, so such rows are not sampled. */
     const sample = rows.filter(function (r) {
-      return /^\d+$/.test(String(r[d.reg] || "").trim()) && /^\d+$/.test(String(r[d.val] || "").trim());
+      const a = String(r[d.reg] || "").trim(), b = String(r[d.val] || "").trim();
+      return /^\d+$/.test(a) && /^\d+$/.test(b) && a !== b;
     }).slice(0, 3);
     if (!sample.length) return null;
 
@@ -991,7 +1300,6 @@
     const data = d.hdr ? all.slice(1) : all;
     const kept = data.filter(function (r) { return String(r[d.reg] || "").trim(); });
     if (!kept.length) { $("impNote").textContent = t("paste_norow"); return; }
-    importedRows = kept; importedHeader = d.hdr ? all[0] : null;
     /* A Reg cell holding two numbers ("1957189 1536554" — a Reg and a Roll pasted into one column)
        is sent to UMS verbatim and comes back as a redirect, which reads as "reg/permission?" and
        survives every re-run because the stored entry is still wrong. Reg numbers have no spaces,
@@ -1227,7 +1535,18 @@
   const STLBL_SRV = { ok: "Identical", no: "Data differs", error: "Error",
     cw: "Missing on Actual", zero: "Extra on Actual", nf: "Page not read" };
   const STLBL = { ok: "Matched", no: "Mismatch", error: "Error", cw: "CW Empty", zero: "Zero Pay", nf: "Program Not Found" };
-  function statusColor(st) { return (st === "ok" || st === "zero") ? "g" : ((st === "no" || st === "error") ? "r" : "y"); }
+  /* Green means nothing to do, red means money, amber means look at it. Which bucket is which
+     depends on the mode — the same rule the tiles follow, so a row in the Excel file is the colour
+     its tile was on screen. */
+  function statusColor(st) {
+    if (srvMode) {
+      /* cw = Missing on Actual (money that did not survive the move) · zero = Extra on Actual */
+      if (st === "ok") return "g";
+      if (st === "no" || st === "cw" || st === "error") return "r";
+      return "y";
+    }
+    return (st === "ok" || st === "zero") ? "g" : ((st === "no" || st === "error") ? "r" : "y");
+  }
   /* all: ignore the on-screen filter. The buttons honour it — that is the point of exporting
      "only mismatches" — but an automatic archive that quietly held whatever chip happened to be
      selected would be worse than no archive at all. */
@@ -1282,11 +1601,16 @@
     });
     const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<title>UMS Payment Reconciler — Report</title><style>' +
-      'body{margin:0;background:#0d0f1a;color:#eef1fb;font:14px/1.5 system-ui,Segoe UI,Roboto,Arial,sans-serif;padding:24px}' +
+      'body{margin:0;background:#0d0f1a;color:#eef1fb;padding:24px;' +
+      /* the same stack the app itself uses — this file is mostly Bengali and is the one that
+         gets mailed to people whose machines are not this one */
+      'font:14px/1.5 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif}' +
       'h1{font-size:20px;margin:0 0 4px}.sub{color:#8b91b4;margin:0 0 16px;font-size:13px}' +
       '.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}' +
       '.chip{background:#161a2b;border:1px solid #2a3050;border-radius:20px;padding:5px 12px;font-size:13px}' +
       '.chip.ok{border-color:#37d18b}.chip.no,.chip.error{border-color:#ff6b7d}.chip.warn,.chip.nf{border-color:#ffb454}.chip.cw,.chip.zero{border-color:#8b91b4}' +
+      /* …and the same two swap meaning in two-server mode, so they swap colour with them */
+      (srvMode ? '.chip.cw{border-color:#ff6b7d}.chip.zero{border-color:#ffb454}' : "") +
       '.bar{display:flex;flex-wrap:wrap;gap:6px;margin:0 0 12px}' +
       '.f{cursor:pointer;background:#161a2b;border:1px solid #2a3050;color:#eef1fb;border-radius:8px;padding:6px 12px;font-size:13px}' +
       '.f.active{background:#5b4ff0;border-color:#5b4ff0}' +
@@ -1323,13 +1647,40 @@
   function cat(a) { let n = 0; a.forEach(function (x) { n += x.length; }); const o = new Uint8Array(n); let p = 0; a.forEach(function (x) { o.set(x, p); p += x.length; }); return o; }
   function xesc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function cl(n) { let s = ""; n++; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
-  function sheetXml(header, rows, colors) {
+  /* the fill a row's colour maps to, and the same fill wearing the link font */
+  const FILL_STYLE = { g: 1, r: 2, y: 4 };
+  const LINK_STYLE = { g: 6, r: 7, y: 8 };
+
+  /** linkCols: column indexes holding a URL. They are written as HYPERLINK() and read "Open ↗". */
+  function sheetXml(header, rows, colors, linkCols) {
     const all = [header].concat(rows);
-    // Remarks and Details need room; the rest are short. Two-server mode adds a second link column.
-    const W = header.length >= 7 ? [14, 12, 12, 40, 40, 62, 90] : [14, 12, 12, 46, 62, 90];
+    const isLink = {}; (linkCols || []).forEach(function (i) { isLink[i] = 1; });
+    // Remarks and Details need room; the rest are short. A link column shows six characters now,
+    // not a hundred-and-twenty-character query string, so it can be narrow.
+    const W = header.length >= 7 ? [14, 12, 12, 11, 11, 62, 90] : [14, 12, 12, 11, 62, 90];
     let cols = '<cols>'; W.forEach(function (w, i) { cols += '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>'; }); cols += '</cols>';
     let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>';
-    all.forEach(function (row, ri) { const rn = ri + 1; const cc = colors[ri - 1]; const s = ri === 0 ? 3 : (cc === "g" ? 1 : cc === "r" ? 2 : cc === "y" ? 4 : 0); x += '<row r="' + rn + '">'; row.forEach(function (cell, ci) { x += '<c r="' + cl(ci) + rn + '" t="inlineStr" s="' + s + '"><is><t xml:space="preserve">' + xesc(cell) + '</t></is></c>'; }); x += "</row>"; });
+    all.forEach(function (row, ri) {
+      const rn = ri + 1, cc = colors[ri - 1];
+      const s = ri === 0 ? 3 : (FILL_STYLE[cc] || 0);
+      x += '<row r="' + rn + '">';
+      row.forEach(function (cell, ci) {
+        const ref = cl(ci) + rn;
+        if (ri > 0 && isLink[ci] && cell) {
+          /* A formula, not a hyperlink relationship: Excel caps those at 65,530 per sheet and a
+             100,000-row report in two-server mode would want 200,000, at which point Excel
+             "repairs" the file by dropping them all. A double quote inside a formula string is
+             written twice; a URL built with encodeURIComponent has none, but a hand-edited base
+             address could. */
+          const url = String(cell).replace(/"/g, '""');
+          x += '<c r="' + ref + '" s="' + (LINK_STYLE[cc] || 5) + '" t="str">' +
+            "<f>HYPERLINK(&quot;" + xesc(url) + "&quot;,&quot;Open ↗&quot;)</f><v>Open ↗</v></c>";
+          return;
+        }
+        x += '<c r="' + ref + '" t="inlineStr" s="' + s + '"><is><t xml:space="preserve">' + xesc(cell) + "</t></is></c>";
+      });
+      x += "</row>";
+    });
     const ref = "A1:" + cl(header.length - 1) + all.length;   // AutoFilter so Status (and other columns) are filterable in Excel
     return x + "</sheetData><autoFilter ref=\"" + ref + "\"/></worksheet>";
   }
@@ -1337,7 +1688,45 @@
   const RELS = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
   const WB = '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Result" sheetId="1" r:id="rId1"/></sheets></workbook>';
   const WBR = '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
-  const STY = '<?xml version="1.0"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="1"><font><sz val="11"/><name val="Calibri"/></font></fonts><fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC6EFCE"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFC7CE"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE0E0E0"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFEB9C"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="5"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="5" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  const STY = '<?xml version="1.0"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><u/><color rgb="FF0563C1"/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC6EFCE"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFC7CE"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE0E0E0"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFEB9C"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="5" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="0" fontId="1" fillId="5" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="top"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
+  /* deflate-raw is what a .zip entry wants. Without it the workbook is its XML verbatim — 79 MB
+     for 100,000 rows, against 3.2 MB compressed, which is the difference between a file that can be
+     mailed and one that cannot. Where the browser has no CompressionStream, or an entry comes out
+     bigger compressed than it went in (a 200-byte .rels does), that entry is stored instead. */
+  async function deflateRaw(u8) {
+    if (typeof CompressionStream === "undefined") return null;
+    try {
+      const s = new Response(u8).body.pipeThrough(new CompressionStream("deflate-raw"));
+      return new Uint8Array(await new Response(s).arrayBuffer());
+    } catch (e) { return null; }
+  }
+  async function zipPack(files) {
+    const enc = new TextEncoder();
+    const u16 = function (n) { return new Uint8Array([n & 255, (n >> 8) & 255]); };
+    const u32 = function (n) { n >>>= 0; return new Uint8Array([n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24) & 255]); };
+    const chunks = [], central = []; let off = 0;
+    for (let i = 0; i < files.length; i++) {
+      const f = files[i], name = enc.encode(f.name), crc = crc32(f.data);
+      let body = await deflateRaw(f.data), method = 8;
+      if (!body || body.length >= f.data.length) { body = f.data; method = 0; }
+      const lh = cat([u32(0x04034b50), u16(20), u16(0), u16(method), u16(0), u16(0),
+        u32(crc), u32(body.length), u32(f.data.length), u16(name.length), u16(0), name]);
+      chunks.push(lh); chunks.push(body);
+      central.push({ name: name, crc: crc, csize: body.length, size: f.data.length, off: off, method: method });
+      off += lh.length + body.length;
+    }
+    const cds = off, cdc = [];
+    central.forEach(function (c) {
+      cdc.push(cat([u32(0x02014b50), u16(20), u16(20), u16(0), u16(c.method), u16(0), u16(0),
+        u32(c.crc), u32(c.csize), u32(c.size), u16(c.name.length), u16(0), u16(0), u16(0), u16(0),
+        u32(0), u32(c.off), c.name]));
+    });
+    const cdb = cat(cdc); chunks.push(cdb);
+    chunks.push(cat([u32(0x06054b50), u16(0), u16(0), u16(central.length), u16(central.length),
+      u32(cdb.length), u32(cds), u16(0)]));
+    return cat(chunks);
+  }
+  /* kept for the reader's sake: zipPack writes what this wrote, plus compression */
   function zipStore(files) {
     const enc = new TextEncoder(); const u16 = function (n) { return new Uint8Array([n & 255, (n >> 8) & 255]); }; const u32 = function (n) { n >>>= 0; return new Uint8Array([n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24) & 255]); };
     const chunks = [], central = []; let off = 0;
@@ -1370,11 +1759,12 @@
     return out;
   }
 
-  function exportXlsx() {
+  async function exportXlsx() {
     const rows = flatRows(); if (!rows.length) return;
-    dl(new Blob([buildXlsx(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "xlsx");
+    dl(new Blob([await buildXlsx(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "xlsx");
   }
-  function buildXlsx(rows) {
+  /* async because compressing is: CompressionStream has no synchronous form. */
+  async function buildXlsx(rows) {
     const header = srvMode
       ? ["Status", "Student Reg", "Program Id", "Expected Link", "Actual Link", "Remarks", "Details"]
       : ["Status", "Student Reg", "Program Id", "Payment History Link", "Remarks", "Details"];
@@ -1385,12 +1775,11 @@
     });
     const colors = rows.map(function (r) { return r.color; });
     const enc = new TextEncoder();
-    const bytes = zipStore([
+    return zipPack([
       { name: "[Content_Types].xml", data: enc.encode(CT) }, { name: "_rels/.rels", data: enc.encode(RELS) },
       { name: "xl/workbook.xml", data: enc.encode(WB) }, { name: "xl/_rels/workbook.xml.rels", data: enc.encode(WBR) },
-      { name: "xl/styles.xml", data: enc.encode(STY) }, { name: "xl/worksheets/sheet1.xml", data: enc.encode(sheetXml(header, mat, colors)) }
+      { name: "xl/styles.xml", data: enc.encode(STY) }, { name: "xl/worksheets/sheet1.xml", data: enc.encode(sheetXml(header, mat, colors, srvMode ? [3, 4] : [3])) }
     ]);
-    return bytes;
   }
 
   /* ---------- saving a finished run ----------
@@ -1400,18 +1789,25 @@
 
   /* A directory handle is not JSON, so chrome.storage cannot hold it; IndexedDB can, and that is
      the only way the chosen folder survives closing the page. */
-  function idb(fn) {
+  function idb(fn, store) {
+    store = store || "kv";
     return new Promise(function (res, rej) {
       let rq;
-      try { rq = indexedDB.open("umsrec", 1); } catch (e) { rej(e); return; }
-      rq.onupgradeneeded = function () { rq.result.createObjectStore("kv"); };
+      try { rq = indexedDB.open("umsrec", 2); } catch (e) { rej(e); return; }
+      /* Version 2 adds "ck", the run checkpoint. Both stores are created by name and only when
+         absent, so a browser arriving from version 1 keeps the folder handle already in "kv". */
+      rq.onupgradeneeded = function () {
+        const db = rq.result;
+        if (!db.objectStoreNames.contains("kv")) db.createObjectStore("kv");
+        if (!db.objectStoreNames.contains("ck")) db.createObjectStore("ck");
+      };
       rq.onerror = function () { rej(rq.error); };
       rq.onsuccess = function () {
         const db = rq.result;
         let out;
         try {
-          const tx = db.transaction("kv", "readwrite");
-          const r = fn(tx.objectStore("kv"));
+          const tx = db.transaction(store, "readwrite");
+          const r = fn(tx.objectStore(store));
           tx.oncomplete = function () { db.close(); res(r ? r.result : undefined); };
           tx.onerror = function () { db.close(); rej(tx.error); };
         } catch (e) { db.close(); rej(e); }
@@ -1460,12 +1856,12 @@
       })).join("\n") + "\n";
   }
 
-  function runFiles() {
+  async function runFiles() {
     const rows = flatRows(true);
     if (!rows.length) return [];
     const out = [
       { name: "report.html", blob: new Blob([buildHtml(rows)], { type: "text/html;charset=utf-8" }) },
-      { name: "report.xlsx", blob: new Blob([buildXlsx(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) },
+      { name: "report.xlsx", blob: new Blob([await buildXlsx(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) },
       { name: "summary.txt", blob: new Blob([runSummary(rows)], { type: "text/plain;charset=utf-8" }) }
     ];
     const raw = rows.filter(function (r) { return r.raw; });
@@ -1496,7 +1892,7 @@
   /** Returns where it went, or "" if it did not run or produced nothing. */
   async function saveRun() {
     if (!saveOnFinish) return "";
-    const files = runFiles();
+    const files = await runFiles();
     if (!files.length) return "";
     const folder = runFolder();
     if (await dirUsable(dirHandle)) {
@@ -1550,6 +1946,7 @@
      again for no reason. */
   const connState = { conn: null, conn2: null };
   const CONN_CLS = { ok: "ok", no: "no", fail: "no" };
+  const connProto = { conn: "", conn2: "" };
   function paintConn() {
     const c2 = $("conn2"); if (c2) c2.style.display = srvMode ? "" : "none";
     [["conn", "conn_exp"], ["conn2", "conn_act"]].forEach(function (p) {
@@ -1563,21 +1960,70 @@
       el.className = "badge " + (st === null || st === "busy" ? "mut" : CONN_CLS[st] || "no");
     });
   }
+  /* What the browser will actually do with "একসাথে কয়টি অনুরোধ".
+
+     Over HTTP/1.1 Chrome opens at most six connections to one host and queues everything else, so
+     a run set to 25 has 25 fetches outstanding and six on the wire. Over HTTP/2 they share one
+     connection and the setting means what it says. Measured, not assumed: fifty simultaneous
+     fetches to an HTTP/1.1 host arrived six at a time.
+
+     The connection test has just loaded a page from this server, so the answer is already in the
+     Resource Timing entry for it. */
+  const HOST_LIMIT_H1 = 6;
+  function protoOf(url) {
+    try {
+      const es = performance.getEntriesByType("resource");
+      for (let i = es.length - 1; i >= 0; i--) {
+        if (es[i].name === url && es[i].nextHopProtocol) return es[i].nextHopProtocol;
+      }
+    } catch (e) {}
+    return "";
+  }
+  /* How many of the user's "conc" can be in flight at once, given what the servers speak. In
+     two-server mode the pages go to two different hosts, so each gets its own pool. */
+  function realConc() {
+    const ps = [connProto.conn, srvMode ? connProto.conn2 : null].filter(function (p) { return p; });
+    if (!ps.length) return null;                       // not tested yet — say nothing
+    let cap = 0;
+    ps.forEach(function (p) { cap += /^h2|^h3/.test(p) ? 1000 : HOST_LIMIT_H1; });
+    return Math.min(conc, cap);
+  }
   async function testOneConn(badge, base) {
     if (!$(badge)) return;
-    connState[badge] = "busy"; paintConn();
+    connState[badge] = "busy"; connProto[badge] = ""; paintConn();
     try {
-      const r = await fetchHtml(payBase(base) + "PaymentHistory");
+      const url = payBase(base) + "PaymentHistory";
+      const r = await fetchHtml(url);
       const ok = r.ok && !/Account\/Login/i.test(r.html) && /stdRollOrRegistrationNo/i.test(r.html);
       connState[badge] = ok ? "ok" : "no";
+      connProto[badge] = protoOf(url);
     } catch (e) { connState[badge] = "fail"; }
-    paintConn();
+    paintConn(); paintConc();
+  }
+  /* Said under the Parallel box, where the number that may be a fiction actually is. */
+  function paintConc() {
+    const el = $("concNote"); if (!el) return;
+    const real = realConc();
+    if (real === null) { el.textContent = ""; el.className = "cnote"; return; }
+    const p = connProto.conn || "http/1.1";
+    const capped = real < conc;
+    /* {n} is what actually goes at once, {c} what the box says — the same number when nothing is
+       holding the run back, which is all the ✓ claims. Numerals go through the same localisation
+       as every other number on the page; a Latin 25 inside a Bengali sentence is a different kind
+       of wrong from a bad translation and just as visible. */
+    const num = function (v) { return lang === "bn" ? Number(v).toLocaleString("bn-BD") : String(v); };
+    el.textContent = t(capped ? "conc_capped" : "conc_real")
+      .replace("{n}", num(real)).replace("{c}", num(conc));
+    el.title = t(capped ? "conc_why_capped" : (/^h2|^h3/.test(p) ? "conc_why_h2" : "conc_why_room"))
+      .replace("{p}", p);
+    el.className = "cnote " + (capped ? "warn" : "ok");
   }
   /* Both servers, because a run needs a session on both — one green badge would say the run is
      ready when half of it cannot load a page. */
   async function testConn() {
     await testOneConn("conn", baseUrl);
     if (srvMode) await testOneConn("conn2", baseUrl2);
+    paintConc();
   }
   function saveCfg() { try { chrome.storage.local.set({ baseUrl: baseUrl, baseUrl2: baseUrl2, srvMode: srvMode, appConc: conc, appTol: tol }); $("saveCfg").textContent = t("saved"); setTimeout(function () { $("saveCfg").textContent = t("save"); }, 1500); } catch (e) {} }
 
@@ -1598,6 +2044,7 @@
        each data-i18n node from it, so nothing here writes a label by hand and no label can be set
        and then quietly overwritten. */
     applyLang(lang);
+    paintConc();      // two servers means two connection pools, so the ceiling moves with the mode
   }
   function setSrvMode(v) {
     srvMode = !!v;
@@ -1615,7 +2062,14 @@
   // ---------- wire ----------
   /* toggle, not assign: body also carries .srv, which says the tiles are counting a different set
      of things, and an outright assignment threw that away every time the theme was switched. */
-  function applyTheme(t) { document.body.classList.toggle("light", t === "light"); const b = $("theme"); if (b) b.textContent = (t === "light" ? "🌙 Dark" : "☀ Light"); }
+  function applyTheme(t) {
+    document.body.classList.toggle("light", t === "light");
+    /* The page's own scrollbar belongs to the ROOT element, and the theme class is on <body> — so
+       the CSS rule above reaches every box inside the page but not the one down the side of it.
+       This does. */
+    try { document.documentElement.style.colorScheme = (t === "light" ? "light" : "dark"); } catch (e) {}
+    const b = $("theme"); if (b) b.textContent = (t === "light" ? "🌙 Dark" : "☀ Light");
+  }
   function wire() {
     try { const v = chrome.runtime.getManifest().version; const el = $("ver"); if (el) el.textContent = "v" + v; } catch (e) {}
     $("base").value = baseUrl; $("conc").value = conc; $("tol").value = tol;
@@ -1634,14 +2088,18 @@
        while saving was on — so the run wrote files the page said it would not. All the handle adds
        is the folder name. */
     paintSaveRow();
-    $("conc").addEventListener("input", function () { let v = parseInt(this.value, 10); if (isNaN(v)) return; conc = Math.max(1, Math.min(300, v)); if (v !== conc) this.value = conc; try { chrome.storage.local.set({ appConc: conc }); } catch (e) {} });
+    $("conc").addEventListener("input", function () { let v = parseInt(this.value, 10); if (isNaN(v)) return; conc = Math.max(1, Math.min(300, v)); if (v !== conc) this.value = conc; paintConc(); try { chrome.storage.local.set({ appConc: conc }); } catch (e) {} });
     $("tol").addEventListener("input", function () { const v = parseFloat(this.value); tol = isNaN(v) ? 0 : Math.max(0, v); try { chrome.storage.local.set({ appTol: tol }); } catch (e) {} });
+    $("ckGo").addEventListener("click", ckResume);
+    $("ckDrop").addEventListener("click", function () {
+      const g = ckFound; ckBar(null); if (g) ckWipe(g.sig);
+    });
     $("theme").addEventListener("click", function () { const th = document.body.classList.contains("light") ? "dark" : "light"; applyTheme(th); try { chrome.storage.local.set({ theme: th }); } catch (e) {} });
     $("lang").addEventListener("click", function () { const l = (lang === "bn" ? "en" : "bn"); applyLang(l); try { chrome.storage.local.set({ lang: l }); } catch (e) {} });
     // Clear empties the whole "What to Reconciliation" card — paste box, sheet link, the chosen
     // file, the preview and its search — so the next import starts from nothing.
     $("clearImp").addEventListener("click", function () {
-      entries = []; importedRows = null; importedHeader = null; importSrc = "";
+      entries = []; importSrc = "";
       clearSheetPicker();
       ["paste", "link", "pvSearch", "file"].forEach(function (id) {
         const el = $(id); if (el) el.value = "";
@@ -1652,7 +2110,9 @@
     });
     $("testConn").addEventListener("click", testConn);
     $("saveCfg").addEventListener("click", saveCfg);
-    $("run").addEventListener("click", startRun);
+    /* not startRun directly: a click handler is handed the MouseEvent, and startRun's first
+       argument means "this is a resumed run" — an event object is a truthy one. */
+    $("run").addEventListener("click", function () { startRun(); });
     $("stop").addEventListener("click", function () { if (run) { run.stop = true; run.paused = false; if (run.ac) try { run.ac.abort(); } catch (e) {} } this.disabled = true; $("pause").disabled = true; $("prog").textContent = t("stopping"); });
     $("pause").addEventListener("click", function () { if (!run) return; run.paused = !run.paused; this.textContent = run.paused ? t("resume") : t("pause"); });
     if ($("saveSw")) $("saveSw").addEventListener("change", function () {
@@ -1730,7 +2190,6 @@
       .filter(function (l) { return l && !/^[\s,;|]+$/.test(l); })
       .map(function (l) { return cut(l).map(function (c) { return c.trim(); }).filter(function (c) { return c !== ""; }); });
     if (!rows.length) { $("impNote").textContent = t("paste_empty"); return; }
-    importedHeader = null;
     clearSheetPicker();
     setSource(t("src_paste"), "");
     applyImported(rows);
@@ -1776,6 +2235,6 @@
        decides that at the end of the run, when it matters. */
     idb(function (st) { return st.get("dir"); }).then(function (h) { if (h) dirHandle = h; paintSaveRow(); }).catch(function () { paintSaveRow(); }); if (o.baseUrl) baseUrl = o.baseUrl; if (o.baseUrl2) baseUrl2 = o.baseUrl2; srvMode = o.srvMode === true; if (o.appConc) conc = o.appConc;
     // 1 was the old default and it hides exactly the ৳1 mismatches — drop it once, keep any other choice
-    if (o.appTol != null) { if (o.appTol === 1 && !o.tolMigrated) { tol = 0; try { chrome.storage.local.set({ appTol: 0, tolMigrated: true }); } catch (e) {} } else tol = o.appTol; } wire(); applyTheme(o.theme || "dark"); applyLang(o.lang || "en"); testConn(); }); }
+    if (o.appTol != null) { if (o.appTol === 1 && !o.tolMigrated) { tol = 0; try { chrome.storage.local.set({ appTol: 0, tolMigrated: true }); } catch (e) {} } else tol = o.appTol; } wire(); applyTheme(o.theme || "dark"); applyLang(o.lang || "en"); testConn(); ckOffer(); }); }
   catch (e) { wire(); applyTheme("dark"); applyLang("en"); }
 })();

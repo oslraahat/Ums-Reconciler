@@ -49,7 +49,13 @@ function makeApp(paintAfterClear) {
   const fs = require("fs");
   const path = require("path");
   const src = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
-  check("app.js repaints after `run = null`", /run = null;\s*\n\s*paintRerun\(\);/.test(src));
+  /* Anything may happen between the two — offering the checkpoint back does — but paintRerun()
+     has to come after run is cleared, and nothing may set run again in between, or the buttons
+     are painted against a run that is still notionally in progress and stay disabled. */
+  const tail = src.slice(src.lastIndexOf("run = null;"));
+  check("app.js repaints after `run = null`",
+    /^run = null;[^]{0,400}?paintRerun\(\);/.test(tail) && !/^run = null;[^]*?run = \{/.test(tail.slice(0, 400)),
+    tail.slice(0, 160).replace(/\s+/g, " "));
   check("rerunStatus clears `run` before repainting the tiles",
     /run = null;\s*\n\s*recountAll\(\); paintTiles\(\);/.test(src));
 

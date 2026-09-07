@@ -224,13 +224,61 @@ const U = RECG.UMSREC;
 /* the button has to exist, ask for both pages, and survive a refused clipboard */
 {
   check("the panel carries the button", /id="umsrec-copy"/.test(SRC), "content.js");
+}
+
+/* ---- the shape of the panel ----
+   Five buttons of equal weight in a 360px box, and a title that grew a sentence. Only one of the
+   five is the thing you opened it for; Batch Reconcile is a place to go rather than an action, and
+   Start/Stop, Clear and Copy are occasional. Everything the same size hid the one that matters. */
+{
+  const markup = SRC.slice(SRC.indexOf("el.innerHTML ="), SRC.indexOf("document.body.appendChild(el);"));
+
+  check("one button is the primary one", (markup.match(/class="primary/g) || []).length === 1,
+    (markup.match(/class="primary[^"]*"/g) || []).join(", "));
+  check("…and it takes the width of the panel", /class="primary wide" id="umsrec-verify"/.test(markup) &&
+    /#umsrec .primary.wide{[^}]*width:100%/.test(SRC), "content.js");
+  /* the other three share one line and are visibly smaller, so they read as occasional */
+  check("…while the occasional three share one line",
+    /<div class="row-actions small">[\s\S]*?umsrec-copy[\s\S]*?umsrec-clear[\s\S]*?umsrec-power[\s\S]*?<\/div>/.test(markup) &&
+    /#umsrec \.row-actions\.small button\{[^}]*font-size:12px/.test(SRC), "content.js");
+  /* Batch Reconcile opens another page — somewhere to go, like the pop-out and the minimise */
+  check("…and Batch Reconcile is an icon with the other two",
+    /<span class="ic" id="umsrec-dash"/.test(markup), "content.js");
+
+  /* the running state was four words in the title; the minimised bubble had said it with a dot all
+     along, and one bit of information does not need a sentence */
+  check("the running state is a dot, not a sentence",
+    /id="umsrec-dot"/.test(markup) && !/\(stopped\)/.test(SRC),
+    (/UMS Payment Reconciler[^"]*/.exec(SRC) || [""])[0]);
+  check("…coloured from one class on the panel",
+    /el\.classList\.toggle\("off", !val\)/.test(SRC) && /#umsrec\.off \.hd \.dot\{/.test(SRC), "content.js");
+  check("…and it says which state it is in, on hover",
+    /dot\.title = val \?/.test(SRC), "content.js");
+
+  /* the labels shrank, so the meaning has to live in the titles */
+  ["umsrec-copy", "umsrec-clear", "umsrec-power", "umsrec-dash"].forEach(function (id) {
+    check("…" + id + " explains itself on hover",
+      new RegExp('id="' + id + '" title="[^"]{8,}"').test(markup), "content.js");
+  });
+
+  /* every control the rest of content.js reaches for must still be there */
+  ["umsrec-tt", "umsrec-p", "umsrec-c", "umsrec-out", "umsrec-min", "umsrec-pop",
+   "umsrec-power", "umsrec-clear", "umsrec-verify", "umsrec-dash", "umsrec-copy"].forEach(function (id) {
+    check("…" + id + " survived the tidy-up", markup.indexOf('id="' + id + '"') >= 0, "content.js");
+  });
   check("…it copies what was captured, not what is on screen", /U\.rawText\(pw && pw\.data, cw && cw\.data/.test(SRC), "content.js");
   check("…it names the reg as well as the spid", /stdRollOrRegistrationNo=\(\[\^&\]\+\)/.test(SRC), "content.js");
   check("…nothing captured is said, not copied", /Nothing captured yet/.test(SRC), "content.js");
   /* the label replaces itself with the outcome, so both have to be in the same language — a
      Bangla "✓ কপি হয়েছে" flashing over an English button reads as a glitch */
-  check("…and the button speaks one language",
-    /⧉ Copy Both Tables/.test(SRC) && !/flash\("[^"]*[ঀ-৿]/.test(SRC), "content.js");
+  /* the LABEL is what the flash replaces, so those two must match. The title is a tooltip and
+     is never swapped, so it is free to be Bangla like the panel's other tooltips. */
+  {
+    const label = (/id="umsrec-copy"[^>]*>([^<]*)</.exec(SRC) || [])[1] || "";
+    check("…and the button speaks one language",
+      !!label && !/[\u0980-\u09FF]/.test(label) && !/flash\("[^"]*[\u0980-\u09FF]/.test(SRC),
+      JSON.stringify(label));
+  }
   check("…and a refused clipboard falls back", /document\.execCommand\("copy"\)/.test(SRC), "content.js");
 }
 

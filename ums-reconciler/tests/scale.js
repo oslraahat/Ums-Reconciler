@@ -46,6 +46,7 @@ check("every tile carries a ⟳ button", BUTTONS.length >= 6, BUTTONS.join(","))
     line(/const T = \{[^\n]*\};/) + "\n" +
     line(/const notOk = function \(st\) \{[^\n]*\};/) + "\n" +
     line(/const bucketCount = function \(st\) \{[^\n]*\};/) + "\n" +
+    line(/const tileKey = function \(st\) \{[\s\S]*?\};/) + "\n" +
     src("bumpTile") + "\n" + src("recountAll") + "\n" + src("pickByStatus") + "\n" +
     "return { T: T, recountAll: recountAll, pickByStatus: pickByStatus, bucketCount: bucketCount };"
   )(students, false);
@@ -91,6 +92,7 @@ check("every tile carries a ⟳ button", BUTTONS.length >= 6, BUTTONS.join(","))
     line(/const T = \{[^\n]*\};/) + "\n" +
     line(/const notOk = function \(st\) \{[^\n]*\};/) + "\n" +
     line(/const bucketCount = function \(st\) \{[^\n]*\};/) + "\n" +
+    line(/const tileKey = function \(st\) \{[\s\S]*?\};/) + "\n" +
     src("bumpTile") + "\n" + src("recountAll") + "\n" + src("pickByStatus") + "\n" +
     "return { recountAll: recountAll, pickByStatus: pickByStatus, bucketCount: bucketCount };"
   )(students, false);
@@ -141,14 +143,25 @@ check("every tile carries a ⟳ button", BUTTONS.length >= 6, BUTTONS.join(","))
      mismatches all sat past row 1,200 — where a sheet sorted by Reg puts them — and "শুধু অমিল"
      selected: 1,000 cards drawn, 0 visible, every mismatch missing from the one view meant to
      show them. The cap is for the browser; it must never decide what the user gets to see. */
-  check("a hidden card does not spend a slot",
-    /if \(div\.style\.display === "none"\) return;[\s\S]{0,200}?listTotal\+\+;/.test(APP), "app.js");
+  /* The decision is now taken from the answers before any HTML is composed, which is also what
+     makes re-rendering on a filter change affordable. tests/filter-shows.js checks the behaviour;
+     this checks that the order has not slipped back. */
+  {
+    const rs = src("renderStudent");
+    const decide = rs.indexOf("matchFilter");
+    const count = rs.indexOf("listTotal++");
+    const build = rs.indexOf("div.innerHTML = h;");
+    check("a hidden card does not spend a slot",
+      decide > 0 && decide < count && count < build, "renderStudent");
+  }
   check("…and a re-render starts the count over",
     /l\.innerHTML = ""; listShown = 0; listTotal = 0;/.test(APP), "app.js");
-  /* hiding cards is not enough once the list is capped: the ones that match may be past the cap and
-     never drawn at all, so changing the filter has to re-pick which LIST_MAX are on screen */
+  /* Hiding cards is not enough once the list is capped: the ones that match may be past the cap
+     and never drawn at all, so changing the filter has to re-pick which LIST_MAX are on screen —
+     during a run too, which is when a run of this size is actually looked at. Reported from a real
+     run as "Mismatch says 3, the list shows 1". */
   check("changing the filter re-picks which cards are drawn",
-    /if \(run\) applyFilterAll\(\); else rerenderList\(\);/.test(APP), "app.js");
+    /rerenderList\(\);/.test(src("setFilter")) && !/applyFilterAll/.test(src("setFilter")), "setFilter");
   const en = /list_capped: \{ bn: "[^"]*", en: "([^"]*)" \}/.exec(APP);
   check("the note has clean English", !!en && !/[ঀ-৿]/.test(en[1]), en ? en[1] : "not found");
   /* the list is for looking at; the reports are the deliverable and must still carry everything */
@@ -164,7 +177,7 @@ check("every tile carries a ⟳ button", BUTTONS.length >= 6, BUTTONS.join(","))
   const body = src("startRun");
   const at = body.indexOf('$("prog").textContent = "⏳ 0/" + T.total');
   check("the progress line is written before the workers start",
-    at > 0 && at < body.indexOf("async function worker() {"),
+    at > 0 && at < body.indexOf("async function worker(n) {"),
     at < 0 ? "not in startRun" : "written after the workers");
   /* and Start must not leave the previous run's count sitting there while the new one warms up */
   check("…after the tally is cleared, so it starts from zero",

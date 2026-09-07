@@ -103,7 +103,7 @@ const line = (re) => (re.exec(APP) || [""])[0];
 {
   check("four files, built from the same code the buttons use",
     /name: "report\.html", blob: new Blob\(\[buildHtml\(rows\)\]/.test(APP) &&
-    /name: "report\.xlsx", blob: new Blob\(\[buildXlsx\(rows\)\]/.test(APP) &&
+    /name: "report\.xlsx", blob: new Blob\(\[await buildXlsx\(rows\)\]/.test(APP) &&
     /name: "summary\.txt"/.test(APP) && /name: "table-data\.txt", blob: new Blob\(\[buildRaw\(raw\)\]/.test(APP),
     "app.js");
   /* the raw dump is only kept for students that need a person, so on a clean run there is none —
@@ -121,8 +121,15 @@ const line = (re) => (re.exec(APP) || [""])[0];
   check("a folder can be chosen", /window\.showDirectoryPicker/.test(APP), "app.js");
   /* Handles are not JSON, so chrome.storage cannot hold one — without IndexedDB the folder would
      have to be picked again every time the page is opened. */
-  check("…and remembered across sessions", /indexedDB\.open\("umsrec", 1\)/.test(APP) &&
+  check("…and remembered across sessions", /indexedDB\.open\("umsrec", \d+\)/.test(APP) &&
     /st\.put\(h, "dir"\)/.test(APP), "app.js");
+  /* The database gained a second store for the run checkpoint, which meant a version bump, which
+     means an upgrade path. Creating the stores unconditionally would throw on an existing "kv" —
+     and dropping and recreating it would silently take the saved folder with it, so that a user
+     who had chosen a folder months ago would find it gone with nothing to say why. */
+  check("…and the folder survives the database being upgraded",
+    /if \(!db\.objectStoreNames\.contains\("kv"\)\) db\.createObjectStore\("kv"\);/.test(APP) &&
+    !/deleteObjectStore/.test(APP), "app.js");
   /* requestPermission needs a user gesture. At the end of a long run there is none, so it is asked
      for at the click that switches the saving on, and only CHECKED when the run ends. */
   check("permission is requested at the click, not at the end of the run",

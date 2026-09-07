@@ -59,9 +59,79 @@
     if (out) out.innerHTML = '<div class="verdict vno">⟳ Extension reload হয়েছে — এই পেজটা refresh (F5) করো।</div>';
   }
   function skey(type) { return type + "_" + spid(); }
+
+  /* How many students' captures are kept. They are a cache of two pages that nothing ever
+     removed: one pair per student visited, for as long as the extension is installed. A pair is a
+     few KB and the quota is 10 MB, so a few thousand students fills it — and then every write
+     fails and the panel stops working with nothing said. Forty is far more than the handful
+     anyone has open at once, and a dropped capture is one page visit from coming back. */
+  const KEEP = 40;
+
+  /* Note this student as the most recently seen, and drop whatever falls off the end. The list is
+     kept as one small key rather than by reading the whole store back on every capture. */
+  function remember(id, done) {
+    done = done || function () {};
+    if (!ctxAlive()) { done(); return; }
+    try {
+      chrome.storage.local.get(["caps"], function (o) {
+        const had = Array.isArray(o.caps) ? o.caps : null;
+        let list = (had || []).filter(function (x) { return x !== id; });
+        list.unshift(id);
+        const drop = list.slice(KEEP);
+        list = list.slice(0, KEEP);
+        const finish = function () { try { chrome.storage.local.set({ caps: list }, done); } catch (e) { done(); } };
+        /* First run after this version: everything written before there was a list is
+           unaccounted for, and on a browser that has been reconciling for months that is the
+           whole problem. Sweep it once. */
+        if (!had) { sweep(list, finish); return; }
+        if (!drop.length) { finish(); return; }
+        const keys = [];
+        drop.forEach(function (x) { keys.push("program_" + x, "course_" + x); });
+        try { chrome.storage.local.remove(keys, finish); } catch (e) { finish(); }
+      });
+    } catch (e) { done(); }
+  }
+
+  /* Remove every capture except the students named. Only captures — settings, the manual-match
+     list and the Batch page's own keys are left alone, which is why this matches on the prefix
+     rather than clearing the store. */
+  function sweep(keepIds, done) {
+    try {
+      chrome.storage.local.get(null, function (all) {
+        const keep = {};
+        (keepIds || []).forEach(function (x) { keep["program_" + x] = 1; keep["course_" + x] = 1; });
+        const gone = Object.keys(all || {}).filter(function (k) {
+          return /^(?:program|course)_/.test(k) && !keep[k];
+        });
+        if (!gone.length) { done(); return; }
+        try { chrome.storage.local.remove(gone, done); } catch (e) { done(); }
+      });
+    } catch (e) { done(); }
+  }
+
+  /* A full store is the one failure here that can be fixed from inside: the captures are the only
+     thing in it that can be thrown away. Say so, make room, and write again. */
+  let retried = false;
+  function full(type, data) {
+    const out = document.getElementById("umsrec-out");
+    if (out) out.innerHTML = '<div class="verdict vno">⚠ ব্রাউজারের জায়গা ভরে গিয়েছিল — পুরনো ক্যাপচার মুছে আবার নেওয়া হচ্ছে…</div>';
+    if (retried) return;                 // once. twice would be a loop, not a recovery
+    retried = true;
+    sweep([spid()], function () { save(type, data); });
+  }
+
   function save(type, data) {
     if (!ctxAlive()) return;
-    try { chrome.storage.local.set({ [skey(type)]: { data: data, at: new Date().toLocaleString(), url: location.href } }); } catch (e) {}
+    try {
+      chrome.storage.local.set({ [skey(type)]: { data: data, at: new Date().toLocaleString(), url: location.href } },
+        function () {
+          /* A quota failure arrives HERE, not as a throw — the try/catch below cannot see it, and
+             for as long as nobody read this the write simply did nothing and the panel went quiet. */
+          if (chrome.runtime.lastError) { full(type, data); return; }
+          retried = false;
+          remember(spid());
+        });
+    } catch (e) {}
   }
   function loadBoth(cb) {
     if (!ctxAlive()) { needRefreshHint(); cb(null, null); return; }
@@ -74,11 +144,14 @@
 
   // ---- UI ----
   const css = `
-  #umsrec{position:fixed;right:16px;bottom:16px;z-index:2147483647;width:360px;max-width:92vw;
-    font:13px/1.45 system-ui,"Segoe UI",Roboto,sans-serif;color:#eef1fb;background:#161a2b;
+  /* the panel body scrolls, and UMS's own page is light — without this the browser draws that
+     scrollbar to match the page behind rather than the dark panel it is in */
+  #umsrec{color-scheme:dark;position:fixed;right:16px;bottom:16px;z-index:2147483647;width:360px;max-width:92vw;
+    font:13px/1.45 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif;color:#eef1fb;background:#161a2b;
     border:1px solid #2a3050;border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.5);overflow:hidden}
   #umsrec .hd{display:flex;align-items:center;gap:8px;padding:12px 14px;
-    background:linear-gradient(135deg,#7c6cff,#5b4ff0);color:#fff}
+    /* not #7c6cff: white on it measures 3.86:1, and the name and the icons sit on this */
+    background:linear-gradient(135deg,#6d5cf0,#5b4ff0);color:#fff}
   #umsrec .hd b{font-size:14px;font-weight:700;flex:1;cursor:pointer;letter-spacing:.2px}
   #umsrec .hd .ic{cursor:pointer;opacity:.9;font-size:15px;padding:0 2px}
   #umsrec .hd .ic:hover{opacity:1}
@@ -87,7 +160,8 @@
   #umsrec .ok{color:#37d18b}#umsrec .no{color:#ff6b7d}#umsrec .warn{color:#ffb454}#umsrec .mut{color:#8b91b4}
   #umsrec button{cursor:pointer;border:none;border-radius:10px;padding:9px 12px;font-weight:600;font-size:13px;
     transition:filter .12s,background .12s,border-color .12s}
-  #umsrec .primary{background:#7c6cff;color:#fff;box-shadow:0 3px 12px rgba(124,108,255,.4)}
+  /* …and the same again here: this is the button the whole panel is for */
+  #umsrec .primary{background:#6d5cf0;color:#fff;box-shadow:0 3px 12px rgba(124,108,255,.4)}
   #umsrec .primary:hover{filter:brightness(1.08)}
   #umsrec .ghost{background:#10131f;border:1px solid #2a3050;color:#eef1fb}
   #umsrec .ghost:hover{border-color:#7c6cff;background:#1a2036}
@@ -95,9 +169,16 @@
   #umsrec .vok{background:rgba(55,209,139,.16);color:#37d18b}
   #umsrec .vwarn{background:rgba(255,180,84,.16);color:#ffb454}
   #umsrec .vno{background:rgba(255,107,125,.16);color:#ff6b7d}
-  #umsrec table{border-collapse:collapse;width:100%;font-size:12px;margin-top:6px}
+  /* Colours stated, not inherited. This panel lives inside the UMS document, so the UMS
+     stylesheet reaches it — and a rule as ordinary as "th{background:#eef1f8}" paints these
+     headings light while the text stays #eef1fb, which measured 1.00:1: the report table, which
+     is the whole answer, vanishing on a page nobody here controls. */
+  #umsrec table{border-collapse:collapse;width:100%;font-size:12px;margin-top:6px;
+    background:transparent;color:#eef1fb}
   #umsrec th,#umsrec td{border:1px solid #2a3050;padding:4px 6px;text-align:right;
-    white-space:nowrap;overflow-wrap:normal;word-break:normal;vertical-align:top}
+    white-space:nowrap;overflow-wrap:normal;word-break:normal;vertical-align:top;
+    background:transparent;color:#eef1fb;font-family:inherit;font-size:12px;line-height:1.45}
+  #umsrec th{font-weight:700;color:#b8bfda}
   #umsrec th:first-child,#umsrec td:first-child{text-align:left;white-space:normal}
   #umsrec .mrn{font-weight:700}
   #umsrec details{border:1px solid #2a3050;border-radius:8px;padding:6px 8px;background:rgba(255,255,255,.02)}
@@ -108,6 +189,14 @@
   #umsrec details[open] summary::before{content:"▾ "}
   #umsrec details table{margin-top:4px}
   #umsrec .row-actions{display:flex;gap:8px;margin-top:8px}
+  /* the three occasional buttons: equal shares of one line, and small enough to read as secondary */
+  #umsrec .row-actions.small button{flex:1;padding:7px 6px;font-size:12px;min-width:0}
+  #umsrec .primary.wide{display:block;width:100%;margin-top:12px}
+  /* running or stopped, in the space a dot takes. The minimised bubble has said it this way all
+     along; the title said it in four words. */
+  #umsrec .hd .dot{flex:none;width:9px;height:9px;border-radius:50%;background:#37d18b;
+    box-shadow:0 0 0 3px rgba(255,255,255,.16)}
+  #umsrec.off .hd .dot{background:#ff6b7d}
   #umsrec.min{display:none}
   /* minimized launcher bubble */
   /* minimized: one small pill — the name reopens the panel, ⛶ opens Batch Reconcile */
@@ -125,7 +214,7 @@
   #umsrec-batch{display:flex;align-items:center;justify-content:center;width:30px;height:30px;
     cursor:pointer;color:#8b91b4;border-radius:50%;font-size:14px;line-height:1}
   #umsrec-batch:hover{background:#7c6cff;color:#fff}
-  @media (prefers-color-scheme:light){#umsrec{background:#fff;color:#141830;border-color:#e2e6f2}
+  @media (prefers-color-scheme:light){#umsrec{color-scheme:light;background:#fff;color:#141830;border-color:#e2e6f2}
     #umsrec th,#umsrec td{border-color:#e2e6f2}#umsrec .st{border-color:#e2e6f2}}
   `;
 
@@ -133,8 +222,11 @@
     enabled = val;
     const b = document.getElementById("umsrec-power");
     if (b) { b.textContent = val ? "■ Stop" : "▶ Start"; b.style.color = val ? "#ff6b7d" : "#37d18b"; }
-    const tt = document.getElementById("umsrec-tt");
-    if (tt) tt.textContent = val ? "UMS Payment Reconciler" : "UMS Payment Reconciler ⏸ (stopped)";
+    /* The panel and the bubble now say it the same way — a dot. The title stays a title. */
+    const el = document.getElementById("umsrec");
+    if (el) el.classList.toggle("off", !val);
+    const dot = document.getElementById("umsrec-dot");
+    if (dot) dot.title = val ? "চলছে — পেজ খুললেই নিজে থেকে পড়ছে" : "⏸ থামানো";
     const mini = document.getElementById("umsrec-mini"), bub = document.getElementById("umsrec-bub");
     if (mini) mini.classList.toggle("off", !val);       // ডটের রঙ এখান থেকেই ঠিক হয়
     if (bub) bub.title = (val ? "চলছে" : "⏸ থামানো") + " · বড় করতে ক্লিক করো";
@@ -173,23 +265,48 @@
 
   /* The table is often drawn after this script runs, so one attempt at load is not enough.
      Watch the page and keep trying until it appears (or ~20s passes). */
+  /* How long to wait for the table to appear. It used to be twenty attempts, and the observer
+     spent one on every mutation of the page — a spinner, a jQuery plugin, this very panel being
+     inserted. A busy page burned all twenty in the first second, before the table had arrived,
+     and then gave up for good: "not captured", permanently, with a reload the only cure and
+     nothing on screen to suggest it.
+
+     So the budget is time, which is what was actually being waited for. Mutations only say "look
+     again" and cost nothing — throttled, because looking means scanning every table on the page. */
+  const WAIT_MS = 60000;
+  const LOOK_MS = 150;
   function captureWhenReady() {
     if (captureNow()) return;
-    let tries = 0, obs = null;
-    const stop = function () { if (obs) obs.disconnect(); obs = null; };
+    const until = Date.now() + WAIT_MS;
+    let obs = null, iv = null, pending = false;
+    const stop = function () {
+      if (obs) obs.disconnect();
+      obs = null;
+      if (iv) clearInterval(iv);
+      iv = null;
+    };
     const attempt = function () {
       if (captureNow()) { stop(); return; }
-      if (++tries >= 20) { stop(); }
+      if (Date.now() > until) stop();
+    };
+    /* Leading edge: the first mutation after a quiet moment is looked at straight away, so a table
+       that has just been drawn is captured at once. Only a burst is deferred — and a burst is
+       exactly the case this throttle exists for, because looking means scanning every table on
+       the page. */
+    let last = 0;
+    const soon = function () {
+      if (!obs) return;
+      const now = Date.now();
+      if (now - last >= LOOK_MS) { last = now; attempt(); return; }
+      if (pending) return;
+      pending = true;
+      setTimeout(function () { pending = false; last = Date.now(); attempt(); }, LOOK_MS - (now - last));
     };
     try {
-      obs = new MutationObserver(function () { attempt(); });
+      obs = new MutationObserver(soon);
       obs.observe(document.documentElement, { childList: true, subtree: true });
     } catch (e) {}
-    const iv = setInterval(function () {
-      if (!obs) { clearInterval(iv); return; }
-      attempt();
-      if (!obs) clearInterval(iv);
-    }, 1000);
+    iv = setInterval(attempt, 1000);
   }
 
   function buildPanel() {
@@ -197,20 +314,24 @@
     const style = document.createElement("style"); style.textContent = css; document.head.appendChild(style);
     const el = document.createElement("div"); el.id = "umsrec";
     el.innerHTML =
-      '<div class="hd"><b id="umsrec-tt">UMS Payment Reconciler</b>' +
+      /* The dot carries the running state; it used to be spelled out in the title, which is the
+         longest way to say a thing that has one bit in it. Batch Reconcile sits with the other two
+         icons because it opens another page — somewhere to go, not something to do here. */
+      '<div class="hd"><span class="dot" id="umsrec-dot"></span>' +
+      '<b id="umsrec-tt">UMS Reconciler</b>' +
+      '<span class="ic" id="umsrec-dash" title="Batch Reconcile — অনেক ছাত্র একসাথে">⛶</span>' +
       '<span class="ic" id="umsrec-pop" title="আলাদা উইন্ডোতে খোলো">⧉</span>' +
-      '<span class="ic" id="umsrec-min" title="ছোট/বড় করো">▾</span></div>' +
+      '<span class="ic" id="umsrec-min" title="ছোট করো">▾</span></div>' +
       '<div class="bd">' +
       '<div class="st"><span>Program Wise</span><span id="umsrec-p" class="mut">—</span></div>' +
       '<div class="st"><span>Course Wise</span><span id="umsrec-c" class="mut">—</span></div>' +
-      '<div class="row-actions" style="margin-top:12px">' +
-      '<button class="primary" id="umsrec-verify" style="flex:1">Single Reconcile</button>' +
-      '<button class="ghost" id="umsrec-dash" style="flex:1">⛶ Batch Reconcile</button></div>' +
-      '<div class="row-actions">' +
-      '<button class="ghost" id="umsrec-power" style="flex:1">■ Stop</button>' +
-      '<button class="ghost" id="umsrec-clear" style="flex:1">Clear captured</button></div>' +
-      '<div class="row-actions">' +
-      '<button class="ghost" id="umsrec-copy" style="flex:1" title="Program Wise + Course Wise — every cell, tab-separated, on the clipboard. Paste into Excel or a message.">⧉ Copy Both Tables</button></div>' +
+      /* the one thing the panel is for, at the width of the panel */
+      '<button class="primary wide" id="umsrec-verify">Single Reconcile</button>' +
+      /* the occasional ones, small, on one line — the labels shrink, the titles keep the meaning */
+      '<div class="row-actions small">' +
+      '<button class="ghost" id="umsrec-copy" title="দুই পাতার প্রতিটা ঘর tab-separated হয়ে clipboard-এ — Excel বা মেসেজে পেস্ট করা যায়">⧉ Copy</button>' +
+      '<button class="ghost" id="umsrec-clear" title="এই ছাত্রের জমা করা দুই পাতা মুছে দাও">✕ Clear</button>' +
+      '<button class="ghost" id="umsrec-power" title="পেজ খুললেই নিজে থেকে পড়া — বন্ধ/চালু">■ Stop</button></div>' +
       '<div id="umsrec-out"></div>' +
       '</div>';
     document.body.appendChild(el);

@@ -39,7 +39,7 @@ function lift(names) {
   }).join("\n");
   return new Function(src + "\nreturn {" + names.join(",") + "};")();
 }
-const X = lift(["xesc", "cl", "CRC", "crc32", "cat", "sheetXml", "zipStore"]);
+const X = lift(["xesc", "cl", "CRC", "crc32", "cat", "FILL_STYLE", "LINK_STYLE", "sheetXml", "zipStore"]);
 check("export helpers lifted from app.js", !!X.sheetXml && !!X.zipStore);
 
 /* ---- a realistic Remarks string, straight out of the engine ---- */
@@ -94,13 +94,16 @@ const buf = Buffer.from(bytes);
 
 check("it is a zip", buf.slice(0, 4).toString("hex") === "504b0304", buf.slice(0, 4).toString("hex"));
 {
-  /* local header: 30 bytes + name + extra, stored (method 0) so the bytes are the file itself */
+  /* This is zipStore(), the fallback for a browser with no CompressionStream — the shipping
+     writer is zipPack(), which deflates, and tests/xlsx-zip.js takes its output apart entry by
+     entry. Here the bytes ARE the file, which is what makes the round-trip below readable.
+     Local header: 30 bytes + name + extra. */
   const method = buf.readUInt16LE(8);
   const csize = buf.readUInt32LE(18), usize = buf.readUInt32LE(22);
   const nlen = buf.readUInt16LE(26), elen = buf.readUInt16LE(28);
   const start = 30 + nlen + elen;
   const raw = buf.slice(start, start + csize);
-  check("stored, not deflated", method === 0, "method=" + method);
+  check("the fallback stores, so its bytes are the file", method === 0, "method=" + method);
   check("declared size matches the payload", csize === usize && usize === enc.encode(sheet).length,
     csize + " / " + usize);
 
@@ -181,6 +184,111 @@ check("the broken dead CSV export is gone", !/function exportCsv/.test(APP) && !
   check("nothing flagged → no empty file",
     /const rows = flatRows\(\)\.filter\(function \(r\) \{ return r\.raw; \}\);\s*\n\s*if \(!rows\.length\) return;/.test(APP),
     "app.js");
+}
+
+/* ---- the report is painted in the mode's own colours ----
+   The six buckets are reused across the two modes and two of them change gravity. On one server
+   "zero" is Zero Pay — nobody ever paid, nothing to reconcile — and "cw" is an empty Course Wise,
+   worth a look. On two servers the same slots hold "Extra on Actual", which counts as a problem,
+   and "Missing on Actual", which is money that did not survive the migration.
+
+   The tiles were taught that. statusColor() was not, and it is what fills the Excel cell and stripes
+   the HTML row — so a student whose data had gone missing came out amber in the file, and one with
+   a duplicated receipt came out GREEN, which reads as nothing to do. */
+{
+  const mk = (srvMode) => new Function("srvMode",
+    (/const notOk = function \(st\) \{[^\n]*\};/.exec(APP) || [""])[0] + "\n" +
+    (function () {
+      const at = APP.indexOf("function statusColor(");
+      let d = 0;
+      for (let j = APP.indexOf("{", at); j < APP.length; j++) {
+        if (APP[j] === "{") d++;
+        else if (APP[j] === "}") { d--; if (!d) return APP.slice(at, j + 1); }
+      }
+    })() + "\nreturn { statusColor: statusColor, notOk: notOk };")(srvMode);
+
+  const STS = ["ok", "no", "cw", "zero", "nf", "error"];
+  [false, true].forEach(function (srv) {
+    const a = mk(srv), where = srv ? "two servers" : "one server";
+    /* the invariant worth having: green is exactly the set of things nobody has to act on */
+    const wrong = STS.filter(function (st) { return (a.statusColor(st) === "g") !== !a.notOk(st); });
+    check("green means nothing to do — " + where, wrong.length === 0,
+      wrong.map(function (st) { return st + "=" + a.statusColor(st) + "/notOk:" + a.notOk(st); }).join(" "));
+  });
+
+  /* and the worst verdict each mode can reach is the one that reads as worst */
+  check("two servers: money that did not survive the move is red",
+    mk(true).statusColor("cw") === "r", mk(true).statusColor("cw"));
+  check("…and a row that appeared from nowhere is amber, not green",
+    mk(true).statusColor("zero") === "y", mk(true).statusColor("zero"));
+  /* nothing about the single-server run moved */
+  check("one server: Zero Pay stays green", mk(false).statusColor("zero") === "g");
+  check("…and CW Empty stays amber", mk(false).statusColor("cw") === "y");
+
+  /* the exported HTML's own summary chips carry the same assumption, in CSS of their own */
+  check("the report's chips swap with them",
+    /srvMode \? '\.chip\.cw\{border-color:#ff6b7d\}\.chip\.zero\{border-color:#ffb454\}' : ""/.test(APP),
+    "app.js");
+}
+
+/* ---- the link column is a link ----
+   It held the URL as text: a hundred-and-twenty-character query string in every row, a column wide
+   enough to show it, and nothing to click — Excel does not linkify text it was handed. */
+{
+  const HDR = ["Status", "Student Reg", "Program Id", "Expected Link", "Actual Link", "Remarks", "Details"];
+  const url = (host, spid, reg) => "https://" + host + "/Student/Payment/HistoryOfPayment?studentProgramId=" +
+    spid + "&programId=0&sessionId=0&stdRollOrRegistrationNo=" + reg;
+  const rows = [
+    ["Identical", "1924307", "1733544", url("ums-5.osl.team", "1733544", "1924307"), url("ums-41.osl.team", "1733544", "1924307"), "…", "…"],
+    ["Missing on Actual", "1924308", "1733545", url("ums-5.osl.team", "1733545", "1924308"), url("ums-41.osl.team", "1733545", "1924308"), "…", "…"]
+  ];
+  const sheet = X.sheetXml(HDR, rows, ["g", "r"], [3, 4]);
+
+  check("the link cells are formulas, not text",
+    (sheet.match(/<f>HYPERLINK\(/g) || []).length === 4,
+    (sheet.match(/<f>HYPERLINK\(/g) || []).length + " of 4");
+  check("…reading \"Open ↗\" rather than a query string",
+    (sheet.match(/<v>Open ↗<\/v>/g) || []).length === 4 && !/<t xml:space="preserve">https:/.test(sheet));
+  check("…with the whole address inside, ampersands and all",
+    sheet.indexOf("studentProgramId=1733544&amp;programId=0&amp;sessionId=0&amp;stdRollOrRegistrationNo=1924307") > 0,
+    "app.js");
+  check("…and each server keeping its own", /ums-5\.osl\.team/.test(sheet) && /ums-41\.osl\.team/.test(sheet));
+
+  /* A HYPERLINK() formula, not a hyperlink relationship: Excel caps those at 65,530 per sheet, and
+     a 100,000-row report in two-server mode wants 200,000 — past the cap Excel "repairs" the file
+     by dropping every one of them. */
+  check("…as a formula, which has no per-sheet cap to fall foul of",
+    !/<hyperlinks>/.test(sheet) && !/r:id=/.test(sheet), "app.js");
+
+  /* the row's colour is what says how serious it is; a link cell must not lose it */
+  check("the link cell keeps its row's colour",
+    /<c r="D2" s="6" t="str">/.test(sheet) && /<c r="D3" s="7" t="str">/.test(sheet),
+    (sheet.match(/<c r="[DE]\d" s="\d" t="str">/g) || []).join(" "));
+  check("…and the header row is still text", /<c r="D1" t="inlineStr"/.test(sheet),
+    (/<c r="D1"[^>]*/.exec(sheet) || [])[0]);
+  /* a student with no spid has no link, and an empty formula would be a broken cell */
+  check("…and a row with no address stays blank",
+    !/HYPERLINK\(&quot;&quot;/.test(X.sheetXml(HDR, [["x", "y", "", "", "", "", ""]], ["g"], [3, 4])),
+    "app.js");
+
+  /* the column showed 120 characters and now shows six */
+  check("the link columns are narrow now",
+    /<col min="4" max="4" width="11"/.test(sheet) && /<col min="5" max="5" width="11"/.test(sheet),
+    (/<cols>[\s\S]*?<\/cols>/.exec(sheet) || [""])[0].slice(0, 90));
+
+  /* a blue underlined font over each row fill, and a style sheet whose counts match what it holds
+     — Excel repairs a file whose cellXfs count is wrong, and silently drops the formatting */
+  const STY = (/const STY = '([\s\S]*?)';/.exec(APP) || [])[1] || "";
+  check("a blue underlined font exists for them", /<u\/><color rgb="FF0563C1"\/>/.test(STY), "app.js");
+  check("…and the style sheet counts what it holds",
+    +(/<cellXfs count="(\d+)"/.exec(STY) || [])[1] === (STY.match(/<xf [^>]*xfId="0"/g) || []).length &&
+    +(/<fonts count="(\d+)"/.exec(STY) || [])[1] === (STY.match(/<font>/g) || []).length,
+    (/<cellXfs count="\d+"/.exec(STY) || [])[0] + " / " + (STY.match(/<xf [^>]*xfId="0"/g) || []).length + " xfs");
+  /* every fill a row can have needs a link style, or a link on that row loses the fill */
+  check("…one link style per row colour",
+    ["g", "r", "y"].every(function (c) { return X.LINK_STYLE[c] !== undefined; }) &&
+    Object.keys(X.LINK_STYLE).length === Object.keys(X.FILL_STYLE).length,
+    JSON.stringify(X.LINK_STYLE));
 }
 
 /* the wiring: the button, the filter it honours, and when it becomes usable */

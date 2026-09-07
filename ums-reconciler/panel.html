@@ -5,8 +5,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>UMS Reconciler</title>
 <style>
-  :root{ --bg:#181c2e; --line:#2a3050; --text:#eef1fb; --accent:#5b8cff; --mut:#98a0c0; }
-  @media (prefers-color-scheme:light){ :root{ --bg:#fff; --line:#e2e6f2; --text:#141830; } }
+  :root{ --bg:#181c2e; --line:#2a3050; --text:#eef1fb; --accent:#5b8cff; --mut:#98a0c0;
+         /* or the browser draws this window's scrollbar light against a dark report */
+         color-scheme:dark; }
+  @media (prefers-color-scheme:light){ :root{ --bg:#fff; --line:#e2e6f2; --text:#141830;
+         color-scheme:light; } }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);overflow-x:hidden;
        font:13px/1.45 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif}

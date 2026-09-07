@@ -62,6 +62,17 @@ const check = (name, ok, extra) => {
 };
 const kinds = (r) => r.errors.map((e) => e.kind);
 
+/* every comparison this file runs, kept for the invariant checked further down */
+const ALL_RESULTS = [];
+{
+  const real = U.compareServers;
+  U.compareServers = function () {
+    const out = real.apply(U, arguments);
+    ALL_RESULTS.push(out);
+    return out;
+  };
+}
+
 /* ---- identical servers ---- */
 const same = U.compareServers(side(), side(), { tolerance: 0 });
 check("identical servers → no findings", same.errors.length === 0,
@@ -272,6 +283,186 @@ check("reordered columns are not a difference",
     { tolerance: 0 });
   check("a single-row table is not collapsed — the receipt is still named",
     one.errors.length === 1 && /1418021511/.test(one.errors[0].key), one.errors[0].key);
+}
+
+/* ---- a row that carried no money is not money going missing ----
+   reg 2000000: four cancellation rows on Expected that Actual does not have, every figure on them
+   zero, reported as "ডেটা হারিয়েছে — মাইগ্রেশনে সারিটা যায়নি" — the second most serious verdict a
+   run can reach. Nothing was lost; there was nothing on those rows to lose.
+
+   The single-server engine has had a rule for this shape all along ("সব ঘর ০ — …, তবে টাকার হিসাবে
+   কিছু বদলায় না"). Its reasoning does not carry over — Program Wise and Course Wise owe each other
+   only the AMOUNTS, while two servers should hold the same ROWS — so the row is still reported. It
+   just stops being called money. */
+{
+  const ZERO_HEAD = ["Date", "Course", "MRN", "CRN", "Income", "Consideration Amount", "Previous Due",
+    "Deducted Amount", "Receivable", "Pre. Std. Discount", "Booking Discount", "Special Discount",
+    "Gross Received", "Due Adjustment Amount", "Cash Back Amount", "Net Received", "Current Due"];
+  const zRow = (crn, course) => ["07/11/2024", course, "-", crn].concat(new Array(13).fill("-"));
+  const pRow = (mrn, course, amt) => ["07/11/2024", course, mrn, "-", amt || "5,000", "-", "-", "-",
+    amt || "5,000", "-", "-", "-", amt || "5,000", "-", "-", amt || "5,000", "-"];
+  const mkZ = (rows) => U.parseTable(table([tr(ZERO_HEAD.map((h) => td(h)))].concat(
+    rows.map((r) => tr(r.map((v) => td(v)))))), "cw");
+  const none = { ok: true, rows: [], header: [], cols: {}, totalRow: null, noData: true };
+  const EXP = [zRow("9643263624", "Employee Training Course"), zRow("9643263625", "Employee Training B"),
+    pRow("2220262250", "Engineering")];
+
+  /* the reported case: only the two moneyless rows are absent */
+  const quiet = U.compareServers({ pw: none, cw: mkZ(EXP) },
+    { pw: none, cw: mkZ([pRow("2220262250", "Engineering")]) }, { tolerance: 0 });
+  check("a moneyless row that did not cross is still reported",
+    quiet.errors.length === 2, quiet.errors.length + " findings");
+  check("…but not as money going missing",
+    quiet.errors.every((e) => e.kind === "srvempty"), kinds(quiet).join(","));
+  check("…and the line says the money did not change",
+    /কোনো টাকা নেই/.test(U.shortError(quiet.errors[0])), U.shortError(quiet.errors[0]));
+  check("…under a category that says the same",
+    U.classifyServers(quiet).code === "srvempty", U.classifyServers(quiet).code);
+
+  /* the rule must not swallow the finding it exists beside */
+  const real = U.compareServers({ pw: none, cw: mkZ(EXP) },
+    { pw: none, cw: mkZ([zRow("9643263624", "Employee Training Course")]) }, { tolerance: 0 });
+  check("a row that DID carry money is still money going missing",
+    real.errors.some((e) => e.kind === "srvlost"), kinds(real).join(","));
+  check("…and that is what the student is filed under",
+    U.classifyServers(real).code === "srvlost", U.classifyServers(real).code);
+
+  /* and a real amount outranks it, because that is the thing someone has to go and fix */
+  const both = U.compareServers({ pw: none, cw: mkZ(EXP) },
+    { pw: none, cw: mkZ([pRow("2220262250", "Engineering", "4,000")]) }, { tolerance: 0 });
+  check("a changed amount outranks a moneyless missing row",
+    U.classifyServers(both).code === "srvcell", U.classifyServers(both).code);
+
+  /* one non-zero column anywhere on the row and it is money again — the single-server engine draws
+     the line the same way, and the two must not disagree about what "no money" means */
+  const oneCol = zRow("9643263624", "Employee Training Course").slice();
+  oneCol[6] = "1,500";                       // Previous Due alone
+  const carried = U.compareServers({ pw: none, cw: mkZ([oneCol]) }, { pw: none, cw: mkZ([]) }, { tolerance: 0 });
+  check("one non-zero column anywhere makes it money again",
+    carried.errors[0].kind === "srvlost", carried.errors[0].kind);
+
+  /* an extra row on Actual gets the same treatment from the other side */
+  const extra = U.compareServers({ pw: none, cw: mkZ([]) },
+    { pw: none, cw: mkZ([zRow("9643263624", "Employee Training Course")]) }, { tolerance: 0 });
+  check("an extra row with no money is judged the same way",
+    extra.errors[0].kind === "srvempty", extra.errors[0].kind);
+  check("…and its line says which side it appeared on",
+    /Actual-এ বাড়তি/.test(U.shortError(extra.errors[0])), U.shortError(extra.errors[0]));
+}
+
+/* ---- the headline explains the verdict ----
+   reg 1628880 was filed under "Actual-এ সারি নেই — ডেটা হারিয়েছে" and then opened with
+   "মূল: User আলাদা … rahman.4039@ / abdurrahman.4039@" — a username, from the other page. The
+   headline was errors[0], which is whichever page was read first, and it had nothing to do with
+   the verdict above it. */
+{
+  const PWH = ["Date", "MRN", "CRN", "Income", "Consideration Amount", "Previous Due",
+    "Deducted Amount", "Receivable", "Prev. Std. Discount", "Booking Discount", "Special Discount",
+    "Received", "Cash Back", "Current Due", "User"];
+  const pRow = (mrn, user) => ["19/05/2022", mrn, "-", "5,000", "-", "-", "-", "5,000", "-", "-",
+    "-", "5,000", "-", "-", user];
+  const mkP = (rows) => U.parseTable(table([tr(PWH.map((h) => td(h)))].concat(
+    rows.map((r) => tr(r.map((v) => td(v)))))), "pw");
+  const cRow = (mrn, course) => ["2070163", "19/05/2022", course, "Dhaka", mrn, "-", "5,000", "-",
+    "-", "-", "5,000", "-", "-", "-", "5,000", "-", "-", "5,000", "-"];
+
+  /* Program Wise differs only by a username; Course Wise is missing a row. Program Wise is read
+     first, so the username lands at errors[0] while the verdict comes from the missing row. */
+  const exp = { pw: mkP([pRow("2320012622", "rahman.4039@udvash.net")]),
+    cw: mkCw([cRow("2320012622", "Engineering"), cRow("2320012700", "Physics")]) };
+  const act = { pw: mkP([pRow("2320012622", "abdurrahman.4039@udvash.net")]),
+    cw: mkCw([cRow("2320012622", "Engineering")]) };
+  const r = U.compareServers(exp, act, { tolerance: 0 });
+
+  check("the verdict is the missing row, not the username",
+    U.classifyServers(r).code === "srvlost", U.classifyServers(r).code);
+  check("…and the headline is about that same finding",
+    r.errors.filter((e) => e.primary)[0].kind === "srvlost",
+    r.errors.filter((e) => e.primary)[0].kind);
+  check("…so the line does not open with the username",
+    !/User আলাদা/.test(U.summaryServers(r)), U.summaryServers(r).slice(0, 80));
+  check("…even though the username is still reported",
+    r.errors.some((e) => e.kind === "srvtext"), kinds(r).join(","));
+
+  /* The invariant, over every comparison this file has run: the headline is always of the kind
+     the student was filed under, whatever order the findings arrived in. compareServers is wrapped
+     at the top of the file so each result is collected as it is made — naming them here instead
+     would reach into blocks they are scoped to. */
+  const cases = ALL_RESULTS;
+  const off = cases.filter(function (x) {
+    if (!x || !x.errors || !x.errors.length) return false;
+    const p = x.errors.filter(function (e) { return e.primary; })[0];
+    return !p || p.kind !== U.classifyServers(x).code;
+  });
+  check("the headline always matches the verdict, on every case in this file",
+    off.length === 0,
+    off.map(function (x) {
+      return U.classifyServers(x).code + "≠" + (x.errors.filter((e) => e.primary)[0] || {}).kind;
+    }).join(" "));
+  check("…and exactly one finding is ever the headline",
+    cases.every(function (x) {
+      return !x || !x.errors.length || x.errors.filter(function (e) { return e.primary; }).length === 1;
+    }));
+}
+
+/* ---- "is there money here" and "how much" have to be one question ----
+   They were two lists: fourteen columns for the first, six for the second. A cancellation falls
+   between them — its money sits in Cash Back and Due Adjustment, in neither of the six — so
+   reg 1633497 CRN 9643297957 was reported as money that did not survive the migration and then
+   could not say how much, on a row holding 1,815 written off and 5,185 handed back.
+
+   Every column is checked here, one at a time, because the gap was exactly the columns nobody
+   thought to put in both lists. */
+{
+  const CW_MONEY = ["income", "consideration", "previousDue", "receivable", "prevStd", "booking",
+    "special", "grossReceived", "dueAdjustment", "cashBack", "netReceived", "currentDue", "deducted"];
+  /* build a Course Wise row that is blank everywhere except the one column under test */
+  const only = (field, amount) => {
+    const cells = CW_HEAD.map(function (h) {
+      const norm = String(h).toLowerCase().replace(/[^a-z0-9]/g, "");
+      const names = U.CW_COLS[field] || [];
+      if (names.indexOf(norm) >= 0) return amount;
+      if (norm === "date") return "01/01/2025";
+      if (norm === "course") return "Employee Training Course";
+      if (norm === "crn") return "9643297957";
+      return "-";
+    });
+    return cells;
+  };
+  const none = { ok: true, rows: [], header: [], cols: {}, totalRow: null, noData: true };
+
+  const silent = [];
+  CW_MONEY.forEach(function (field) {
+    const row = only(field, "1,815");
+    const parsed = mkCw([row]);
+    /* the fixture has to actually put the money where it says, or the check proves nothing */
+    if (!parsed.rows.length || !/1,815/.test(String(parsed.rows[0][field] || ""))) {
+      silent.push(field + "(not set)"); return;
+    }
+    const r = U.compareServers({ pw: none, cw: parsed }, { pw: none, cw: mkCw([]) }, { tolerance: 0 });
+    const e = r.errors[0];
+    if (!e || e.kind !== "srvlost" || !e.amount) silent.push(field + "→" + (e ? e.kind + "/" + e.amount : "none"));
+  });
+  check("money in any single column is money, and is named",
+    silent.length === 0, silent.join(" "));
+
+  /* the cancellation that started it: nothing in the six old columns, 7,000 of movement */
+  const cancel = only("cashBack", "5,185");
+  CW_HEAD.forEach(function (h, i) {
+    if (String(h).toLowerCase().replace(/[^a-z0-9]/g, "").indexOf("dueadjustment") === 0) cancel[i] = "1,815";
+  });
+  const rc = U.compareServers({ pw: none, cw: mkCw([cancel]) }, { pw: none, cw: mkCw([]) }, { tolerance: 0 });
+  check("a cancellation's money is not invisible",
+    rc.errors[0].kind === "srvlost" && rc.errors[0].amount === 5185,
+    rc.errors[0].kind + " / " + rc.errors[0].amount);
+  check("…and the line says the figure",
+    /5,185 টাকার/.test(U.shortError(rc.errors[0])), U.shortError(rc.errors[0]).slice(0, 100));
+
+  /* and the two questions are one answer, so they can never part again */
+  check("the worth and the has-money test are the same test",
+    /function rowHasMoney\(r\) \{ return srvWorth\(r\) !== 0; \}/.test(
+      fs.readFileSync(path.join(__dirname, "..", "reconcile.js"), "utf8")),
+    "reconcile.js");
 }
 
 /* ---- one side never read is not "the data differs" ---- */

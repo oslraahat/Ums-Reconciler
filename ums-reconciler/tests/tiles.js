@@ -74,10 +74,21 @@ const stu = (n, sts) => ({ reg: n, results: sts.map(function (s) { return { res:
 check("the tile carries a tooltip", /probTile\.title =/.test(APP), "app.js");
 check("…naming students and programs separately",
   /probTile\.title = t\("tt_prob"\)/.test(APP), "app.js");
-/* recountAll() and the live run each keep their own copy of the rule — they must not drift */
-check("both counting sites use Reg + PID",
-  (APP.match(/notOk\((?:x\.res\.st|res\.st)\)\) T\.stu\+\+/g) || []).length === 2,
-  (APP.match(/notOk\(/g) || []).length + " notOk site(s)");
+/* Total Problem used to be adjusted by hand wherever a verdict was recorded, and every one of
+   those copies could drift from the others. It belongs to bumpTile now — one place that knows a
+   verdict has arrived, one that knows it has left — so the guard is that nothing else touches it. */
+check("Total Problem is adjusted in exactly one pair of places",
+  (APP.match(/T\.stu\+\+/g) || []).length === 1 && (APP.match(/T\.stu--/g) || []).length === 1,
+  (APP.match(/T\.stu(\+\+|--)/g) || []).join(" "));
+check("…and both go through the shared notOk",
+  /function bumpTile\(st\) \{ T\[tileKey\(st\)\]\+\+; if \(notOk\(st\)\) T\.stu\+\+; \}/.test(APP) &&
+  /function dropTile\(st\) \{ T\[tileKey\(st\)\]--; if \(notOk\(st\)\) T\.stu--; \}/.test(APP),
+  "app.js");
+/* the ⟳ re-ran a bucket and re-counted the whole sheet every ten items — about four seconds of
+   counting on 50,000 students, growing with the square of the sheet */
+check("…so a re-run moves the tally instead of re-counting the sheet",
+  /dropTile\(j\.slot\.res\.st\);[\s\S]{0,200}?bumpTile\(res\.st\);/.test(APP) &&
+  /if \(done % 10 === 0\) paintTiles\(\);/.test(APP), "app.js");
 /* one definition of "needs a person", shared by the tile, its ⟳ and the filter — three copies of
    the same condition is how "zero" ends up excluded in one place and counted in another */
 /* Two-server mode reuses the "zero" slot for "Actual has a row Expected never had", which IS a

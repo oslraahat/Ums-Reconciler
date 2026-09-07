@@ -10,7 +10,11 @@
          /* the height of a form control on the settings row: 10px padding + 1px border, above and
             below, around a 14px line. Anything standing beside an input has to match it, or the
             row ends up with two or three different bottoms on one line. */
-         --ctl-h:41px; }
+         --ctl-h:41px;
+         /* Scrollbars, carets, selection and the list a <select> drops down are drawn by the
+            browser, and it draws them light unless told otherwise — a white bar down the side of
+            every scrolling box on the dark theme. */
+         color-scheme:dark; }
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
        font:14px/1.5 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif}
@@ -39,7 +43,10 @@
   /* Tolerance and Parallel hold two or three characters — they were taking an equal quarter of
      the row for no reason. The width goes to the save controls, which have a toggle and a button
      to fit on one line. */
-  .g4{grid-template-columns:minmax(110px,.6fr) minmax(130px,.6fr) minmax(250px,1.3fr) minmax(200px,1.1fr);align-items:start}
+  /* Tolerance and Parallel hold two or three characters, so they take the smaller share; the save
+     cell needs room for a toggle and a button side by side, and no more than that — it used to take
+     a third of the row and leave 93px of nothing after the Folder button. */
+  .g4{grid-template-columns:minmax(120px,.7fr) minmax(130px,.7fr) minmax(240px,1fr) minmax(200px,1.1fr);align-items:start}
   /* Start/Pause/Stop live in the last column so they sit at the right edge; the negative margin
      lifts them level with the inputs, which carry a label above. */
   .runbtns{grid-column:4;align-self:start;display:grid;grid-template-columns:1fr 1fr;gap:8px;
@@ -62,7 +69,23 @@
   .isrc{display:inline-block;max-width:100%;margin-bottom:3px;color:var(--text);font-weight:600;
     overflow-wrap:anywhere}
   .note:empty{display:none}
+  /* what the Parallel number really buys, said under the box that sets it */
+  .cnote{font-size:10.5px;line-height:1.35;margin-top:5px;color:var(--muted);min-height:0}
+  .cnote.ok{color:var(--ok)}
+  .cnote.warn{color:var(--warn)}
   .bar2{height:9px;background:#232a44;border-radius:5px;overflow:hidden;margin:10px 0}
+  /* an interrupted run, waiting to be picked up — an offer, so amber, not the red of a fault */
+  .ckbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
+    margin:2px 0 10px;padding:11px 14px;border-radius:8px;
+    background:rgba(255,180,84,.09);border:1px solid rgba(255,180,84,.34)}
+  .ckl{display:flex;align-items:center;gap:11px;min-width:0}
+  .cki{font-size:17px;line-height:1;color:var(--warn,#ffb454);flex:none}
+  #ckTxt{font-size:13.5px}
+  #ckTxt b{color:var(--warn,#ffb454)}
+  .ckh{font-size:11.5px;color:var(--muted);margin-top:3px}
+  .ckb{display:flex;gap:8px;flex:none}
+  .ckb .btn{padding:7px 13px;font-size:12.5px}
+  body.light .ckbar{background:rgba(214,132,0,.08);border-color:rgba(214,132,0,.3)}
   .tile .v{font-variant-numeric:tabular-nums}
   .bar2 > div{height:100%;width:0;background:linear-gradient(90deg,#6d5cf0,#8b7bf5);transition:width .2s}
   /* one row, always — minmax(0,1fr) lets the tiles shrink instead of wrapping */
@@ -91,10 +114,15 @@
 
   .filters .fb[data-f="cw"]{color:#9aa3bd}
   .filters .fb[data-f="nf"]{color:var(--warn)}
-  .filters .fb.active{background:var(--accent);color:#fff;border-color:var(--accent)}
+  /* Not var(--accent): white on #7c6cff measures 3.86:1, and a bold 13px chip is still body
+     text, which wants 4.5. #6d5cf0 is the same purple the primary buttons already start their
+     gradient on, and it reads 4.73:1. */
+  .filters .fb.active{background:#6d5cf0;color:#fff;border-color:#6d5cf0}
   .filters .fb:disabled{opacity:.5;cursor:default}
   /* The exports are actions, not another way to narrow the list, and side by side in the same grey
      chip they read as more filters. Same size and rhythm, different weight and edge. */
+  /* the exports travel together and sit at the far end, away from the chips */
+  .filters .dlgroup{margin-left:auto;display:flex;gap:8px;flex-wrap:wrap}
   .filters .fb.dl{background:var(--fld);border-color:#3b4370;color:var(--text);font-weight:700}
   .filters .fb.dl:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
   body.light .filters .fb.dl{background:#f3f4fb;border-color:#d7dbef}
@@ -156,7 +184,17 @@
   @media (max-width:820px){ .g3,.g4{grid-template-columns:1fr} .tiles{grid-template-columns:repeat(2,1fr)}
     .runbtns{grid-column:auto;margin-top:0} }
   /* ---- light theme (image-এর মতো) ---- */
-  body.light{ --bg:#eef0f8; --card:#fff; --line:#e4e7f2; --text:#1f2340; --mut:#8b90ad; --accent:#5b4ff0; --fld:#fff; }
+  /* The four semantic colours have to move with the surface. Left at their dark-theme values
+     they measured 1.6-2.8:1 against white — below the 4.5:1 body text wants, and the tile numbers
+     were the worst thing on the page. Same hues, dark enough to read: each clears 4.5:1 against
+     the card (#fff), the page behind it (#eef0f8) and a tile (#fafbff). */
+  body.light{ --bg:#eef0f8; --card:#fff; --line:#e4e7f2; --text:#1f2340; --mut:#636987; --accent:#5b4ff0; --fld:#fff;
+    --ok:#0e7c4c; --no:#c41f38; --warn:#8a5400; --info:#2f5fd0;
+    color-scheme:light; }
+  /* …and the two places that put near-black text ON one of those colours: fine against a colour
+     that glows, unreadable against one that no longer does. */
+  body.light .stu .sh .mk:hover{color:#fff}
+  body.light .stu .sh .mk.on:hover{color:#fff}
   body.light .card{box-shadow:0 1px 3px rgba(20,20,60,.06)}
   body.light .ch .badge{background:#eceafe;color:#5b4ff0}
   body.light .btn.g{background:#f3f4fb} body.light .btn.g:hover{background:#e9ebf7}
@@ -171,6 +209,11 @@
   body.srv .tile[data-f="zero"] .v{color:var(--warn)}
   body.srv .filters .fb[data-f="cw"]{color:var(--no)}
   body.srv .filters .fb[data-f="zero"]{color:var(--warn)}
+  /* The selected chip IS the accent block, so its text is white whatever colour its bucket wears.
+     The base rule already said that, but the two lines above are a class more specific than it and
+     come later, so a selected "Missing on Actual" kept its red on the purple and went muddy. Same
+     weight, said last: the selected state wins again. */
+  body.srv .filters .fb.active{color:#fff}
   body.light .tile{background:#fafbff} body.light .stu .sh{background:#fbfbfe}
   body.light .filters .fb{background:#fff} body.light .filters .fb.active{background:#2b2f52;border-color:#2b2f52}
   body.light .stu .sh .reg{color:#5b4ff0}
@@ -201,7 +244,11 @@
   /* The toggle's look, wherever it is used — the card header, the settings row. Its PLACEMENT is
      the header's business and lives in .ch .srvsw below, so a second one elsewhere does not
      inherit a margin that only makes sense beside a heading. */
-  .srvsw{display:inline-flex;align-items:center;gap:9px;cursor:pointer;
+  /* margin:0 because this is a <label>, and the page gives field labels a 5px bottom margin to
+     stand off their input. That margin made the row it sits in 5px taller than the toggle, and
+     everything else on the line then centred itself 2px below it — the row read as uneven for a
+     reason that was nowhere near the row. .ch .srvsw keeps its margin-left:auto: more specific. */
+  .srvsw{margin:0;display:inline-flex;align-items:center;gap:9px;cursor:pointer;
     padding:5px 11px 5px 9px;border:1px solid var(--line);border-radius:8px;font-size:12px;
     font-weight:600;color:var(--mut);background:var(--fld);user-select:none;white-space:nowrap;
     transition:border-color .12s,color .12s,background .12s}
@@ -226,7 +273,10 @@
      box line up at the top and part company at the bottom, which is the first thing the eye finds. */
   .saverow{display:flex;align-items:center;gap:8px;flex-wrap:nowrap}
   .saverow .srvsw, .saverow .btn{min-height:var(--ctl-h)}
-  .saverow .srvsw{min-width:0}
+  /* The toggle takes whatever the button does not, so the row ends flush with the cell instead of
+     trailing off into a gap — and a filled control beside two filled inputs reads as one of them. */
+  .saverow .srvsw{flex:1 1 auto;min-width:0}
+  .saverow .btn{flex:0 0 auto}
   .saverow .btn{padding:8px 12px;font-size:12px}
   /* the folder path needs room, so it sits on the hint line where there is some */
   .where{font-weight:700;color:var(--text)}
@@ -281,7 +331,9 @@
           <button class="btn g" id="clearImp" data-i18n="clear_btn">✕ Clear</button>
         </div>
       </div>
-      <div class="note" id="impNote" data-i18n="imp_default"></div>
+      <!-- no data-i18n: this line is written by the importer in whatever language was current,
+           and applyLang() clears it rather than translating it — see the note there -->
+      <div class="note" id="impNote"></div>
       <div id="pvWrap" style="display:none">
         <div id="preview" class="preview" style="margin-top:12px"></div>
       </div>
@@ -291,7 +343,7 @@
       <div class="ch"><span class="n">3</span><h2 data-i18n="settings_h">সেটিংস ও Run</h2></div>
       <div class="grid g4">
         <div><label data-i18n="tol_l">গ্রহণযোগ্য পার্থক্য</label><input id="tol" type="number" min="0" step="any" value="0"></div>
-        <div><label data-i18n="conc_l">একসাথে কয়টি অনুরোধ</label><input id="conc" type="number" min="1" max="300" value="25" title="সর্বোচ্চ 300"></div>
+        <div><label data-i18n="conc_l">একসাথে কয়টি অনুরোধ</label><input id="conc" type="number" min="1" max="300" value="25" title="সর্বোচ্চ 300"><div class="cnote" id="concNote"></div></div>
         <!-- A run can take hours; at the end of one nobody wants to remember to press three
              buttons. An extension cannot write to its own folder, so the folder is picked once. -->
         <div>
@@ -312,6 +364,10 @@
 
     <div class="card">
       <div class="ch"><span class="n">4</span><h2 data-i18n="results_h">ফলাফল</h2><span id="prog" class="badge mut" data-i18n="ready">প্রস্তুত</span></div>
+      <div class="ckbar" id="ckBar" style="display:none">
+        <div class="ckl"><span class="cki">⏸</span><div><div id="ckTxt"></div><div class="ckh" data-i18n="ck_hint"></div></div></div>
+        <div class="ckb"><button class="btn p" id="ckGo" data-i18n="ck_go">▶ বাকিটা চালাও</button><button class="btn g" id="ckDrop" data-i18n="ck_drop">✕ বাদ দাও</button></div>
+      </div>
       <div class="bar2"><div id="fill"></div></div>
       <div class="tiles">
         <div class="tile clk" data-f="ok"><div class="lft"><span class="dot" style="background:var(--ok)"></span><button class="rr" data-rr="ok" disabled>↻</button></div><div class="tv"><div class="v ok" id="t-ok">0</div><div class="l" data-i18n="t_ok">মিলেছে</div></div></div>
@@ -328,9 +384,14 @@
         <span class="fb" data-f="cw" data-i18n="f_cw">শুধু CW ফাঁকা</span>
         <span class="fb" data-f="zero" data-i18n="f_zero">Zero Pay</span>
         <span class="fb" data-f="nf" data-i18n="f_nf">Program পাওয়া যায়নি</span>
-        <button class="fb dl" id="html" disabled style="margin-left:auto">⬇ HTML Report</button>
-        <button class="fb dl" id="xlsx" disabled>⬇ Excel Report</button>
-        <button class="fb dl" id="raw" disabled title="Program Wise + Course Wise tables for every student that still needs work — one .txt file">⬇ Table Data</button>
+        <!-- One group, so the three wrap together. Loose in the row they wrapped one at a time,
+             and in Bengali — where the filter chips are longer — Table Data ended up alone on the
+             next line, at the far left, reading as a stray. -->
+        <div class="dlgroup">
+          <button class="fb dl" id="html" disabled>⬇ HTML Report</button>
+          <button class="fb dl" id="xlsx" disabled>⬇ Excel Report</button>
+          <button class="fb dl" id="raw" disabled title="Program Wise + Course Wise tables for every student that still needs work — one .txt file">⬇ Table Data</button>
+        </div>
       </div>
       <div class="note" id="listNote" style="display:none;margin-top:12px"></div>
       <div class="list" id="list" style="margin-top:12px"></div>
