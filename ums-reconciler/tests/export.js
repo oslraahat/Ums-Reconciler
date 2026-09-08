@@ -23,7 +23,9 @@ const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  "
    braces rather than matching an end pattern — these run from one-liners to twenty-line loops. */
 function lift(names) {
   const src = names.map(function (n) {
-    const at = APP.search(new RegExp("\\n  (?:function " + n + "\\s*\\(|const " + n + "\\s*=)"));
+    /* `function*` too: the worksheet writer is a generator now, and without the star this finds
+       nothing and reports the function as missing from a file it is plainly in. */
+    const at = APP.search(new RegExp("\\n  (?:function\\*? " + n + "\\s*\\(|const " + n + "\\s*=)"));
     if (at < 0) throw new Error("could not find " + n + " in app.js");
     let i = APP.indexOf("{", at), depth = 0;
     for (let j = i; j < APP.length; j++) {
@@ -39,7 +41,10 @@ function lift(names) {
   }).join("\n");
   return new Function(src + "\nreturn {" + names.join(",") + "};")();
 }
-const X = lift(["xesc", "cl", "CRC", "crc32", "cat", "FILL_STYLE", "LINK_STYLE", "sheetXml", "zipStore"]);
+/* rowXml and sheetChunks came in with the streamed worksheet — sheetXml is now the small-report
+   convenience that joins the pieces, and it cannot be lifted without them. */
+const X = lift(["xesc", "cl", "CRC", "crc32Run", "crc32", "cat", "FILL_STYLE", "LINK_STYLE",
+  "rowXml", "sheetChunks", "sheetXml", "zipStore"]);
 check("export helpers lifted from app.js", !!X.sheetXml && !!X.zipStore);
 
 /* ---- a realistic Remarks string, straight out of the engine ---- */

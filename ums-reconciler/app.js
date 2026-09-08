@@ -83,6 +83,14 @@
   const DICT = {
     subtitle: { bn: "Program Wise ⇄ Course Wise — Registration No. ও StudentProgramId দিন, রান চাপুন, রিপোর্ট পান", en: "Program Wise ⇄ Course Wise — enter Registration No. & StudentProgramId, run, get the report" },
     p_eased: { bn: "সার্ভার চাপে — একসাথে {n}টি", en: "server under strain — {n} at a time" },
+    html_trimmed: { bn: "এই পাতায় শুধু যেগুলোর মীমাংসা বাকি — {a} টি। যে {n} টি মিলে গেছে সেগুলো পাশের report.xlsx-এর “ঠিক আছে” ট্যাবে আছে; এক লাখ সারির পাতা খুলতেই সতেরো সেকেন্ড লাগে, তাই সেগুলো এখানে রাখা হয়নি।", en: "This page holds only what still needs a person — {a} of them. The {n} that matched are in report.xlsx beside it, on the “Matched” tab; a page of a hundred thousand rows takes seventeen seconds just to open, so they are not repeated here." },
+    dl_failed: { bn: "রিপোর্টটা বানানো গেল না — ফিল্টার বেছে (যেমন Total Problem) আবার চেষ্টা করো, বা শিটটা ভাগ করে চালাও", en: "the report could not be built — choose a filter (Total Problem, say) and try again, or run the sheet in parts" },
+    tab_all: { bn: "ফলাফল", en: "Result" },
+    tab_problem: { bn: "সমস্যা", en: "Problems" },
+    tab_ok: { bn: "ঠিক আছে", en: "Matched" },
+    s_tab_problem: { bn: "আলাদা", en: "Different" },
+    s_tab_ok: { bn: "দুই সার্ভারে এক", en: "Identical" },
+    xlsx_toobig: { bn: "Excel-এ এক শিটে {m} সারির বেশি ধরে না, এখানে {n} সারি — ফিল্টার বেছে (যেমন Total Problem) আবার Export করো, বা শিটটা ভাগ করে চালাও", en: "Excel holds at most {m} rows in one sheet and this is {n} — choose a filter (Total Problem, say) and export again, or run the sheet in parts" },
     /* The number, in the units the box above is set in — "all of them" named nothing a reader
        could point at, and the protocol that explains it belongs with the rest of the explanation,
        in the tooltip. */
@@ -1579,25 +1587,47 @@
   function ver() { try { return "v" + chrome.runtime.getManifest().version; } catch (e) { return ""; } }
   function stamp() { const d = new Date(); const p = function (n) { return String(n).padStart(2, "0"); }; return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()); }
   function dl(blob, ext) { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = "ums-verify-" + stamp() + "." + ext; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 1000); }
+  /* Say it where the run says everything else, and put back what was there.
+     A report too big to build is the one failure a person can do something about — choose a
+     filter, or run the sheet in parts — and it is no use to them in the console. */
+  let progWas = null, progTimer = null;
+  function exportFailed(e) {
+    const el = $("prog"); if (!el) return;
+    if (progWas === null) progWas = { text: el.textContent, cls: el.className };
+    el.textContent = "⚠ " + ((e && e.message) || t("dl_failed"));
+    el.className = "badge";
+    if (progTimer) clearTimeout(progTimer);
+    progTimer = setTimeout(function () {
+      if (progWas) { el.textContent = progWas.text; el.className = progWas.cls; progWas = null; }
+      progTimer = null;
+    }, 12000);
+  }
+
   function exportHtml() {
     const rows = flatRows(); if (!rows.length) return;
-    dl(new Blob([buildHtml(rows)], { type: "text/html;charset=utf-8;" }), "html");
+    try { dl(new Blob([buildHtml(rows)], { type: "text/html;charset=utf-8;" }), "html"); }
+    catch (e) { exportFailed(e); }
   }
-  function buildHtml(rows) {
+  function buildHtml(rows, note) {
     const LBL = srvMode ? STLBL_SRV : STLBL;
     const cnt = {}; rows.forEach(function (r) { cnt[r.result] = (cnt[r.result] || 0) + 1; });
     const regSet = {}; rows.forEach(function (r) { regSet[r.reg] = 1; }); const nStu = Object.keys(regSet).length;
     const chip = function (k, lbl) { return cnt[k] ? '<span class="chip ' + (LBL[k] ? k : "") + '"><b>' + cnt[k] + '</b> ' + (lbl || LBL[k] || k) + '</span>' : ''; };
+    /* The link is the same sentence on every row with two numbers changed, and both numbers are
+       already in their own cells beside it — 26 MB of the 70 at 100,000 students, spent writing
+       them out again. The anchors are built when the page opens, from the cells that are there:
+       still real links, still middle-clickable, for the price of one loop.
+
+       The colour was carried three times too — class="r-x" on the row, class="st-x" on the first
+       cell, and data-st, which the filter needs anyway. CSS reads data-st for all three now. */
     let body = "";
     rows.forEach(function (r) {
-      const linkCell = r.link ? '<a href="' + xesc(r.link) + '" target="_blank">Open ↗</a>' : '—';
-      body += '<tr class="r-' + r.color + '" data-st="' + r.result + '">' +
-        '<td class="st st-' + r.color + '">' + xesc(LBL[r.result] || r.result) + '</td>' +
-        '<td>' + xesc(r.reg) + '</td><td>' + xesc(r.spid) + '</td>' +
-        '<td class="lk">' + linkCell + '</td>' +
-        (srvMode ? '<td class="lk">' + (r.link2 ? '<a href="' + xesc(r.link2) + '" target="_blank">Open ↗</a>' : "—") + '</td>' : "") +
-        '<td class="dt">' + xesc(r.remarks || "") + '</td>' +
-        '<td class="dt sm">' + xesc(r.details || "") + '</td></tr>';
+      body += '<tr data-st="' + r.result + '">' +
+        "<td>" + xesc(LBL[r.result] || r.result) + "</td>" +
+        "<td>" + xesc(r.reg) + "</td><td>" + xesc(r.spid) + "</td>" +
+        '<td class="lk"></td>' + (srvMode ? '<td class="lk"></td>' : "") +
+        "<td>" + xesc(r.remarks || "") + "</td>" +
+        '<td class="sm">' + xesc(r.details || "") + "</td></tr>";
     });
     const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<title>UMS Payment Reconciler — Report</title><style>' +
@@ -1606,6 +1636,8 @@
          gets mailed to people whose machines are not this one */
       'font:14px/1.5 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif}' +
       'h1{font-size:20px;margin:0 0 4px}.sub{color:#8b91b4;margin:0 0 16px;font-size:13px}' +
+      '.note{background:rgba(255,180,84,.09);border:1px solid rgba(255,180,84,.34);border-radius:8px;' +
+      'padding:10px 14px;margin:0 0 16px;font-size:13px;color:#eef1fb}' +
       '.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}' +
       '.chip{background:#161a2b;border:1px solid #2a3050;border-radius:20px;padding:5px 12px;font-size:13px}' +
       '.chip.ok{border-color:#37d18b}.chip.no,.chip.error{border-color:#ff6b7d}.chip.warn,.chip.nf{border-color:#ffb454}.chip.cw,.chip.zero{border-color:#8b91b4}' +
@@ -1615,15 +1647,25 @@
       '.f{cursor:pointer;background:#161a2b;border:1px solid #2a3050;color:#eef1fb;border-radius:8px;padding:6px 12px;font-size:13px}' +
       '.f.active{background:#5b4ff0;border-color:#5b4ff0}' +
       'table{border-collapse:collapse;width:100%;font-size:13px}' +
-      'th,td{border:1px solid #2a3050;padding:7px 10px;text-align:left;vertical-align:top}' +
+      'th,td{border:1px solid #2a3050;padding:7px 10px;text-align:left;vertical-align:top;color:#c3c8e6}' +
       'th{background:#161a2b;color:#8b91b4;position:sticky;top:0}' +
-      '.st{font-weight:700;white-space:nowrap}.st-g{color:#37d18b}.st-y{color:#ffb454}.st-r{color:#ff6b7d}' +
-      '.r-g td:first-child{box-shadow:inset 3px 0 #37d18b}.r-y td:first-child{box-shadow:inset 3px 0 #ffb454}.r-r td:first-child{box-shadow:inset 3px 0 #ff6b7d}' +
-      '.dt{color:#c3c8e6}.sm{font-size:12px;color:#8b91b4}.hide{display:none}.lk a{color:#8fb4ff;text-decoration:none}.lk a:hover{text-decoration:underline}' +
+      /* the colour comes off data-st, which the filter needs on every row anyway — carrying it a
+         second and third time as classes cost 8 MB at 100,000 students and said nothing new */
+      'td:first-child{font-weight:700;white-space:nowrap}' +
+      'tr[data-st=ok] td:first-child{color:#37d18b;box-shadow:inset 3px 0 #37d18b}' +
+      'tr[data-st=zero] td:first-child,tr[data-st=nf] td:first-child{color:#ffb454;box-shadow:inset 3px 0 #ffb454}' +
+      'tr[data-st=no] td:first-child,tr[data-st=error] td:first-child,tr[data-st=cw] td:first-child{color:#ff6b7d;box-shadow:inset 3px 0 #ff6b7d}' +
+      (srvMode
+        ? 'tr[data-st=cw] td:first-child{color:#ff6b7d;box-shadow:inset 3px 0 #ff6b7d}' +
+          'tr[data-st=zero] td:first-child{color:#ffb454;box-shadow:inset 3px 0 #ffb454}'
+        : 'tr[data-st=cw] td:first-child{color:#8b91b4;box-shadow:inset 3px 0 #8b91b4}' +
+          'tr[data-st=zero] td:first-child{color:#8b91b4;box-shadow:inset 3px 0 #8b91b4}') +
+      '.sm{font-size:12px;color:#8b91b4}.hide{display:none}.lk a{color:#8fb4ff;text-decoration:none}.lk a:hover{text-decoration:underline}' +
       '@media print{.bar{display:none}body{background:#fff;color:#000}th{background:#eee}}' +
       '</style></head><body>' +
       '<h1>UMS Payment Reconciler — Report</h1>' +
       '<p class="sub">' + xesc(baseUrl) + ' · ' + nStu + ' students · ' + rows.length + ' rows · ' + xesc(new Date().toLocaleString()) + '</p>' +
+      (note ? '<p class="note">' + xesc(note) + "</p>" : "") +
       '<div class="chips">' + chip("ok") + chip("no") + chip("error") + chip("cw") + chip("zero") + chip("nf") + '</div>' +
       '<div class="bar">' +
       '<button class="f active" data-f="all">All</button>' +
@@ -1636,14 +1678,25 @@
       (srvMode ? '<th>Expected Link</th><th>Actual Link</th>' : '<th>Payment History Link</th>') +
       '<th>Remarks</th><th>Details</th></tr></thead>' +
       '<tbody id="tb">' + body + '</tbody></table>' +
-      '<script>(function(){var bar=document.querySelector(".bar");bar.addEventListener("click",function(e){var b=e.target.closest(".f");if(!b)return;' +
+      /* The two ids are in cells 2 and 3; the rest of the address is the same on every row, so
+         it is written once here and the anchors are made from it. */
+      '<script>(function(){var E=' + JSON.stringify(payBase()) + ',A=' + JSON.stringify(srvMode ? payBase(baseUrl2) : "") + ';' +
+      'function u(b,reg,spid){return b+"HistoryOfPayment?studentProgramId="+encodeURIComponent(spid)+' +
+      '"&programId=0&sessionId=0&stdRollOrRegistrationNo="+encodeURIComponent(reg)}' +
+      '[].forEach.call(document.querySelectorAll("#tb tr"),function(tr){var c=tr.cells,reg=c[1].textContent,spid=c[2].textContent;' +
+      'if(!spid){c[3].textContent="—";if(A)c[4].textContent="—";return}' +
+      'c[3].innerHTML=\'<a href="\'+u(E,reg,spid)+\'" target="_blank">Open ↗</a>\';' +
+      'if(A)c[4].innerHTML=\'<a href="\'+u(A,reg,spid)+\'" target="_blank">Open ↗</a>\'});' +
+      'var bar=document.querySelector(".bar");bar.addEventListener("click",function(e){var b=e.target.closest(".f");if(!b)return;' +
       '[].forEach.call(bar.children,function(x){x.classList.remove("active")});b.classList.add("active");var f=b.getAttribute("data-f");' +
       '[].forEach.call(document.querySelectorAll("#tb tr"),function(tr){var st=tr.getAttribute("data-st");var show=f==="all"||st===f||(f==="no"&&st==="error");tr.classList.toggle("hide",!show)})})})();<\/script>' +
       '</body></html>';
     return html;
   }
   const CRC = (function () { const t = []; for (let n = 0; n < 256; n++) { let c = n; for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1); t[n] = c >>> 0; } return t; })();
-  function crc32(u8) { let c = 0xFFFFFFFF; for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return (c ^ 0xFFFFFFFF) >>> 0; }
+  /* Carried across chunks, so a worksheet that is never assembled can still be checksummed. */
+  function crc32Run(c, u8) { for (let i = 0; i < u8.length; i++) c = CRC[(c ^ u8[i]) & 0xFF] ^ (c >>> 8); return c; }
+  function crc32(u8) { return (crc32Run(0xFFFFFFFF, u8) ^ 0xFFFFFFFF) >>> 0; }
   function cat(a) { let n = 0; a.forEach(function (x) { n += x.length; }); const o = new Uint8Array(n); let p = 0; a.forEach(function (x) { o.set(x, p); p += x.length; }); return o; }
   function xesc(s) { return String(s == null ? "" : s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;"); }
   function cl(n) { let s = ""; n++; while (n > 0) { const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = Math.floor((n - 1) / 26); } return s; }
@@ -1651,43 +1704,102 @@
   const FILL_STYLE = { g: 1, r: 2, y: 4 };
   const LINK_STYLE = { g: 6, r: 7, y: 8 };
 
-  /** linkCols: column indexes holding a URL. They are written as HYPERLINK() and read "Open ↗". */
-  function sheetXml(header, rows, colors, linkCols) {
-    const all = [header].concat(rows);
+  /* Excel will not open a sheet with more rows than this, and a workbook that says it has more
+     is "repaired" — which means emptied — rather than refused. */
+  const XLSX_MAX_ROWS = 1048576;
+
+  /** One row, as XML. Both writers below call this, so the streaming one and the whole-string one
+      cannot drift into producing different workbooks.
+      linkCols: column indexes holding a URL. They are written as HYPERLINK() and read "Open ↗". */
+  function rowXml(row, rn, cc, isLink, isHeader) {
+    const s = isHeader ? 3 : (FILL_STYLE[cc] || 0);
+    let x = '<row r="' + rn + '">';
+    row.forEach(function (cell, ci) {
+      const ref = cl(ci) + rn;
+      if (!isHeader && isLink[ci] && cell) {
+        /* A formula, not a hyperlink relationship: Excel caps those at 65,530 per sheet and a
+           100,000-row report in two-server mode would want 200,000, at which point Excel
+           "repairs" the file by dropping them all. A double quote inside a formula string is
+           written twice; a URL built with encodeURIComponent has none, but a hand-edited base
+           address could. */
+        const url = String(cell).replace(/"/g, '""');
+        x += '<c r="' + ref + '" s="' + (LINK_STYLE[cc] || 5) + '" t="str">' +
+          "<f>HYPERLINK(&quot;" + xesc(url) + "&quot;,&quot;Open ↗&quot;)</f><v>Open ↗</v></c>";
+        return;
+      }
+      x += '<c r="' + ref + '" t="inlineStr" s="' + s + '"><is><t xml:space="preserve">' + xesc(cell) + "</t></is></c>";
+    });
+    return x + "</row>";
+  }
+
+  /* The worksheet in pieces, front to back.
+     Nothing needs the whole thing to exist at once — it is written once, straight into a deflate
+     stream — and a JavaScript string cannot exceed about 512 MB, which 560,000 students cross.
+     Measured: at 500,000 the XML is 479 MB and the workbook takes seven seconds; at 560,000 the
+     old writer threw "Invalid string length" and produced no file at all, at the end of a run
+     that had taken hours. */
+  function* sheetChunks(header, rows, colors, linkCols, per, selected) {
     const isLink = {}; (linkCols || []).forEach(function (i) { isLink[i] = 1; });
     // Remarks and Details need room; the rest are short. A link column shows six characters now,
     // not a hundred-and-twenty-character query string, so it can be narrow.
     const W = header.length >= 7 ? [14, 12, 12, 11, 11, 62, 90] : [14, 12, 12, 11, 62, 90];
     let cols = '<cols>'; W.forEach(function (w, i) { cols += '<col min="' + (i + 1) + '" max="' + (i + 1) + '" width="' + w + '" customWidth="1"/>'; }); cols += '</cols>';
-    let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' + cols + '<sheetData>';
-    all.forEach(function (row, ri) {
-      const rn = ri + 1, cc = colors[ri - 1];
-      const s = ri === 0 ? 3 : (FILL_STYLE[cc] || 0);
-      x += '<row r="' + rn + '">';
-      row.forEach(function (cell, ci) {
-        const ref = cl(ci) + rn;
-        if (ri > 0 && isLink[ci] && cell) {
-          /* A formula, not a hyperlink relationship: Excel caps those at 65,530 per sheet and a
-             100,000-row report in two-server mode would want 200,000, at which point Excel
-             "repairs" the file by dropping them all. A double quote inside a formula string is
-             written twice; a URL built with encodeURIComponent has none, but a hand-edited base
-             address could. */
-          const url = String(cell).replace(/"/g, '""');
-          x += '<c r="' + ref + '" s="' + (LINK_STYLE[cc] || 5) + '" t="str">' +
-            "<f>HYPERLINK(&quot;" + xesc(url) + "&quot;,&quot;Open ↗&quot;)</f><v>Open ↗</v></c>";
-          return;
-        }
-        x += '<c r="' + ref + '" t="inlineStr" s="' + s + '"><is><t xml:space="preserve">' + xesc(cell) + "</t></is></c>";
-      });
-      x += "</row>";
-    });
-    const ref = "A1:" + cl(header.length - 1) + all.length;   // AutoFilter so Status (and other columns) are filterable in Excel
-    return x + "</sheetData><autoFilter ref=\"" + ref + "\"/></worksheet>";
+    /* sheetViews comes before cols — the schema fixes the order, and a worksheet with them the
+       other way round is a repaired (emptied) workbook rather than an error message. */
+    const view = selected ? '<sheetViews><sheetView tabSelected="1" workbookViewId="0"/></sheetViews>' : "";
+    yield '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+      view + cols + '<sheetData>' + rowXml(header, 1, null, isLink, true);
+    const step = per || 4000;
+    for (let i = 0; i < rows.length; i += step) {
+      let buf = "";
+      for (let j = i; j < rows.length && j < i + step; j++) buf += rowXml(rows[j], j + 2, colors[j], isLink, false);
+      yield buf;
+    }
+    // AutoFilter so Status (and other columns) are filterable in Excel
+    yield "</sheetData><autoFilter ref=\"A1:" + cl(header.length - 1) + (rows.length + 1) + "\"/></worksheet>";
   }
-  const CT = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/><Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/><Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+
+  /* The same worksheet as one string — small reports, and the tests that read it back. */
+  function sheetXml(header, rows, colors, linkCols) {
+    let s = "";
+    for (const c of sheetChunks(header, rows, colors, linkCols)) s += c;
+    return s;
+  }
+  /* Built from the sheets rather than written out for one, so the workbook can carry a tab per
+     kind of answer. All three have to agree about how many worksheets there are and what they are
+     called: Excel repairs — that is, empties — a workbook whose parts disagree. */
+  function ctXml(n) {
+    let s = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>';
+    for (let i = 1; i <= n; i++) {
+      s += '<Override PartName="/xl/worksheets/sheet' + i + '.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>';
+    }
+    return s + '<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/></Types>';
+  }
+  /* A tab name Excel will accept: no : \\ / ? * [ ], no more than 31 characters, and not empty. */
+  function tabName(s, i) {
+    const n = String(s == null ? "" : s).replace(/[:\\\/?*\[\]]/g, " ").slice(0, 31).trim();
+    return n || ("Sheet" + i);
+  }
+  function wbXml(names) {
+    /* Which tab opens, said out loud. Sheet order and the active sheet are different things, and
+       with neither declared every reader decides for itself — a report saved to put the problems
+       in front of someone would then open on whichever tab that reader preferred. */
+    let s = '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+      '<bookViews><workbookView activeTab="0"/></bookViews><sheets>';
+    names.forEach(function (n, i) {
+      s += '<sheet name="' + xesc(tabName(n, i + 1)) + '" sheetId="' + (i + 1) + '" r:id="rId' + (i + 1) + '"/>';
+    });
+    return s + "</sheets></workbook>";
+  }
+  function wbrXml(n) {
+    let s = '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">';
+    for (let i = 1; i <= n; i++) {
+      s += '<Relationship Id="rId' + i + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet' + i + '.xml"/>';
+    }
+    /* the styles part takes the id after the last sheet, so it moves when a tab is added */
+    return s + '<Relationship Id="rId' + (n + 1) + '" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
+  }
   const RELS = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/></Relationships>';
-  const WB = '<?xml version="1.0"?><workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"><sheets><sheet name="Result" sheetId="1" r:id="rId1"/></sheets></workbook>';
-  const WBR = '<?xml version="1.0"?><Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/><Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/></Relationships>';
   const STY = '<?xml version="1.0"?><styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main"><fonts count="2"><font><sz val="11"/><name val="Calibri"/></font><font><u/><color rgb="FF0563C1"/><sz val="11"/><name val="Calibri"/></font></fonts><fills count="6"><fill><patternFill patternType="none"/></fill><fill><patternFill patternType="gray125"/></fill><fill><patternFill patternType="solid"><fgColor rgb="FFC6EFCE"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFC7CE"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFE0E0E0"/></patternFill></fill><fill><patternFill patternType="solid"><fgColor rgb="FFFFEB9C"/></patternFill></fill></fills><borders count="1"><border/></borders><cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs><cellXfs count="9"><xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="4" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="0" fillId="5" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment wrapText="1" vertical="top"/></xf><xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="0" fontId="1" fillId="2" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="0" fontId="1" fillId="3" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="top"/></xf><xf numFmtId="0" fontId="1" fillId="5" borderId="0" xfId="0" applyFont="1" applyFill="1" applyAlignment="1"><alignment vertical="top"/></xf></cellXfs><cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles></styleSheet>';
   /* deflate-raw is what a .zip entry wants. Without it the workbook is its XML verbatim — 79 MB
      for 100,000 rows, against 3.2 MB compressed, which is the difference between a file that can be
@@ -1700,20 +1812,73 @@
       return new Uint8Array(await new Response(s).arrayBuffer());
     } catch (e) { return null; }
   }
+  /* The same, for something too big to hold: chunks go in as they are made and only the compressed
+     output is kept. Returns the pieces, the CRC and the uncompressed length — everything the zip's
+     local header needs, which is why the header is written after the data rather than before. */
+  async function deflateChunks(gen) {
+    if (typeof CompressionStream === "undefined") return null;
+    const enc = new TextEncoder();
+    try {
+      const cs = new CompressionStream("deflate-raw");
+      const w = cs.writable.getWriter(), rd = cs.readable.getReader();
+      const out = [];
+      /* read while writing: the stream only takes more once what it has produced is drained */
+      const pump = (async function () {
+        for (;;) { const r = await rd.read(); if (r.done) break; out.push(r.value); }
+      })();
+      let crc = 0xFFFFFFFF, size = 0;
+      for (const piece of gen) {
+        const b = enc.encode(piece);
+        crc = crc32Run(crc, b); size += b.length;
+        await w.write(b);
+      }
+      await w.close();
+      await pump;
+      return { parts: out, crc: (crc ^ 0xFFFFFFFF) >>> 0, size: size };
+    } catch (e) { return null; }
+  }
   async function zipPack(files) {
     const enc = new TextEncoder();
     const u16 = function (n) { return new Uint8Array([n & 255, (n >> 8) & 255]); };
     const u32 = function (n) { n >>>= 0; return new Uint8Array([n & 255, (n >> 8) & 255, (n >> 16) & 255, (n >> 24) & 255]); };
     const chunks = [], central = []; let off = 0;
     for (let i = 0; i < files.length; i++) {
-      const f = files[i], name = enc.encode(f.name), crc = crc32(f.data);
-      let body = await deflateRaw(f.data), method = 8;
-      if (!body || body.length >= f.data.length) { body = f.data; method = 0; }
+      const f = files[i], name = enc.encode(f.name);
+      let crc, raw, parts, method = 8;
+      if (f.chunks) {
+        /* An entry too big to hold: the pieces go straight into the deflate stream and only the
+           compressed output is kept. The header below needs the CRC and the uncompressed size,
+           which is why they are accumulated on the way past rather than measured afterwards.
+
+           f.chunks MAKES the pieces; it is not the pieces. A generator can be read once, and this
+           reads them twice when the first attempt fails — measured against a stream that died on
+           its second chunk: 12,001 rows in, 0 out, and no error anywhere. */
+        const z = await deflateChunks(f.chunks());
+        if (z) { parts = z.parts; crc = z.crc; raw = z.size; }
+        else {
+          /* No CompressionStream, or the stream failed. Store it — as BYTES, joined once, never
+             as one string: a Uint8Array has no half-gigabyte ceiling, and that ceiling is the
+             whole reason this path exists. */
+          const bs = []; let n = 0;
+          for (const piece of f.chunks()) { const b = enc.encode(piece); bs.push(b); n += b.length; }
+          const whole = cat(bs);
+          parts = [whole]; crc = crc32(whole); raw = n; method = 0;
+        }
+      } else {
+        crc = crc32(f.data); raw = f.data.length;
+        const body = await deflateRaw(f.data);
+        if (!body || body.length >= raw) { parts = [f.data]; method = 0; }
+        else parts = [body];
+      }
+      let csize = 0; parts.forEach(function (p) { csize += p.length; });
+      /* a tiny entry can come out bigger compressed than it went in — store those */
+      if (method === 8 && !f.chunks && csize >= raw) { parts = [f.data]; csize = raw; method = 0; }
       const lh = cat([u32(0x04034b50), u16(20), u16(0), u16(method), u16(0), u16(0),
-        u32(crc), u32(body.length), u32(f.data.length), u16(name.length), u16(0), name]);
-      chunks.push(lh); chunks.push(body);
-      central.push({ name: name, crc: crc, csize: body.length, size: f.data.length, off: off, method: method });
-      off += lh.length + body.length;
+        u32(crc), u32(csize), u32(raw), u16(name.length), u16(0), name]);
+      chunks.push(lh);
+      parts.forEach(function (p) { chunks.push(p); });
+      central.push({ name: name, crc: crc, csize: csize, size: raw, off: off, method: method });
+      off += lh.length + csize;
     }
     const cds = off, cdc = [];
     central.forEach(function (c) {
@@ -1744,7 +1909,8 @@
   function exportRaw() {
     const rows = flatRows().filter(function (r) { return r.raw; });
     if (!rows.length) return;
-    dl(new Blob([buildRaw(rows)], { type: "text/plain;charset=utf-8;" }), "txt");
+    try { dl(new Blob([buildRaw(rows)], { type: "text/plain;charset=utf-8;" }), "txt"); }
+    catch (e) { exportFailed(e); }
   }
   function buildRaw(rows) {
     const NL = "\n", RULE = "=".repeat(78) + NL, THIN = "-".repeat(78) + NL;
@@ -1761,10 +1927,13 @@
 
   async function exportXlsx() {
     const rows = flatRows(); if (!rows.length) return;
-    dl(new Blob([await buildXlsx(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "xlsx");
+    try {
+      dl(new Blob([await buildXlsx(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "xlsx");
+    } catch (e) { exportFailed(e); }
   }
   /* async because compressing is: CompressionStream has no synchronous form. */
-  async function buildXlsx(rows) {
+  /* one tab: a name and the rows that go on it */
+  function xlsxTab(name, rows) {
     const header = srvMode
       ? ["Status", "Student Reg", "Program Id", "Expected Link", "Actual Link", "Remarks", "Details"]
       : ["Status", "Student Reg", "Program Id", "Payment History Link", "Remarks", "Details"];
@@ -1773,12 +1942,58 @@
         ? [r.status, r.reg, r.spid, r.link, r.link2, r.remarks, r.details]
         : [r.status, r.reg, r.spid, r.link, r.remarks, r.details];
     });
-    const colors = rows.map(function (r) { return r.color; });
+    return { name: name, header: header, mat: mat,
+      colors: rows.map(function (r) { return r.color; }),
+      links: srvMode ? [3, 4] : [3] };
+  }
+
+  /* A workbook of one tab or several. Every part that names the sheets is built from the same
+     list, so they cannot disagree — and a workbook whose parts disagree is not refused by Excel,
+     it is "repaired", which means opened empty. */
+  async function buildBook(tabs) {
     const enc = new TextEncoder();
-    return zipPack([
-      { name: "[Content_Types].xml", data: enc.encode(CT) }, { name: "_rels/.rels", data: enc.encode(RELS) },
-      { name: "xl/workbook.xml", data: enc.encode(WB) }, { name: "xl/_rels/workbook.xml.rels", data: enc.encode(WBR) },
-      { name: "xl/styles.xml", data: enc.encode(STY) }, { name: "xl/worksheets/sheet1.xml", data: enc.encode(sheetXml(header, mat, colors, srvMode ? [3, 4] : [3])) }
+    tabs.forEach(function (s) {
+      /* Excel will not open a sheet with more rows than this, and a workbook claiming more is
+         repaired rather than refused, so it is better to say so than to write one. */
+      if (s.mat.length + 1 > XLSX_MAX_ROWS) {
+        throw new Error(t("xlsx_toobig")
+          .replace("{n}", (s.mat.length + 1).toLocaleString())
+          .replace("{m}", XLSX_MAX_ROWS.toLocaleString()));
+      }
+    });
+    const parts = [
+      { name: "[Content_Types].xml", data: enc.encode(ctXml(tabs.length)) },
+      { name: "_rels/.rels", data: enc.encode(RELS) },
+      { name: "xl/workbook.xml", data: enc.encode(wbXml(tabs.map(function (s) { return s.name; }))) },
+      { name: "xl/_rels/workbook.xml.rels", data: enc.encode(wbrXml(tabs.length)) },
+      { name: "xl/styles.xml", data: enc.encode(STY) }
+    ];
+    tabs.forEach(function (s, i) {
+      /* in pieces: see sheetChunks — the whole worksheet as one string stops existing at about
+         560,000 students, which is a size this tool is asked for.
+         The first tab is the selected one, matching activeTab="0" in the workbook above. */
+      parts.push({ name: "xl/worksheets/sheet" + (i + 1) + ".xml",
+        chunks: function () { return sheetChunks(s.header, s.mat, s.colors, s.links, 0, i === 0); } });
+    });
+    return zipPack(parts);
+  }
+
+  /* what the ⬇ Excel Report button writes: one tab, holding whatever the filter selected */
+  async function buildXlsx(rows) {
+    return buildBook([xlsxTab(t("tab_all"), rows)]);
+  }
+
+  /* …and what the run saves by itself: the same split the Total Problem tile makes, so the tab
+     that needs someone can be opened without filtering a sheet of ninety thousand rows first. */
+  async function buildBookSplit(rows) {
+    /* r.result, not r.status — status is the sentence on screen ("Matched (manual)"), result is
+       the code the tiles count. A student marked matched by hand already carries "ok" here, so the
+       two tabs and the Total Problem tile always name the same students. */
+    const bad = rows.filter(function (r) { return notOk(r.result); });
+    const ok = rows.filter(function (r) { return !notOk(r.result); });
+    return buildBook([
+      xlsxTab(t("tab_problem") + " (" + bad.length + ")", bad),
+      xlsxTab(t("tab_ok") + " (" + ok.length + ")", ok)
     ]);
   }
 
@@ -1859,9 +2074,19 @@
   async function runFiles() {
     const rows = flatRows(true);
     if (!rows.length) return [];
+    /* the same split the Total Problem tile makes, and the workbook's first tab */
+    const hot = rows.filter(function (r) { return notOk(r.result); });
     const out = [
-      { name: "report.html", blob: new Blob([buildHtml(rows)], { type: "text/html;charset=utf-8" }) },
-      { name: "report.xlsx", blob: new Blob([await buildXlsx(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) },
+      /* The rows that need a person, and a line saying where the rest are. A hundred thousand
+         rows take seventeen seconds to become usable however few bytes they are written in; five
+         thousand take under a second, and the other ninety-five are in report.xlsx beside it. */
+      { name: "report.html", blob: new Blob([buildHtml(hot, hot.length === rows.length ? "" :
+        t("html_trimmed").replace("{n}", (rows.length - hot.length).toLocaleString(lang === "bn" ? "bn-BD" : "en"))
+          .replace("{a}", hot.length.toLocaleString(lang === "bn" ? "bn-BD" : "en")))],
+        { type: "text/html;charset=utf-8" }) },
+      /* two tabs — what needs a person, and what came out clean. buildXlsx() (the ⬇ button)
+         stays one tab, because there the filter has already chosen what the file is about. */
+      { name: "report.xlsx", blob: new Blob([await buildBookSplit(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) },
       { name: "summary.txt", blob: new Blob([runSummary(rows)], { type: "text/plain;charset=utf-8" }) }
     ];
     const raw = rows.filter(function (r) { return r.raw; });

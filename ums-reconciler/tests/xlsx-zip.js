@@ -24,7 +24,11 @@ const check = (name, ok, extra) => {
   console.log((ok ? "PASS  " : "FAIL  ") + name + (extra !== undefined ? "   " + extra : ""));
 };
 function src(name) {
+  /* `function*` too: the worksheet writer is a generator, and indexOf("function name(") walks
+     straight past it and then reports a function that is plainly in the file as missing. */
   let at = APP.indexOf("function " + name + "(");
+  const star = APP.indexOf("function* " + name + "(");
+  if (star >= 0 && (at < 0 || star < at)) at = star;
   if (at < 0) throw new Error("no such function: " + name);
   if (APP.slice(at - 6, at) === "async ") at -= 6;
   let depth = 0;
@@ -39,8 +43,14 @@ const line = (re) => { const m = re.exec(APP); if (!m) throw new Error("not foun
 /* the shipping writer, lifted whole */
 const W = new Function("CompressionStream", "Response", "TextEncoder",
   line(/const CRC = \(function \(\) \{.*\n/) +
-  ["crc32", "cat", "deflateRaw", "zipPack", "zipStore"].map(src).join("\n") +
-  "\nreturn { zipPack: zipPack, zipStore: zipStore, crc32: crc32 };"
+  /* crc32Run and deflateChunks came in with the streamed worksheet: an entry that is never
+     assembled still has to be checksummed and sized as its pieces go past. */
+  ["xesc", "cl", "crc32Run", "crc32", "cat", "deflateRaw", "deflateChunks",
+    "zipPack", "zipStore", "rowXml", "sheetChunks", "sheetXml"].map(src).join("\n") +
+  line(/const FILL_STYLE = .*\n/) + line(/const LINK_STYLE = .*\n/) +
+  line(/const XLSX_MAX_ROWS = .*\n/) +
+  "\nreturn { zipPack: zipPack, zipStore: zipStore, crc32: crc32, sheetXml: sheetXml," +
+  " sheetChunks: sheetChunks, XLSX_MAX_ROWS: XLSX_MAX_ROWS };"
 )(CompressionStream, Response, TextEncoder);
 
 /* an independent reader: central directory, local headers, inflate, CRC */
@@ -86,7 +96,7 @@ const parts = [
   { name: "xl/worksheets/sheet1.xml", data: enc.encode(xml) }
 ];
 
-W.zipPack(parts).then(function (bytes) {
+W.zipPack(parts).then(async function (bytes) {
   const buf = Buffer.from(bytes);
   let files;
   try { files = readZip(buf); }
@@ -122,6 +132,85 @@ W.zipPack(parts).then(function (bytes) {
     s2.every((f) => f.method === 0 && W.crc32(f.data) === f.crc), s2.length + " entries");
   check("…and is the bigger file it always was", stored.length > buf.length * 3,
     (stored.length / 1024).toFixed(0) + " KB stored vs " + (buf.length / 1024).toFixed(0) + " KB deflated");
+
+  /* ---- the worksheet written in pieces ---- */
+  {
+    const HEAD = ["Status", "Reg", "PID", "Link", "Remarks", "Details"];
+    const rows = [], colors = [];
+    for (let i = 0; i < 2500; i++) {
+      const bad = i % 7 === 0;
+      rows.push([bad ? "Mismatch" : "Matched", String(1000000 + i), String(9000000 + i),
+        "https://ums-5.osl.team/x?id=" + i + '&q="quoted"',
+        bad ? "টাকার অঙ্ক আলাদা" : "", "সারি " + i + " — <&> ↗"]);
+      colors.push(bad ? "r" : "g");
+    }
+    /* the same sheet, both ways */
+    const whole = W.sheetXml(HEAD, rows, colors, [3]);
+    const pieces = [];
+    for (const c of W.sheetChunks(HEAD, rows, colors, [3])) pieces.push(c);
+    check("the pieces really are pieces", pieces.length >= 3, pieces.length + " chunks for 2,500 rows");
+    check("…and they join into exactly what the one-string writer wrote",
+      pieces.join("") === whole, "joined " + pieces.join("").length + " vs " + whole.length);
+
+    const enc = new TextEncoder();
+    const a = await W.zipPack([{ name: "xl/worksheets/sheet1.xml", data: enc.encode(whole) }]);
+    /* chunks MAKES the pieces; it is not the pieces. zipPack may need them twice — once for the
+       deflate stream and again to store the entry if that stream fails — and a generator handed
+       over directly is spent after the first read. */
+    const mk = function () { return W.sheetChunks(HEAD, rows, colors, [3]); };
+    const b = await W.zipPack([{ name: "xl/worksheets/sheet1.xml", chunks: mk }]);
+    let fa = null, fb = null;
+    try { fa = readZip(Buffer.from(a)); fb = readZip(Buffer.from(b)); }
+    catch (e) { check("the streamed workbook reads back", false, e.message); }
+    if (fa && fb) {
+      check("the streamed workbook reads back", fb.length === 1 && fb[0].name === "xl/worksheets/sheet1.xml",
+        fb.map(function (f) { return f.name; }).join(","));
+      check("…with the same CRC as the one written whole", fa[0].crc === fb[0].crc,
+        fa[0].crc + " vs " + fb[0].crc);
+      check("…and the same size", fa[0].us === fb[0].us, fa[0].us + " vs " + fb[0].us);
+      check("…and the same bytes", Buffer.compare(fa[0].data, fb[0].data) === 0,
+        "inflated " + fb[0].data.length + " bytes");
+      check("…still deflated, not stored", fb[0].method === 8, "method " + fb[0].method);
+    }
+    /* and the workbook says so before Excel has to: a sheet with more rows than Excel holds is
+       "repaired" — emptied — rather than refused, which is worse than being told */
+    check("Excel's row ceiling is written down", W.XLSX_MAX_ROWS === 1048576, W.XLSX_MAX_ROWS);
+
+    /* ---- and the pieces can be asked for twice ----
+       zipPack reads them once for the deflate stream and again to store the entry if that stream
+       fails. A CompressionStream that dies part-way is the case: with a generator handed over
+       directly the second read got what the first had not eaten, which was nothing. */
+    {
+      function Dying() {
+        let wrote = 0;
+        this.writable = new WritableStream({ write() { if (++wrote > 1) throw new Error("stream died"); } });
+        this.readable = new ReadableStream({ start(c) { c.close(); } });
+      }
+      const V = new Function("CompressionStream", "Response", "TextEncoder",
+        line(/const CRC = \(function \(\) \{.*\n/) +
+        ["xesc", "cl", "crc32Run", "crc32", "cat", "deflateRaw", "deflateChunks", "zipPack",
+          "rowXml", "sheetChunks"].map(src).join("\n") +
+        line(/const FILL_STYLE = .*\n/) + line(/const LINK_STYLE = .*\n/) +
+        "\nreturn { zipPack: zipPack, sheetChunks: sheetChunks };"
+      )(Dying, Response, TextEncoder);
+
+      const H = ["Status", "Reg", "PID"], rs = [], cs2 = [];
+      for (let i = 0; i < 9000; i++) { rs.push(["Matched", String(1000000 + i), String(9000000 + i)]); cs2.push("g"); }
+      const z = Buffer.from(await V.zipPack([
+        { name: "sheet.xml", chunks: function () { return V.sheetChunks(H, rs, cs2, []); } }
+      ]));
+      let got = null;
+      try { got = readZip(z)[0]; } catch (e) { check("a failed deflate still writes the whole sheet", false, e.message); }
+      if (got) {
+        const text = got.data.toString("utf8");
+        check("a failed deflate still writes the whole sheet",
+          (text.match(/<row /g) || []).length === rs.length + 1,
+          (text.match(/<row /g) || []).length + " rows of " + (rs.length + 1));
+        check("…as well-formed XML", /<\/worksheet>\s*$/.test(text), text.slice(-40));
+        check("…stored, since the stream could not compress it", got.method === 0, "method " + got.method);
+      }
+    }
+  }
 
   finish();
 }).catch(function (e) { check("the writer ran", false, e && e.stack || e); finish(); });

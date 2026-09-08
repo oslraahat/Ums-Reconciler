@@ -102,10 +102,29 @@ const line = (re) => (re.exec(APP) || [""])[0];
 /* ---------- the files ---------- */
 {
   check("four files, built from the same code the buttons use",
-    /name: "report\.html", blob: new Blob\(\[buildHtml\(rows\)\]/.test(APP) &&
-    /name: "report\.xlsx", blob: new Blob\(\[await buildXlsx\(rows\)\]/.test(APP) &&
+    /name: "report\.html", blob: new Blob\(\[buildHtml\(hot,/.test(APP) &&
+    /name: "report\.xlsx", blob: new Blob\(\[await buildBookSplit\(rows\)\]/.test(APP) &&
     /name: "summary\.txt"/.test(APP) && /name: "table-data\.txt", blob: new Blob\(\[buildRaw\(raw\)\]/.test(APP),
     "app.js");
+  /* The saved workbook is the one nobody chose a filter for, so it makes the split itself: a tab
+     for what needs a person and a tab for what does not. The ⬇ button keeps one tab, because there
+     the filter has already decided what the file is about. tests/two-tabs.js opens both and reads
+     them back. */
+  check("…and the saved workbook splits itself in two, while the button's does not",
+    /buildBookSplit\(rows\)/.test(APP) && /return buildBook\(\[xlsxTab\(t\("tab_all"\), rows\)\]\);/.test(APP),
+    "app.js");
+  /* The saved page holds the rows somebody will read. A hundred thousand take seventeen seconds to
+     become usable however few bytes they are written in — timed — and ninety-five thousand of them
+     say the same sentence. The rest are in the workbook beside it, and the page says so rather
+     than leaving anyone to wonder where they went. */
+  check("…and the saved page holds what needs a person, saying where the rest are",
+    /const hot = rows\.filter\(function \(r\) \{ return notOk\(r\.result\); \}\);/.test(APP) &&
+    /buildHtml\(hot, hot\.length === rows\.length \? "" :/.test(APP) &&
+    /html_trimmed: \{ bn: "[^"]*\{a\}[^"]*", en: "[^"]*\{a\}[^"]*" \}/.test(APP),
+    "app.js");
+  /* the ⬇ button is untouched: there the filter has already said what the file is about */
+  check("…while the download button still writes whatever the filter selected",
+    /function exportHtml\(\) \{[^]*?buildHtml\(rows\)/.test(APP), "exportHtml");
   /* the raw dump is only kept for students that need a person, so on a clean run there is none —
      an empty file would only be something to open and find nothing in */
   check("…table-data only when there is something in it",
