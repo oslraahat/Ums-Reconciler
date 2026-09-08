@@ -83,7 +83,6 @@
   const DICT = {
     subtitle: { bn: "Program Wise ⇄ Course Wise — Registration No. ও StudentProgramId দিন, রান চাপুন, রিপোর্ট পান", en: "Program Wise ⇄ Course Wise — enter Registration No. & StudentProgramId, run, get the report" },
     p_eased: { bn: "সার্ভার চাপে — একসাথে {n}টি", en: "server under strain — {n} at a time" },
-    html_trimmed: { bn: "এই পাতায় শুধু যেগুলোর মীমাংসা বাকি — {a} টি। যে {n} টি মিলে গেছে সেগুলো পাশের report.xlsx-এর “ঠিক আছে” ট্যাবে আছে; এক লাখ সারির পাতা খুলতেই সতেরো সেকেন্ড লাগে, তাই সেগুলো এখানে রাখা হয়নি।", en: "This page holds only what still needs a person — {a} of them. The {n} that matched are in report.xlsx beside it, on the “Matched” tab; a page of a hundred thousand rows takes seventeen seconds just to open, so they are not repeated here." },
     dl_failed: { bn: "রিপোর্টটা বানানো গেল না — ফিল্টার বেছে (যেমন Total Problem) আবার চেষ্টা করো, বা শিটটা ভাগ করে চালাও", en: "the report could not be built — choose a filter (Total Problem, say) and try again, or run the sheet in parts" },
     tab_all: { bn: "ফলাফল", en: "Result" },
     tab_problem: { bn: "সমস্যা", en: "Problems" },
@@ -173,7 +172,7 @@
     save_folder: { bn: "প্রতি রানে তারিখ-সময়ের ফোল্ডার", en: "a dated folder per run" },
     save_downloads: { bn: "Downloads / UMS Reconciler / তারিখ-সময়ের ফোল্ডার", en: "Downloads / UMS Reconciler / a dated folder" },
     save_nopicker: { bn: "এই ব্রাউজার ফোল্ডার বাছতে দেয় না — Downloads-এ যাবে", en: "this browser cannot pick a folder — it will go to Downloads" },
-    save_hint: { bn: "report.html · report.xlsx · table-data.txt · summary.txt — ফিল্টার যা-ই থাক, পুরোটাই সেভ হয়। এক্সটেনশন নিজের ফোল্ডারে লিখতে পারে না, তাই ফোল্ডারটা একবার বেছে দিতে হয় (টুলের ফোল্ডারও চলবে); না বাছলে Downloads-এ যাবে।", en: "report.html · report.xlsx · table-data.txt · summary.txt — saved in full, whatever the filter says. An extension cannot write to its own folder, so pick one once (the tool's own folder is fine); without one it goes to Downloads." },
+    save_hint: { bn: "report.xlsx (সমস্যা ও ঠিক আছে, দুই ট্যাব) · report.html — ফিল্টার যা-ই থাক, পুরোটাই সেভ হয়। এক্সটেনশন নিজের ফোল্ডারে লিখতে পারে না, তাই ফোল্ডারটা একবার বেছে দিতে হয় (টুলের ফোল্ডারও চলবে); না বাছলে Downloads-এ যাবে।", en: "report.xlsx (two tabs, problems and matched) · report.html — saved in full, whatever the filter says. An extension cannot write to its own folder, so pick one once (the tool's own folder is fine); without one it goes to Downloads." },
     save_failed: { bn: "সেভ করা গেল না", en: "could not save" },
     p_saving: { bn: "ফল সেভ করা হচ্ছে…", en: "saving the results…" },
     list_capped: { bn: "নিচে প্রথম {a} টি দেখানো হচ্ছে · মোট {b} টি — পুরোটা HTML / Excel রিপোর্টে আছে", en: "showing the first {a} of {b} below — the HTML and Excel reports carry them all" },
@@ -1586,7 +1585,26 @@
   }
   function ver() { try { return "v" + chrome.runtime.getManifest().version; } catch (e) { return ""; } }
   function stamp() { const d = new Date(); const p = function (n) { return String(n).padStart(2, "0"); }; return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()); }
-  function dl(blob, ext) { const u = URL.createObjectURL(blob); const a = document.createElement("a"); a.href = u; a.download = "ums-verify-" + stamp() + "." + ext; document.body.appendChild(a); a.click(); a.remove(); setTimeout(function () { URL.revokeObjectURL(u); }, 1000); }
+  /* What the file is about, in its name. Fixed English words rather than the interface's labels:
+     a filename that changes with the language is one nobody can search for later, and Bengali in a
+     filename travels badly between machines. The two modes name the same chips differently on
+     screen, so they name them differently here too. */
+  const FILE_TAG = { all: "all", ok: "matched", no: "mismatch", cw: "cw-empty",
+    zero: "zero-pay", nf: "no-program", prob: "problems" };
+  const FILE_TAG_SRV = { all: "all", ok: "identical", no: "different", cw: "missing-on-actual",
+    zero: "extra-on-actual", nf: "not-read", prob: "problems" };
+  function fileTag(n) {
+    const m = srvMode ? FILE_TAG_SRV : FILE_TAG;
+    return (m[filter] || filter) + "-" + n;
+  }
+  function dl(blob, ext, tag) {
+    const u = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = u;
+    a.download = "ums-verify-" + (tag ? tag + "-" : "") + stamp() + "." + ext;
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(u); }, 1000);
+  }
   /* Say it where the run says everything else, and put back what was there.
      A report too big to build is the one failure a person can do something about — choose a
      filter, or run the sheet in parts — and it is no use to them in the console. */
@@ -1605,10 +1623,10 @@
 
   function exportHtml() {
     const rows = flatRows(); if (!rows.length) return;
-    try { dl(new Blob([buildHtml(rows)], { type: "text/html;charset=utf-8;" }), "html"); }
+    try { dl(new Blob([buildHtml(rows)], { type: "text/html;charset=utf-8;" }), "html", fileTag(rows.length)); }
     catch (e) { exportFailed(e); }
   }
-  function buildHtml(rows, note) {
+  function buildHtml(rows) {
     const LBL = srvMode ? STLBL_SRV : STLBL;
     const cnt = {}; rows.forEach(function (r) { cnt[r.result] = (cnt[r.result] || 0) + 1; });
     const regSet = {}; rows.forEach(function (r) { regSet[r.reg] = 1; }); const nStu = Object.keys(regSet).length;
@@ -1619,15 +1637,21 @@
        still real links, still middle-clickable, for the price of one loop.
 
        The colour was carried three times too — class="r-x" on the row, class="st-x" on the first
-       cell, and data-st, which the filter needs anyway. CSS reads data-st for all three now. */
+       cell, and the status attribute, which the filter needs anyway. CSS reads that one for all
+       three now, and it is called d= because it is written once per row and there are a hundred
+       thousand of them. */
+    /* No classes on the cells: which column a cell is in is what those classes were saying, and
+       the stylesheet can see that for itself. The status attribute stays — the filter reads it —
+       under a shorter name, because it is written once per row and there are a hundred thousand
+       of them. Together, 4 MB of the 30 at that size. */
+    const LK = srvMode ? "<td></td><td></td>" : "<td></td>";
     let body = "";
     rows.forEach(function (r) {
-      body += '<tr data-st="' + r.result + '">' +
+      body += '<tr d="' + r.result + '">' +
         "<td>" + xesc(LBL[r.result] || r.result) + "</td>" +
-        "<td>" + xesc(r.reg) + "</td><td>" + xesc(r.spid) + "</td>" +
-        '<td class="lk"></td>' + (srvMode ? '<td class="lk"></td>' : "") +
+        "<td>" + xesc(r.reg) + "</td><td>" + xesc(r.spid) + "</td>" + LK +
         "<td>" + xesc(r.remarks || "") + "</td>" +
-        '<td class="sm">' + xesc(r.details || "") + "</td></tr>";
+        "<td>" + xesc(r.details || "") + "</td></tr>";
     });
     const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
       '<title>UMS Payment Reconciler — Report</title><style>' +
@@ -1636,8 +1660,6 @@
          gets mailed to people whose machines are not this one */
       'font:14px/1.5 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif}' +
       'h1{font-size:20px;margin:0 0 4px}.sub{color:#8b91b4;margin:0 0 16px;font-size:13px}' +
-      '.note{background:rgba(255,180,84,.09);border:1px solid rgba(255,180,84,.34);border-radius:8px;' +
-      'padding:10px 14px;margin:0 0 16px;font-size:13px;color:#eef1fb}' +
       '.chips{display:flex;flex-wrap:wrap;gap:8px;margin:0 0 16px}' +
       '.chip{background:#161a2b;border:1px solid #2a3050;border-radius:20px;padding:5px 12px;font-size:13px}' +
       '.chip.ok{border-color:#37d18b}.chip.no,.chip.error{border-color:#ff6b7d}.chip.warn,.chip.nf{border-color:#ffb454}.chip.cw,.chip.zero{border-color:#8b91b4}' +
@@ -1649,23 +1671,27 @@
       'table{border-collapse:collapse;width:100%;font-size:13px}' +
       'th,td{border:1px solid #2a3050;padding:7px 10px;text-align:left;vertical-align:top;color:#c3c8e6}' +
       'th{background:#161a2b;color:#8b91b4;position:sticky;top:0}' +
-      /* the colour comes off data-st, which the filter needs on every row anyway — carrying it a
-         second and third time as classes cost 8 MB at 100,000 students and said nothing new */
+      /* the colour comes off d=, the attribute the filter needs on every row anyway — carrying it
+         a second and third time as classes cost 8 MB at 100,000 students and said nothing new */
       'td:first-child{font-weight:700;white-space:nowrap}' +
-      'tr[data-st=ok] td:first-child{color:#37d18b;box-shadow:inset 3px 0 #37d18b}' +
-      'tr[data-st=zero] td:first-child,tr[data-st=nf] td:first-child{color:#ffb454;box-shadow:inset 3px 0 #ffb454}' +
-      'tr[data-st=no] td:first-child,tr[data-st=error] td:first-child,tr[data-st=cw] td:first-child{color:#ff6b7d;box-shadow:inset 3px 0 #ff6b7d}' +
+      'tr[d=ok] td:first-child{color:#37d18b;box-shadow:inset 3px 0 #37d18b}' +
+      'tr[d=zero] td:first-child,tr[d=nf] td:first-child{color:#ffb454;box-shadow:inset 3px 0 #ffb454}' +
+      'tr[d=no] td:first-child,tr[d=error] td:first-child,tr[d=cw] td:first-child{color:#ff6b7d;box-shadow:inset 3px 0 #ff6b7d}' +
       (srvMode
-        ? 'tr[data-st=cw] td:first-child{color:#ff6b7d;box-shadow:inset 3px 0 #ff6b7d}' +
-          'tr[data-st=zero] td:first-child{color:#ffb454;box-shadow:inset 3px 0 #ffb454}'
-        : 'tr[data-st=cw] td:first-child{color:#8b91b4;box-shadow:inset 3px 0 #8b91b4}' +
-          'tr[data-st=zero] td:first-child{color:#8b91b4;box-shadow:inset 3px 0 #8b91b4}') +
-      '.sm{font-size:12px;color:#8b91b4}.hide{display:none}.lk a{color:#8fb4ff;text-decoration:none}.lk a:hover{text-decoration:underline}' +
+        ? 'tr[d=cw] td:first-child{color:#ff6b7d;box-shadow:inset 3px 0 #ff6b7d}' +
+          'tr[d=zero] td:first-child{color:#ffb454;box-shadow:inset 3px 0 #ffb454}'
+        : 'tr[d=cw] td:first-child{color:#8b91b4;box-shadow:inset 3px 0 #8b91b4}' +
+          'tr[d=zero] td:first-child{color:#8b91b4;box-shadow:inset 3px 0 #8b91b4}') +
+      /* the last column is the quiet one and the link columns are the fourth and fifth — the
+         cells no longer carry a class to say what their position already says */
+      '#tb td:last-child{font-size:12px;color:#8b91b4}' +
+      '#tb td:nth-child(4) a,#tb td:nth-child(5) a{color:#8fb4ff;text-decoration:none}' +
+      '#tb td:nth-child(4) a:hover,#tb td:nth-child(5) a:hover{text-decoration:underline}' +
+      '.hide{display:none}' +
       '@media print{.bar{display:none}body{background:#fff;color:#000}th{background:#eee}}' +
       '</style></head><body>' +
       '<h1>UMS Payment Reconciler — Report</h1>' +
       '<p class="sub">' + xesc(baseUrl) + ' · ' + nStu + ' students · ' + rows.length + ' rows · ' + xesc(new Date().toLocaleString()) + '</p>' +
-      (note ? '<p class="note">' + xesc(note) + "</p>" : "") +
       '<div class="chips">' + chip("ok") + chip("no") + chip("error") + chip("cw") + chip("zero") + chip("nf") + '</div>' +
       '<div class="bar">' +
       '<button class="f active" data-f="all">All</button>' +
@@ -1689,7 +1715,7 @@
       'if(A)c[4].innerHTML=\'<a href="\'+u(A,reg,spid)+\'" target="_blank">Open ↗</a>\'});' +
       'var bar=document.querySelector(".bar");bar.addEventListener("click",function(e){var b=e.target.closest(".f");if(!b)return;' +
       '[].forEach.call(bar.children,function(x){x.classList.remove("active")});b.classList.add("active");var f=b.getAttribute("data-f");' +
-      '[].forEach.call(document.querySelectorAll("#tb tr"),function(tr){var st=tr.getAttribute("data-st");var show=f==="all"||st===f||(f==="no"&&st==="error");tr.classList.toggle("hide",!show)})})})();<\/script>' +
+      '[].forEach.call(document.querySelectorAll("#tb tr"),function(tr){var st=tr.getAttribute("d");var show=f==="all"||st===f||(f==="no"&&st==="error");tr.classList.toggle("hide",!show)})})})();<\/script>' +
       '</body></html>';
     return html;
   }
@@ -1711,11 +1737,20 @@
   /** One row, as XML. Both writers below call this, so the streaming one and the whole-string one
       cannot drift into producing different workbooks.
       linkCols: column indexes holding a URL. They are written as HYPERLINK() and read "Open ↗". */
+  /* Cells carry no r="A2".
+     Every one of those is a different string sprinkled between every pair of compressible cells,
+     and that is what stops deflate finding matches: dropping it takes the report from 3.97 MB to
+     1.94 at 100,000 students, and a third off the time. The attribute is optional — a reader takes
+     the cells in order — and every row below writes every column with no gaps, so order says
+     exactly what the address said. The row keeps its own r=, which anchors it absolutely.
+     Excel was asked rather than trusted: it opens the file, both tabs, every value in its right
+     column, the Bengali intact and the HYPERLINK formula live, and repairs nothing.
+
+     s="0" is the default style, and xml:space only matters to text with a space at either end. */
   function rowXml(row, rn, cc, isLink, isHeader) {
     const s = isHeader ? 3 : (FILL_STYLE[cc] || 0);
     let x = '<row r="' + rn + '">';
     row.forEach(function (cell, ci) {
-      const ref = cl(ci) + rn;
       if (!isHeader && isLink[ci] && cell) {
         /* A formula, not a hyperlink relationship: Excel caps those at 65,530 per sheet and a
            100,000-row report in two-server mode would want 200,000, at which point Excel
@@ -1723,11 +1758,13 @@
            written twice; a URL built with encodeURIComponent has none, but a hand-edited base
            address could. */
         const url = String(cell).replace(/"/g, '""');
-        x += '<c r="' + ref + '" s="' + (LINK_STYLE[cc] || 5) + '" t="str">' +
+        x += '<c s="' + (LINK_STYLE[cc] || 5) + '" t="str">' +
           "<f>HYPERLINK(&quot;" + xesc(url) + "&quot;,&quot;Open ↗&quot;)</f><v>Open ↗</v></c>";
         return;
       }
-      x += '<c r="' + ref + '" t="inlineStr" s="' + s + '"><is><t xml:space="preserve">' + xesc(cell) + "</t></is></c>";
+      const v = String(cell == null ? "" : cell);
+      x += "<c" + (s ? ' s="' + s + '"' : "") + ' t="inlineStr"><is><t' +
+        (/^\s|\s$/.test(v) ? ' xml:space="preserve"' : "") + ">" + xesc(v) + "</t></is></c>";
     });
     return x + "</row>";
   }
@@ -1909,15 +1946,19 @@
   function exportRaw() {
     const rows = flatRows().filter(function (r) { return r.raw; });
     if (!rows.length) return;
-    try { dl(new Blob([buildRaw(rows)], { type: "text/plain;charset=utf-8;" }), "txt"); }
+    /* the raw file holds only the rows that kept their cells, so it says its own count */
+    try { dl(new Blob([buildRaw(rows)], { type: "text/plain;charset=utf-8;" }), "txt", fileTag(rows.length)); }
     catch (e) { exportFailed(e); }
   }
   function buildRaw(rows) {
-    const NL = "\n", RULE = "=".repeat(78) + NL, THIN = "-".repeat(78) + NL;
+    /* Two seventy-eight-character rules per student came to 22% of the file — a fifth of it spent
+       on ink. A blank line above each heading and one short rule under it separate the students
+       just as clearly, and what is left is the cells, which are why the file exists. */
+    const NL = "\n", THIN = "-".repeat(20) + NL;
     let out = "UMS Payment Reconciler " + ver() + " · " + new Date().toLocaleString() +
       " · " + rows.length + " flagged" + NL + baseUrl + NL;
     rows.forEach(function (r) {
-      out += NL + RULE +
+      out += NL +
         r.status + " · reg " + r.reg + " · spid " + r.spid +
         (r.program ? " · " + r.program : "") + NL +
         r.remarks + NL + THIN + r.raw;
@@ -1928,7 +1969,7 @@
   async function exportXlsx() {
     const rows = flatRows(); if (!rows.length) return;
     try {
-      dl(new Blob([await buildXlsx(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "xlsx");
+      dl(new Blob([await buildXlsx(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }), "xlsx", fileTag(rows.length));
     } catch (e) { exportFailed(e); }
   }
   /* async because compressing is: CompressionStream has no synchronous form. */
@@ -2049,49 +2090,23 @@
       " " + p(d.getHours()) + "-" + p(d.getMinutes()) + "-" + p(d.getSeconds());
   }
 
-  /* What the run was and what it found — so a folder from three weeks ago can still be read
-     without opening the reports and counting. */
-  function runSummary(rows) {
-    const LBL = srvMode ? STLBL_SRV : STLBL, cnt = {};
-    rows.forEach(function (r) { cnt[r.result] = (cnt[r.result] || 0) + 1; });
-    const reg = {}; rows.forEach(function (r) { reg[r.reg] = 1; });
-    return ["UMS Payment Reconciler " + ver(),
-      "finished        " + new Date().toLocaleString(),
-      "mode            " + (srvMode ? "Expected \u2194 Actual (two servers)" : "Program Wise \u2194 Course Wise"),
-      "expected url    " + baseUrl,
-      (srvMode ? "actual url      " + baseUrl2 : null),
-      "tolerance       " + tol,
-      "parallel        " + conc,
-      "",
-      "students        " + Object.keys(reg).length,
-      "rows            " + rows.length,
-      ""].filter(Boolean)
-      .concat(Object.keys(cnt).map(function (k) {
-        return ((LBL[k] || k) + "                    ").slice(0, 20) + cnt[k];
-      })).join("\n") + "\n";
-  }
+  /* Two files, both holding the whole run — whatever the filter on screen says, because nobody
+     chose it for the archive.
 
+     The page is the big one: a hundred thousand rows take about seventeen seconds to become
+     usable, against under a second for five thousand, and no amount of trimming bytes changes
+     that — the rows are the wait. It carries them anyway. Someone reading a saved run wants the
+     clean students in front of them too, and the filter chips at the top of the page put either
+     half on screen in a click. */
   async function runFiles() {
     const rows = flatRows(true);
     if (!rows.length) return [];
-    /* the same split the Total Problem tile makes, and the workbook's first tab */
-    const hot = rows.filter(function (r) { return notOk(r.result); });
-    const out = [
-      /* The rows that need a person, and a line saying where the rest are. A hundred thousand
-         rows take seventeen seconds to become usable however few bytes they are written in; five
-         thousand take under a second, and the other ninety-five are in report.xlsx beside it. */
-      { name: "report.html", blob: new Blob([buildHtml(hot, hot.length === rows.length ? "" :
-        t("html_trimmed").replace("{n}", (rows.length - hot.length).toLocaleString(lang === "bn" ? "bn-BD" : "en"))
-          .replace("{a}", hot.length.toLocaleString(lang === "bn" ? "bn-BD" : "en")))],
-        { type: "text/html;charset=utf-8" }) },
-      /* two tabs — what needs a person, and what came out clean. buildXlsx() (the ⬇ button)
-         stays one tab, because there the filter has already chosen what the file is about. */
+    return [
+      /* two tabs — what needs a person first, then what came out clean. buildXlsx() (the ⬇
+         button) stays one tab, because there the filter has already chosen what the file is. */
       { name: "report.xlsx", blob: new Blob([await buildBookSplit(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) },
-      { name: "summary.txt", blob: new Blob([runSummary(rows)], { type: "text/plain;charset=utf-8" }) }
+      { name: "report.html", blob: new Blob([buildHtml(rows)], { type: "text/html;charset=utf-8" }) }
     ];
-    const raw = rows.filter(function (r) { return r.raw; });
-    if (raw.length) out.push({ name: "table-data.txt", blob: new Blob([buildRaw(raw)], { type: "text/plain;charset=utf-8" }) });
-    return out;
   }
 
   /* Downloads cannot be given an absolute path — whatever is asked for lands inside the user's

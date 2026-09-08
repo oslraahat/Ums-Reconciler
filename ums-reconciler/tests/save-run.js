@@ -75,62 +75,37 @@ const line = (re) => (re.exec(APP) || [""])[0];
   check("…whatever the filter says", withFilter("ok").flatRows(true).length === 3);
 }
 
-/* ---------- the summary that makes an old folder readable ---------- */
-{
-  const mk = (srvMode) => new Function("srvMode", "baseUrl", "baseUrl2", "tol", "conc", "ver",
-    line(/const STLBL_SRV = \{[\s\S]*?\};/) + "\n" +
-    line(/const STLBL = \{[^\n]*\};/) + "\n" +
-    src("runSummary") + "\nreturn runSummary;")(
-    srvMode, "https://ums-5.osl.team", "https://ums-41.osl.team", 0, 25, () => "v13.14.0");
-  const rows = [{ reg: "A", result: "ok" }, { reg: "B", result: "no" }, { reg: "B", result: "cw" }];
-
-  const one = mk(false)(rows);
-  check("the summary names the version and the settings",
-    /v13\.14\.0/.test(one) && /tolerance/.test(one) && /parallel/.test(one), one.split("\n")[0]);
-  check("…counts students and rows, which are not the same number",
-    /students        2/.test(one) && /rows            3/.test(one), one);
-  check("…and the buckets by their on-screen names", /Matched/.test(one) && /Mismatch/.test(one), one);
-  /* three weeks later the mode is the first thing you need and the last thing you remember */
-  check("…says which question the run answered", /Program Wise/.test(one), one);
-  const two = mk(true)(rows);
-  check("…and in two-server mode, both servers",
-    /ums-5\.osl\.team/.test(two) && /ums-41\.osl\.team/.test(two), two);
-  check("…while one-server mode does not invent a second one",
-    !/ums-41/.test(one), one);
-}
-
 /* ---------- the files ---------- */
 {
-  check("four files, built from the same code the buttons use",
-    /name: "report\.html", blob: new Blob\(\[buildHtml\(hot,/.test(APP) &&
-    /name: "report\.xlsx", blob: new Blob\(\[await buildBookSplit\(rows\)\]/.test(APP) &&
-    /name: "summary\.txt"/.test(APP) && /name: "table-data\.txt", blob: new Blob\(\[buildRaw\(raw\)\]/.test(APP),
-    "app.js");
+  /* Two, and both hold the whole run: the archive is the copy nobody chose a filter for. */
+  const rf = src("runFiles");
+  check("two files, built from the same code the buttons use",
+    /name: "report\.xlsx", blob: new Blob\(\[await buildBookSplit\(rows\)\]/.test(rf) &&
+    /name: "report\.html", blob: new Blob\(\[buildHtml\(rows\)\]/.test(rf), "runFiles");
+  check("…and nothing else lands in the folder",
+    (rf.match(/name: "/g) || []).length === 2,
+    (rf.match(/name: "[^"]*"/g) || []).join(", "));
+  /* flatRows(true) is what ignores the chip on screen — the ⬇ buttons call flatRows() */
+  check("…holding the whole run, whatever the filter says",
+    /const rows = flatRows\(true\);/.test(rf), "runFiles");
+  check("…and nothing at all when the run found nothing",
+    /if \(!rows\.length\) return \[\];/.test(rf), "runFiles");
+
   /* The saved workbook is the one nobody chose a filter for, so it makes the split itself: a tab
      for what needs a person and a tab for what does not. The ⬇ button keeps one tab, because there
      the filter has already decided what the file is about. tests/two-tabs.js opens both and reads
      them back. */
-  check("…and the saved workbook splits itself in two, while the button's does not",
+  check("the saved workbook splits itself in two, while the button's does not",
     /buildBookSplit\(rows\)/.test(APP) && /return buildBook\(\[xlsxTab\(t\("tab_all"\), rows\)\]\);/.test(APP),
-    "app.js");
-  /* The saved page holds the rows somebody will read. A hundred thousand take seventeen seconds to
-     become usable however few bytes they are written in — timed — and ninety-five thousand of them
-     say the same sentence. The rest are in the workbook beside it, and the page says so rather
-     than leaving anyone to wonder where they went. */
-  check("…and the saved page holds what needs a person, saying where the rest are",
-    /const hot = rows\.filter\(function \(r\) \{ return notOk\(r\.result\); \}\);/.test(APP) &&
-    /buildHtml\(hot, hot\.length === rows\.length \? "" :/.test(APP) &&
-    /html_trimmed: \{ bn: "[^"]*\{a\}[^"]*", en: "[^"]*\{a\}[^"]*" \}/.test(APP),
     "app.js");
   /* the ⬇ button is untouched: there the filter has already said what the file is about */
   check("…while the download button still writes whatever the filter selected",
     /function exportHtml\(\) \{[^]*?buildHtml\(rows\)/.test(APP), "exportHtml");
-  /* the raw dump is only kept for students that need a person, so on a clean run there is none —
-     an empty file would only be something to open and find nothing in */
-  check("…table-data only when there is something in it",
-    /if \(raw\.length\) out\.push\(\{ name: "table-data\.txt"/.test(APP), "app.js");
-  check("…and nothing at all when the run found nothing",
-    /const rows = flatRows\(true\);\s*\n\s*if \(!rows\.length\) return \[\];/.test(APP), "app.js");
+  /* The page is the big one — a hundred thousand rows take about seventeen seconds to become
+     usable, timed — and it carries them anyway, because the chips at its top put either half on
+     screen in a click and someone reading a saved run wants both halves there. */
+  check("…and the saved page is not trimmed behind anyone's back",
+    !/buildHtml\(hot/.test(APP) && !/html_trimmed/.test(APP), "app.js");
 }
 
 /* ---------- where it writes ---------- */

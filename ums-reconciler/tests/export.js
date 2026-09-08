@@ -88,7 +88,12 @@ check("cells are inline strings, so no sharedStrings table is needed", /t="inlin
 check("& in the link is escaped", sheet.indexOf("a=b&amp;c=d") > 0 && !/a=b&c=d/.test(sheet), "link cell");
 check("< > in a course name are escaped", /&lt;Full&gt;/.test(sheet) && sheet.indexOf("<Full>") < 0);
 check("no raw & survives anywhere", !/&(?!amp;|lt;|gt;)/.test(sheet));
-check("xml:space is preserved, so leading/trailing spaces are not eaten", /xml:space="preserve"/.test(sheet));
+/* xml:space is written only where a space would otherwise be eaten. On every cell it cost 10 MB at
+   100,000 students and protected nothing, because almost no cell has a space at either end. */
+check("xml:space is written where a space would be lost, and nowhere else",
+  /<t xml:space="preserve"> pad /.test(X.sheetXml(["h"], [[" pad "]], ["g"])) &&
+  !/xml:space/.test(sheet),
+  (sheet.match(/.{0,40}xml:space.{0,20}/) || ["none in the ordinary sheet"])[0]);
 /* header + 2 data rows across 5 columns, so Status stays filterable in Excel */
 check("the row is filterable in Excel", /<autoFilter ref="A1:E3"\/>/.test(sheet), (sheet.match(/autoFilter[^/]*/) || [])[0]);
 
@@ -182,8 +187,12 @@ check("the broken dead CSV export is gone", !/function exportCsv/.test(APP) && !
   check("both pages come through", /## Program Wise/.test(txt) && /## Course Wise/.test(txt));
   check("the cells stay tab-separated", /27\/03\/2023\t3121353558/.test(txt));
   // without a divider two students' tables run together and the second looks like more rows of the first
-  check("students are divided", (txt.match(/^={70,}$/gm) || []).length === 2,
-    (txt.match(/^={70,}$/gm) || []).length + " rules");
+  /* A blank line above each heading and one short rule under it. Two seventy-eight-character
+     rules per student came to 22% of the file — a fifth of it spent on ink. */
+  check("students are divided", (txt.match(/^-{10,}$/gm) || []).length === 2 && /\n\n/.test(txt),
+    (txt.match(/^-{10,}$/gm) || []).length + " rules");
+  check("…without a rule wide enough to cost real bytes", !/[-=]{40}/.test(txt),
+    (txt.match(/[-=]{40,}/) || ["none"])[0]);
 
   /* the guard against an empty file lives in exportRaw(), which returns before building anything */
   check("nothing flagged → no empty file",
@@ -265,12 +274,17 @@ check("the broken dead CSV export is gone", !/function exportCsv/.test(APP) && !
   check("…as a formula, which has no per-sheet cap to fall foul of",
     !/<hyperlinks>/.test(sheet) && !/r:id=/.test(sheet), "app.js");
 
-  /* the row's colour is what says how serious it is; a link cell must not lose it */
+  /* The row's colour is what says how serious it is; a link cell must not lose it.
+     Cells no longer carry r="A2" — every one of those is a different string sitting between two
+     compressible cells, and dropping them halves the workbook — so the colour is checked by where
+     the cell sits rather than by the address it used to print. */
+  const rowOf = (n) => (new RegExp('<row r="' + n + '">[\\s\\S]*?</row>').exec(sheet) || [""])[0];
   check("the link cell keeps its row's colour",
-    /<c r="D2" s="6" t="str">/.test(sheet) && /<c r="D3" s="7" t="str">/.test(sheet),
-    (sheet.match(/<c r="[DE]\d" s="\d" t="str">/g) || []).join(" "));
-  check("…and the header row is still text", /<c r="D1" t="inlineStr"/.test(sheet),
-    (/<c r="D1"[^>]*/.exec(sheet) || [])[0]);
+    /<c s="6" t="str">/.test(rowOf(2)) && /<c s="7" t="str">/.test(rowOf(3)),
+    (sheet.match(/<c s="\d" t="str">/g) || []).join(" "));
+  check("…and the header row is still text",
+    /<c s="3" t="inlineStr">/.test(rowOf(1)) && !/t="str"/.test(rowOf(1)),
+    rowOf(1).slice(0, 90));
   /* a student with no spid has no link, and an empty formula would be a broken cell */
   check("…and a row with no address stays blank",
     !/HYPERLINK\(&quot;&quot;/.test(X.sheetXml(HDR, [["x", "y", "", "", "", "", ""]], ["g"], [3, 4])),
