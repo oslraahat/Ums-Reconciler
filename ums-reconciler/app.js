@@ -6,6 +6,15 @@
   const U = self.UMSREC;
   const $ = function (id) { return document.getElementById(id); };
   const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  /* Minutes past a hundred stop reading as a duration: a run with five and a half hours to go
+     said "332:50", which is arithmetically right and tells nobody anything. Hours get their own
+     field once there are any; below an hour it stays mm:ss, which is what a short run wants. */
+  function span(ms) {
+    const s = Math.max(0, Math.floor(ms / 1000));
+    if (s < 3600) return mmss(ms);
+    const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60);
+    return h + ":" + String(m).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+  }
   function mmss(ms) { const s = Math.floor(ms / 1000); return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0"); }
 
   // tol 0 like the CLI: at 1 the near() test swallows exactly the ৳1 row-wise differences we are
@@ -811,6 +820,14 @@
     }
   }
 
+  /* How fast it is going — which is not how fast it has been on average since it started.
+     Those two diverge on a run that lasts hours, and it is the first one an estimate needs: a
+     run that opened fast and has since been throttled goes on quoting the fast number for the
+     rest of the afternoon, and promises a finishing time it passed long ago. So the rate is
+     read over the last minute of work rather than over the whole run. */
+  const RATE_WINDOW = 60000;
+  let rateMarks = [];
+
   /* ---------- the checkpoint ----------
      Written as the run goes, so that closing the page costs the students still in flight and
      nothing else. Batched, because writing a hundred thousand answers every few seconds would
@@ -1058,24 +1075,36 @@
     $("run").disabled = true; $("stop").disabled = false; $("pause").disabled = false; $("pause").textContent = t("pause");
     $("html").disabled = true; $("xlsx").disabled = true; $("raw").disabled = true;
     const t0 = Date.now();
+    /* Where this run's own counting begins. A resumed run arrives with T.done already holding
+       everything the last one finished — tens of thousands of answers — against a clock that
+       starts now, and dividing one by the other reported a speed the run had never reached. */
+    const done0 = T.done;
+    rateMarks = [];
     let next = 0, running = 0;
     /* When the run has narrowed itself, say so. Without it the tool simply looks slow, and the
        one thing worth knowing — that it is the server, and that the run is adapting rather than
        failing — is the thing nobody can see. */
     /* The first seconds of a run are all latency and no answers, and a rate computed over them
        says 0/min and then 4,000/min. Wait for both a little time and a few answers before
-       claiming a speed — an honest blank beats a number that swings by a factor of ten. */
+       claiming a speed — an honest blank beats a number that swings by a factor of ten.
+
+       Everything is measured from a mark taken inside this run, so the answers a resume brought
+       with it are on both sides of the subtraction and cancel. */
     function rateNow() {
-      const secs = (Date.now() - t0) / 1000;
-      if (secs < 10 || T.done < 5) return 0;
-      return Math.round(T.done / secs * 60);
+      const now = Date.now();
+      rateMarks.push({ at: now, done: T.done });
+      while (rateMarks.length > 2 && now - rateMarks[0].at > RATE_WINDOW) rateMarks.shift();
+      const from = rateMarks[0];
+      const secs = (now - from.at) / 1000, got = T.done - from.done;
+      if (secs < 10 || got < 5) return 0;
+      return Math.round(got / secs * 60);
     }
     function prog() {
       const pct = T.total ? Math.round(T.done / T.total * 100) : 0;
       const rate = rateNow(), left = T.total - T.done;
       $("prog").textContent = "⏳ " + T.done + "/" + T.total + " · " + pct + "% · ⏱ " + mmss(Date.now() - t0) +
         (rate ? " · ⚡ " + t("p_rate").replace("{n}", rate.toLocaleString()) : "") +
-        (rate && left > 0 ? " · " + t("p_left").replace("{t}", mmss(left / rate * 60000)) : "") +
+        (rate && left > 0 ? " · " + t("p_left").replace("{t}", span(left / rate * 60000)) : "") +
         " · " + t("p_running") + " " + running +
         (live < conc ? " · 🐢 " + t("p_eased").replace("{n}", live) : "");
     }
@@ -1167,7 +1196,10 @@
        tool was faster last week — and without it the comparison is two half-remembered
        stopwatch readings over sheets of different sizes. */
     const took = Date.now() - t0;
-    const rate = took > 1000 ? Math.round(T.done / (took / 1000) * 60) : 0;
+    /* what THIS run did, in the time this run took — a resumed one inherits the count but not
+       the hours that produced it */
+    const mine = T.done - done0;
+    const rate = took > 1000 && mine > 0 ? Math.round(mine / (took / 1000) * 60) : 0;
     $("prog").textContent = "✅ " + t("p_done") + " · " + T.done + "/" + T.total + " · ⏱ " + mmss(took) +
       (rate ? " · ⚡ " + t("p_rate").replace("{n}", rate.toLocaleString()) : "") +
       (left ? " · ⚠ " + t("p_unanswered").replace("{n}", left) : "") +
