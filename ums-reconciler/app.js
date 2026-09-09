@@ -203,7 +203,7 @@
     save_folder: { bn: "প্রতি রানে তারিখ-সময়ের ফোল্ডার", en: "a dated folder per run" },
     save_downloads: { bn: "Downloads / UMS Reconciler / তারিখ-সময়ের ফোল্ডার", en: "Downloads / UMS Reconciler / a dated folder" },
     save_nopicker: { bn: "এই ব্রাউজার ফোল্ডার বাছতে দেয় না — Downloads-এ যাবে", en: "this browser cannot pick a folder — it will go to Downloads" },
-    save_hint: { bn: "report.xlsx (সমস্যা ও ঠিক আছে, দুই ট্যাব) · report.html — ফিল্টার যা-ই থাক, পুরোটাই সেভ হয়। এক্সটেনশন নিজের ফোল্ডারে লিখতে পারে না, তাই ফোল্ডারটা একবার বেছে দিতে হয় (টুলের ফোল্ডারও চলবে); না বাছলে Downloads-এ যাবে।", en: "report.xlsx (two tabs, problems and matched) · report.html — saved in full, whatever the filter says. An extension cannot write to its own folder, so pick one once (the tool's own folder is fine); without one it goes to Downloads." },
+    save_hint: { bn: "report.xlsx (সমস্যা ও ঠিক আছে, দুই ট্যাব) — ফিল্টার যা-ই থাক, পুরোটাই সেভ হয়। HTML লাগলে ⬇ HTML Report চাপো; রান শেষে ওটা বানানো হয় না, কারণ ১ লাখ সারির পাতা বানাতে ও লিখতেই কয়েক মিনিট যায়। এক্সটেনশন নিজের ফোল্ডারে লিখতে পারে না, তাই ফোল্ডারটা একবার বেছে দিতে হয় (টুলের ফোল্ডারও চলবে); না বাছলে Downloads-এ যাবে।", en: "report.xlsx (two tabs, problems and matched) — saved in full, whatever the filter says. For a page, press ⬇ HTML Report; it is not written at the end of a run, because building and writing a hundred thousand rows of it costs minutes. An extension cannot write to its own folder, so pick one once (the tool's own folder is fine); without one it goes to Downloads." },
     save_failed: { bn: "সেভ করা গেল না", en: "could not save" },
     p_saving: { bn: "ফল সেভ করা হচ্ছে…", en: "saving the results…" },
     list_capped: { bn: "নিচে প্রথম {a} টি দেখানো হচ্ছে · মোট {b} টি — পুরোটা HTML / Excel রিপোর্টে আছে", en: "showing the first {a} of {b} below — the HTML and Excel reports carry them all" },
@@ -2270,14 +2270,21 @@
      that — the rows are the wait. It carries them anyway. Someone reading a saved run wants the
      clean students in front of them too, and the filter chips at the top of the page put either
      half on screen in a click. */
+  /* The workbook, and only the workbook.
+
+     The page used to be written beside it, on the reasoning that someone opening a saved run
+     wants to read it rather than open Excel. But it is the expensive half — a hundred thousand
+     rows of HTML is tens of megabytes to build and write, at the end of a run, while the tab is
+     still the thing standing between the work and its report — and the workbook already holds
+     every row, in two tabs, problems first. The ⬇ HTML button is still there for the times a
+     page is what is wanted, and it makes one from whatever is on screen in a second or two. */
   async function runFiles() {
     const rows = flatRows(true);
     if (!rows.length) return [];
     return [
       /* two tabs — what needs a person first, then what came out clean. buildXlsx() (the ⬇
          button) stays one tab, because there the filter has already chosen what the file is. */
-      { name: "report.xlsx", blob: new Blob([await buildBookSplit(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) },
-      { name: "report.html", blob: new Blob([buildHtml(rows)], { type: "text/html;charset=utf-8" }) }
+      { name: "report.xlsx", blob: new Blob([await buildBookSplit(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) }
     ];
   }
 

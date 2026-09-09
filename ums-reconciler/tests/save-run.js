@@ -77,14 +77,22 @@ const line = (re) => (re.exec(APP) || [""])[0];
 
 /* ---------- the files ---------- */
 {
-  /* Two, and both hold the whole run: the archive is the copy nobody chose a filter for. */
+  /* One file, holding the whole run: the archive is the copy nobody chose a filter for.
+     The page used to be written beside it and is not any more — it is the expensive half, tens of
+     megabytes to build and write at the end of a run over a hundred thousand rows, while the tab
+     is still all that stands between the work and its report. The workbook already carries every
+     row, in two tabs, problems first; ⬇ HTML Report makes a page in a second or two when one is
+     actually wanted. */
   const rf = src("runFiles");
-  check("two files, built from the same code the buttons use",
-    /name: "report\.xlsx", blob: new Blob\(\[await buildBookSplit\(rows\)\]/.test(rf) &&
-    /name: "report\.html", blob: new Blob\(\[buildHtml\(rows\)\]/.test(rf), "runFiles");
-  check("…and nothing else lands in the folder",
-    (rf.match(/name: "/g) || []).length === 2,
+  check("the workbook is built from the same code the button uses",
+    /name: "report\.xlsx", blob: new Blob\(\[await buildBookSplit\(rows\)\]/.test(rf), "runFiles");
+  check("…and it is the only thing that lands in the folder",
+    (rf.match(/name: "/g) || []).length === 1,
     (rf.match(/name: "[^"]*"/g) || []).join(", "));
+  check("…the page is not built at the end of a run", !/buildHtml\(/.test(rf), "runFiles");
+  /* but it must still be reachable — the button is now the only way to get one */
+  check("…while the ⬇ HTML button still makes one",
+    /\$\("html"\)\.addEventListener\("click"/.test(APP) && /buildHtml\(/.test(APP), "app.js");
   /* flatRows(true) is what ignores the chip on screen — the ⬇ buttons call flatRows() */
   check("…holding the whole run, whatever the filter says",
     /const rows = flatRows\(true\);/.test(rf), "runFiles");

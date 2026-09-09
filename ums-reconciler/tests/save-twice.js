@@ -10,6 +10,9 @@
  * an in-memory directory that records every write and can be told to let its permission lapse the
  * way Chrome's does. Then it runs twice and looks at what is on disk after each.
  *
+ * What lands there is one file: the workbook. The page used to be written beside it and is not any
+ * more — it is the expensive half, and the workbook already holds every row in two tabs.
+ *
  *   node tests/save-twice.js
  */
 "use strict";
@@ -300,16 +303,16 @@ srv.listen(0, "127.0.0.1", () => {
 
     console.log("\n--- the folder is chosen, then a run ---");
     check("saving is on and the folder is shown", /Reports/.test(o.where || ""), o.where);
-    check("the first run writes both files into it", names(o.files1) === "report.html,report.xlsx",
+    check("the first run writes the workbook into it", names(o.files1) === "report.xlsx",
       o.files1 || "(nothing)");
-    check("…and neither of them is empty", bytes(o.files1) === 2, o.files1);
+    check("…and it is not empty", bytes(o.files1) === 1, o.files1);
     check("…and nothing went to Downloads", !o.dl1, o.dl1);
     check("…and the page says where it went", /Reports/.test(o.prog1 || ""), o.prog1);
 
     console.log("\n--- and then the same page runs again ---");
-    check("the second run writes both files too", names(o.files2) === "report.html,report.xlsx",
+    check("the second run writes it too", names(o.files2) === "report.xlsx",
       o.files2 || "(nothing)");
-    check("…and neither of them is empty", bytes(o.files2) === 2, o.files2);
+    check("…and it is not empty", bytes(o.files2) === 1, o.files2);
     check("…into a folder of its own, not the first run's",
       String(o.files2).split("/")[0] !== String(o.files1).split("/")[0],
       String(o.files1).split("/")[0] + " vs " + String(o.files2).split("/")[0]);
@@ -320,10 +323,10 @@ srv.listen(0, "127.0.0.1", () => {
     check("Start asks for the folder permission, while there is still a click to carry it",
       /granted/.test(o.asked3 || ""), o.asked3 ? "asked, got " + o.asked3 : "never asked");
     check("…so the run still lands in the chosen folder",
-      names(o.files3) === "report.html,report.xlsx", o.files3 || "(nothing — it went elsewhere)");
+      names(o.files3) === "report.xlsx", o.files3 || "(nothing — it went elsewhere)");
     check("…and not into Downloads", !o.dl3, o.dl3);
     check("…and the run is never lost either way",
-      names(o.files3) === "report.html,report.xlsx" || /report\.xlsx/.test(o.dl3 || ""),
+      names(o.files3) === "report.xlsx" || /report\.xlsx/.test(o.dl3 || ""),
       "folder: " + (o.files3 || "-") + "   downloads: " + (o.dl3 || "-"));
 
     console.log("\n--- and a run picked up after a stop, not started ---");
@@ -333,7 +336,7 @@ srv.listen(0, "127.0.0.1", () => {
     check("Carry on asks for the folder too — it is a run starting",
       /granted/.test(o.asked4 || ""), o.asked4 ? "asked, got " + o.asked4 : "never asked");
     check("…so the recovered run lands in the chosen folder",
-      names(o.files4) === "report.html,report.xlsx", o.files4 || "(nothing — it went elsewhere)");
+      names(o.files4) === "report.xlsx", o.files4 || "(nothing — it went elsewhere)");
     check("…and not into Downloads", !o.dl4, o.dl4);
     check("…and it finished the whole sheet",
       new RegExp(TOTAL + "\\/" + TOTAL).test(o.prog4 || ""), o.prog4);
