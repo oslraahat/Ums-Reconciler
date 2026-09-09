@@ -43,6 +43,11 @@ if (!CHROME) { console.log("SKIP  Chrome not found — contrast has to be render
    as static DOM afterwards, so the finding lines and pills are real ones. */
 const PROBES = [
   ["#prog", "the progress badge"], ["#conn", "the connection badge"],
+  /* paintConn() puts the badge in one of these the moment a connection is tested, and each has a
+     colour of its own now — a green and a red on their own tints, which the lilac default never
+     had to answer for. Both are on screen for the whole of every run. */
+  ["#conn2", "the second connection badge — logged in"],
+  ["#connFail", "a connection badge — not logged in"],
   ["#concNote", "the note under Parallel"], [".hint", "the hint under a card"],
   [".tile .v", "a tile number"], [".tile .l", "a tile label"], [".rr", "a tile re-run arrow"],
   [".filters .fb", "a filter chip"], [".filters .fb.active", "the active filter chip"],
@@ -130,6 +135,11 @@ function page(light) {
   const paint = "<script>setTimeout(function(){" +
     "document.getElementById('list').innerHTML=" + JSON.stringify(cards) + ";" +
     "document.getElementById('prog').className='badge';" +
+    /* the two states paintConn() actually sets, side by side as the card shows them */
+    "var c2=document.getElementById('conn2');c2.style.display='';c2.className='badge ok';" +
+    "c2.textContent='Expected · ✓ লগইন আছে';" +
+    "var cf=c2.cloneNode(true);cf.id='connFail';cf.className='badge no';" +
+    "cf.textContent='Actual · ✗ লগইন নেই';c2.parentNode.appendChild(cf);" +
     "document.getElementById('prog').textContent='✅ শেষ · ৮,৭৩৫/৮,৭৩৫';" +
     "var n=document.getElementById('concNote');n.textContent='⚠ কার্যত ১২টি · http/1.1';n.className='cnote warn';" +
     "var b=document.getElementById('ckBar');b.style.display='';" +

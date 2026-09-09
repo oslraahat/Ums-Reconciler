@@ -32,10 +32,16 @@
   .ch .n{width:26px;height:26px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
   .ch h2{margin:0;font-size:16px;font-weight:700}
   .ch .badge{background:rgba(124,108,255,.16);color:#bcb2ff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;font-variant-numeric:tabular-nums}
-  /* The muted ones carry sentences, not counts: the connection state, and the progress line, which
-     now runs to a clock, three phase times and a rate. A pill shape sized for "০ টি" was squeezing
-     them, so these get room above and below and a corner that suits a line of text. */
-  .ch .badge.mut{padding:8px 10px;border-radius:7px}
+  /* Three of these badges carry a sentence rather than a count: the two connection states and the
+     progress line, which now runs to a clock, three phase times and a rate. A pill shape sized for
+     "১০,৫১৫ টি" was squeezing a whole line of text, so they get room above and below and a corner
+     that suits one.
+
+     By id, not by .mut. The class on these is state — paintConn() rewrites it to ok/no the moment
+     the connection is tested, and exportFailed() drops it to a bare "badge" — so a shape hung on
+     .mut would appear at rest and vanish the instant anything happened, taking 10px of the card
+     header with it. The shape belongs to the badge, and the badge does not change. */
+  .ch #conn, .ch #conn2, .ch #prog{padding:8px 10px;border-radius:7px}
   label{display:block;font-size:12px;color:var(--mut);margin-bottom:5px;font-weight:600}
   input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
     background:var(--fld);color:var(--text);font-size:14px;font-family:inherit}
@@ -204,6 +210,15 @@
   body.light .stu .sh .mk.on:hover{color:#fff}
   body.light .card{box-shadow:0 1px 3px rgba(20,20,60,.06)}
   body.light .ch .badge{background:#eceafe;color:#5b4ff0}
+  /* paintConn() has always set "badge ok" / "badge no" to say which server you are logged into —
+     and it has never shown. `.ok{color:var(--ok)}` is one class; `.ch .badge` is two, and in light
+     `body.light .ch .badge` is more still, so the state colour lost every time and both badges
+     rendered the same lilac. Measured: rgb(188,178,255) for ok, no and untested alike. The card
+     header promises "whichever is red is the one to go and log into", and nothing was ever red.
+     Stated at a specificity that survives both themes, tinted like .pill, which does this already. */
+  .ch .badge.ok, body.light .ch .badge.ok{background:rgba(55,209,139,.16);color:var(--ok)}
+  .ch .badge.no, body.light .ch .badge.no{background:rgba(255,107,125,.16);color:var(--no)}
+  .ch .badge.warn, body.light .ch .badge.warn{background:rgba(255,180,84,.16);color:var(--warn)}
   body.light .btn.g{background:#f3f4fb} body.light .btn.g:hover{background:#e9ebf7}
   body.light .bar2{background:#e7e9f6}
   /* Two-server mode reuses the six buckets for different verdicts, and two of them change gravity:
