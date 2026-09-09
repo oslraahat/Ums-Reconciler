@@ -199,14 +199,21 @@ async function sweepTests() {
 
   /* ---------- the sweep ---------- */
   const prog = { textContent: "" };
+  /* noneAnswered() and countUnanswered() go in as the real ones: the sweep now asks, before its
+     first round, whether EVERY student came back blank while the servers were answering promptly
+     — which is a session or an address rather than a slow server, and no business of the rounds.
+     Stubbing it would take that decision out of the code under test. The sheets below are one and
+     two students, under the threshold it holds itself to, so the rounds run as they always did. */
   const mkSweep = (processItem, run, students) => new Function(
     "run", "students", "$", "t", "mmss", "sleep", "breathe", "processItem",
     "recountAll", "paintTiles", "rerenderList", "applyFilterAll", "conc", "SWEEP_ROUNDS", "pressure",
-    src("sweepUnanswered") + "\nreturn sweepUnanswered;"
+    "T",
+    src("countUnanswered") + src("noneAnswered") + src("sweepUnanswered") + "\nreturn sweepUnanswered;"
   )(run, students, () => prog, (k) => k, () => "0:00", () => Promise.resolve(),
     () => Promise.resolve(), processItem, () => {}, () => {}, () => {}, () => {},
-    4, constOf("SWEEP_ROUNDS"), 0);   // pressure 0 — the server is answering fine, so a barren
+    4, constOf("SWEEP_ROUNDS"), 0,   // pressure 0 — the server is answering fine, so a barren
                                      // round really does mean no answer is coming
+    { total: students.length });
 
   /* a student the server only answers about on the third round must end with the real result */
   {

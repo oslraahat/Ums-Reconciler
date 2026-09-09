@@ -208,6 +208,10 @@
     p_saving: { bn: "ফল সেভ করা হচ্ছে…", en: "saving the results…" },
     list_capped: { bn: "নিচে প্রথম {a} টি দেখানো হচ্ছে · মোট {b} টি — পুরোটা HTML / Excel রিপোর্টে আছে", en: "showing the first {a} of {b} below — the HTML and Excel reports carry them all" },
     p_unanswered: { bn: "{n} টিতে সার্ভার সাড়াই দেয়নি", en: "{n} still unanswered" },
+    /* Not "the server is busy" — a busy server refuses, and refusals are counted. This is a
+       server answering promptly with a page that has no table on it, for everyone. */
+    p_none_answered: { bn: "⚠ একটা ছাত্রেরও উত্তর আসেনি — সার্ভার সাড়া দিচ্ছে কিন্তু টেবিল দিচ্ছে না। লগইন আর ঠিকানা দেখো; আবার চাওয়ার মানে নেই, তাই চাওয়া হয়নি।",
+      en: "⚠ Not one student was answered — the server replies but has no table on the page. Check the login and the address; asking again would prove nothing, so it was not done." },
     d_noanswer: { bn: "সার্ভার সাড়া দেয়নি — {n} বার চাওয়া হয়েছে, ডেটা নিয়ে কিছুই বলা যায়নি", en: "no answer from the server — asked {n} times; nothing was concluded about the data" },
 
     /* ---- two-server mode ---- */
@@ -649,7 +653,24 @@
      It ends when there is nothing left, when Stop is pressed, or when two whole rounds in a row
      change nothing — at that point the server is saying no rather than saying nothing, and the
      line says exactly that, with the number of attempts behind it, instead of pretending. */
+  /* One case the rounds cannot help with, and it is the expensive one.
+
+     If EVERY student came back unanswered while the servers were answering promptly — no
+     timeouts, no 5xx, pressure at zero — then nothing is struggling. The pages are arriving and
+     the tables are not on them, which is a session that has expired, a permission, or the wrong
+     address: one cause, shared by every row, and unchanged by asking again. Sweeping regardless
+     put a 351,335-student run through rounds of four requests each to prove it a million more
+     times, against the very server it is trying not to overwhelm.
+
+     The existing guard reaches the same conclusion — three barren rounds with no pressure — but
+     only after three whole rounds. When it is ALL of them, one round of nothing is already the
+     whole story, so this looks before the first. A partly-unanswered run still sweeps: that is
+     the flakiness the rounds exist for. */
+  function noneAnswered() {
+    return T.total >= 20 && !pressure && countUnanswered() >= T.total;
+  }
   async function sweepUnanswered(t0) {
+    if (noneAnswered()) return;   // …and the finished line says so, where it will still be read
     let barren = 0;
     for (let round = 1; round <= SWEEP_ROUNDS && run && !run.stop; round++) {
       const jobs = [];
@@ -1243,7 +1264,8 @@
         .replace("{b}", span(msSweep)).replace("{c}", span(msSave)) : "";
     $("prog").textContent = "✅ " + t("p_done") + " · " + T.done + "/" + T.total + " · ⏱ " + mmss(took) + tails +
       (rate ? " · ⚡ " + t("p_rate").replace("{n}", rate.toLocaleString("en-US")) : "") +
-      (left ? " · ⚠ " + t("p_unanswered").replace("{n}", left) : "") +
+      (left ? " · " + (noneAnswered() ? t("p_none_answered")
+        : "⚠ " + t("p_unanswered").replace("{n}", left)) : "") +
       (saved ? " · 💾 " + saved : (saveOnFinish ? " · ⚠ " + t("save_failed") : ""));
     $("run").disabled = !entries.length; $("stop").disabled = true; $("pause").disabled = true;
     run = null;
