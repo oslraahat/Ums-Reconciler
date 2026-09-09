@@ -1,0 +1,7 @@
+# Release zips are build output. Every version they hold is already in the history as source, and
+# a binary per release only makes the repository heavier to clone. They were being deleted one at a
+# time through the web; this stops them coming back.
+#
+# The three still on disk are ignored from here on rather than deleted — they are yours to keep or
+# remove, and git will simply stop mentioning them.
+*.zip
