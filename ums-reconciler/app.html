@@ -31,17 +31,17 @@
   .ch{display:flex;align-items:center;gap:10px;margin-bottom:14px;flex-wrap:wrap}
   .ch .n{width:26px;height:26px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:13px}
   .ch h2{margin:0;font-size:16px;font-weight:700}
-  .ch .badge{background:rgba(124,108,255,.16);color:#bcb2ff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:20px;font-variant-numeric:tabular-nums}
-  /* Three of these badges carry a sentence rather than a count: the two connection states and the
-     progress line, which now runs to a clock, three phase times and a rate. A pill shape sized for
-     "১০,৫১৫ টি" was squeezing a whole line of text, so they get room above and below and a corner
-     that suits one.
+  .ch .badge{background:rgba(124,108,255,.16);color:#bcb2ff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:7px;font-variant-numeric:tabular-nums}
+  /* Three of these carry a sentence rather than a count: the two connection states and the
+     progress line, which now runs to a clock, three phase times and a rate. They get room above
+     and below; the corner is the same 7px on all four, because the count outgrew a pill too —
+     "798,950 items" in a 20px lozenge is a capsule, not a label.
 
      By id, not by .mut. The class on these is state — paintConn() rewrites it to ok/no the moment
      the connection is tested, and exportFailed() drops it to a bare "badge" — so a shape hung on
      .mut would appear at rest and vanish the instant anything happened, taking 10px of the card
      header with it. The shape belongs to the badge, and the badge does not change. */
-  .ch #conn, .ch #conn2, .ch #prog{padding:8px 10px;border-radius:7px}
+  .ch #conn, .ch #conn2, .ch #prog{padding:8px 10px}
   label{display:block;font-size:12px;color:var(--mut);margin-bottom:5px;font-weight:600}
   input,select,textarea{width:100%;padding:10px 12px;border:1px solid var(--line);border-radius:10px;
     background:var(--fld);color:var(--text);font-size:14px;font-family:inherit}
