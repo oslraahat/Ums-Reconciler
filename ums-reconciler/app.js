@@ -888,7 +888,7 @@
      in — comes straight back for exactly the run that has been going longest. */
   function ckMeta(done) {
     return { sig: ckKey, total: T.total, done: done, at: Date.now(), srv: srvMode,
-      url: baseUrl, url2: srvMode ? baseUrl2 : "", tol: tol, lang: lang, src: importSrc };
+      url: baseUrl, url2: srvMode ? baseUrl2 : "", tol: tol, lang: lang, src: srcBase };
   }
   /* Every key this run owns, and only this run's: the sheet, the meta line, and the chunks. */
   function ckWipe(sig) {
@@ -1028,7 +1028,8 @@
     entries = got.entries;
     /* both facts: where the rows came from, and that this run was picked up rather than begun.
        A checkpoint written before the source travelled with it has only the second. */
-    importSrc = got.meta.src ? got.meta.src + "  ·  " + t("ck_src") : t("ck_src");
+    srcBase = got.meta.src || "";
+    importSrc = srcBase ? srcBase + "  ·  " + t("ck_src") : t("ck_src");
     students = buildStudents(entries);
     ["ok", "no", "cw", "zero", "nf", "err", "stu", "done"].forEach(function (k) { T[k] = 0; });
     T.total = entries.length;
@@ -1605,12 +1606,16 @@
   /* Where the rows came from. Two tabs of one workbook can look identical in the preview, and so
      can last week's file — once the rows are in, nothing on screen said which file or which tab
      produced them, so a run against the wrong one was invisible. The note now leads with it. */
-  let importSrc = "";
+  /* Two things, deliberately: where the rows came from, and the line on screen about them. They
+     were one string, and ckMeta() stored it — so a resumed run saved "…xlsx · an unfinished run"
+     as its source, and resuming THAT wrote "…xlsx · an unfinished run · an unfinished run", once
+     more for every time the run was picked up. srcBase is what travels; importSrc is what reads. */
+  let importSrc = "", srcBase = "";
   function setSource(name, sheetName) {
     const bits = [];
     if (name) bits.push(name);
     if (sheetName) bits.push(t("src_sheet") + ": " + sheetName);
-    importSrc = bits.join("  ·  ");
+    importSrc = srcBase = bits.join("  ·  ");
   }
   function shared(xml) { const out = []; if (!xml) return out; const d = new DOMParser().parseFromString(xml, "application/xml"); const si = d.getElementsByTagName("si"); for (let i = 0; i < si.length; i++) { const ts = si[i].getElementsByTagName("t"); let s = ""; for (let j = 0; j < ts.length; j++) s += ts[j].textContent; out.push(s); } return out; }
   function sheet(xml, sh) { const d = new DOMParser().parseFromString(xml, "application/xml"); const re = d.getElementsByTagName("row"); const rows = []; for (let i = 0; i < re.length; i++) { const cs = re[i].getElementsByTagName("c"); const arr = []; for (let j = 0; j < cs.length; j++) { const c = cs[j]; let idx = c.getAttribute("r") ? colIdx(c.getAttribute("r")) : j; if (idx < 0) idx = j; const t = c.getAttribute("t"); let v = ""; if (t === "s") { const vv = c.getElementsByTagName("v")[0]; if (vv) v = sh[parseInt(vv.textContent, 10)] || ""; } else if (t === "inlineStr") { const is = c.getElementsByTagName("t")[0]; if (is) v = is.textContent; } else { const vv = c.getElementsByTagName("v")[0]; if (vv) v = vv.textContent; } arr[idx] = v; } for (let k = 0; k < arr.length; k++) if (arr[k] === undefined) arr[k] = ""; rows.push(arr); } return rows.filter(function (r) { return r.some(function (c) { return String(c).trim() !== ""; }); }); }
@@ -2540,7 +2545,7 @@
     // Clear empties the whole "What to Reconciliation" card — paste box, sheet link, the chosen
     // file, the preview and its search — so the next import starts from nothing.
     $("clearImp").addEventListener("click", function () {
-      entries = []; importSrc = "";
+      entries = []; importSrc = srcBase = "";
       clearSheetPicker();
       ["paste", "link", "pvSearch", "file"].forEach(function (id) {
         const el = $(id); if (el) el.value = "";

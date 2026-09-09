@@ -192,7 +192,9 @@ const RELS = '<?xml version="1.0"?><Relationships>' +
     /setSource\("↧ " \+ \(nm \|\| t\("src_link"\)\), nm \? "" : "gid " \+ gid\)/.test(APP), "app.js");
 
   check("a paste says so as well", /setSource\(t\("src_paste"\), ""\)/.test(APP), "app.js");
-  check("Clear forgets the source", /importSrc = "";/.test(APP), "app.js");
+  /* both of them: the line on screen and the plain source that travels in the checkpoint. Leaving
+     srcBase behind would put the old file's name into the next run's checkpoint. */
+  check("Clear forgets the source", /importSrc = srcBase = "";/.test(APP), "app.js");
   check("the note leads with it",
     /importSrc \? '<span class="isrc">' \+ esc\(importSrc\) \+ "<\/span><br>" : ""/.test(APP), "app.js");
 }
@@ -214,27 +216,48 @@ const RELS = '<?xml version="1.0"?><Relationships>' +
    say only "an unfinished run", which is the whole invisibility this file exists to prevent,
    returning for the run that has been going longest. The source travels with the checkpoint. */
 {
+  /* One turn of the cycle, driven by the real statements: what ckResume() assigns when a
+     checkpoint comes back, and which of those ckMeta() then hands to the next checkpoint. The two
+     have to be read together — a source that is displayed correctly and stored wrongly looks
+     right once and wrong for ever after. */
   const ckMetaSrc = (/  function ckMeta\(done\) \{[\s\S]*?\n  \}/.exec(APP) || [""])[0];
+  const resume = (/srcBase = got\.meta\.src[^\n]*\n[^\n]*importSrc = [^;]+;|importSrc = got\.meta\.src[^;]+;/
+    .exec(APP) || [""])[0];
+  const field = (/src: (\w+) \};/.exec(ckMetaSrc) || [])[1];
   check("ckMeta() is where the checkpoint's facts are written", !!ckMetaSrc, "app.js");
-  const meta = new Function("ckKey", "T", "srvMode", "baseUrl", "baseUrl2", "tol", "lang",
-    "importSrc", ckMetaSrc + "\nreturn ckMeta(0);");
-  const m = meta("sig", { total: 40 }, false, "https://ums-5.osl.team", "", 0, "bn",
-    "students.xlsx  ·  শিট: Reg");
-  check("the checkpoint remembers which file the rows came from",
-    m.src === "students.xlsx  ·  শিট: Reg", JSON.stringify(m.src));
+  check("…and it carries a source", !!field, "ckMeta");
+  check("ckResume() rebuilds the note from it", !!resume, JSON.stringify(resume.slice(0, 50)));
 
-  /* what ckResume() then puts in the note — both facts, and only the second one when the
-     checkpoint predates this and has no source in it */
-  const line = (stored) => new Function("got", "t",
-    'return ' + (/importSrc = got\.meta\.src[^;]*;/.exec(APP) || [""])[0]
-      .replace(/^importSrc = /, "").replace(/;$/, ""))(
-    { meta: { src: stored } }, (k) => (k === "ck_src" ? "আগের অসম্পূর্ণ রান" : k));
-  check("…and a resumed run names it beside the fact that it was resumed",
-    line("students.xlsx  ·  শিট: Reg") === "students.xlsx  ·  শিট: Reg  ·  আগের অসম্পূর্ণ রান",
-    line("students.xlsx  ·  শিট: Reg"));
+  const round = new Function("got", "t", "was",
+    "let importSrc = was, srcBase = was;\n" + resume +
+    "\nreturn { shown: importSrc, stored: " + field + " };");
+  const T_ = (k) => (k === "ck_src" ? "আগের অসম্পূর্ণ রান" : k);
+  const turn = (stored) => round({ meta: { src: stored } }, T_, stored || "");
+
+  check("a resumed run names the file beside the fact that it was resumed",
+    turn("students.xlsx  ·  শিট: Reg").shown === "students.xlsx  ·  শিট: Reg  ·  আগের অসম্পূর্ণ রান",
+    turn("students.xlsx  ·  শিট: Reg").shown);
   check("…while an older checkpoint, which carries no source, still says something true",
-    line(undefined) === "আগের অসম্পূর্ণ রান" && line("") === "আগের অসম্পূর্ণ রান",
-    JSON.stringify(line(undefined)) + " / " + JSON.stringify(line("")));
+    turn(undefined).shown === "আগের অসম্পূর্ণ রান" && turn("").shown === "আগের অসম্পূর্ণ রান",
+    JSON.stringify(turn(undefined).shown) + " / " + JSON.stringify(turn("").shown));
+
+  /* A run can be picked up more than once — stopped at lunch, again at five, again the next
+     morning — and what went into the checkpoint was the LINE, not the source. So the second
+     resume stored "…xlsx · an unfinished run" and the third read back
+     "…xlsx · an unfinished run · an unfinished run", once more every time it was picked up. */
+  {
+    let stored = "2026 -- Raahat.xlsx  ·  শিট: 2026";
+    const seen = [];
+    for (let i = 0; i < 3; i++) {
+      const r = turn(stored);
+      seen.push(r.shown);
+      stored = r.stored;
+    }
+    check("picking a run up three times does not stack the words",
+      seen.every((l) => (l.match(/অসম্পূর্ণ/g) || []).length === 1), seen[2]);
+    check("…and the file is still named, every time",
+      seen.every((l) => l.indexOf("2026 -- Raahat.xlsx") === 0), seen[2]);
+  }
 }
 
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
