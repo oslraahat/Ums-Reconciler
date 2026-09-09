@@ -863,9 +863,13 @@
     add(srvMode ? "srv" : "one"); add(baseUrl); add(srvMode ? baseUrl2 : ""); add(String(tol));
     return entries.length + "-" + h.toString(36);
   }
+  /* Which file and which tab the rows came from travels with the checkpoint. Without it a resumed
+     run says only "an unfinished run", and the thing setSource() exists to prevent — two tabs of
+     one workbook, or last week's copy of the same file, being indistinguishable once the rows are
+     in — comes straight back for exactly the run that has been going longest. */
   function ckMeta(done) {
     return { sig: ckKey, total: T.total, done: done, at: Date.now(), srv: srvMode,
-      url: baseUrl, url2: srvMode ? baseUrl2 : "", tol: tol, lang: lang };
+      url: baseUrl, url2: srvMode ? baseUrl2 : "", tol: tol, lang: lang, src: importSrc };
   }
   /* Every key this run owns, and only this run's: the sheet, the meta line, and the chunks. */
   function ckWipe(sig) {
@@ -1003,7 +1007,9 @@
     if (got.meta.tol != null) { tol = got.meta.tol; $("tol").value = tol; }
 
     entries = got.entries;
-    importSrc = t("ck_src");
+    /* both facts: where the rows came from, and that this run was picked up rather than begun.
+       A checkpoint written before the source travelled with it has only the second. */
+    importSrc = got.meta.src ? got.meta.src + "  ·  " + t("ck_src") : t("ck_src");
     students = buildStudents(entries);
     ["ok", "no", "cw", "zero", "nf", "err", "stu", "done"].forEach(function (k) { T[k] = 0; });
     T.total = entries.length;

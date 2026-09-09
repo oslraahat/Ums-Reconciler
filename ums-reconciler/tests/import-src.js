@@ -209,5 +209,33 @@ const RELS = '<?xml version="1.0"?><Relationships>' +
   check("…and long names wrap instead of stretching the card", /overflow-wrap:anywhere/.test(HTML.slice(HTML.indexOf(".isrc{"), HTML.indexOf(".isrc{") + 220)), "app.html");
 }
 
+/* ---- and a run that was picked up rather than begun ----
+   A resumed run reads its rows out of the checkpoint, so there is no file to name — and it used to
+   say only "an unfinished run", which is the whole invisibility this file exists to prevent,
+   returning for the run that has been going longest. The source travels with the checkpoint. */
+{
+  const ckMetaSrc = (/  function ckMeta\(done\) \{[\s\S]*?\n  \}/.exec(APP) || [""])[0];
+  check("ckMeta() is where the checkpoint's facts are written", !!ckMetaSrc, "app.js");
+  const meta = new Function("ckKey", "T", "srvMode", "baseUrl", "baseUrl2", "tol", "lang",
+    "importSrc", ckMetaSrc + "\nreturn ckMeta(0);");
+  const m = meta("sig", { total: 40 }, false, "https://ums-5.osl.team", "", 0, "bn",
+    "students.xlsx  ·  শিট: Reg");
+  check("the checkpoint remembers which file the rows came from",
+    m.src === "students.xlsx  ·  শিট: Reg", JSON.stringify(m.src));
+
+  /* what ckResume() then puts in the note — both facts, and only the second one when the
+     checkpoint predates this and has no source in it */
+  const line = (stored) => new Function("got", "t",
+    'return ' + (/importSrc = got\.meta\.src[^;]*;/.exec(APP) || [""])[0]
+      .replace(/^importSrc = /, "").replace(/;$/, ""))(
+    { meta: { src: stored } }, (k) => (k === "ck_src" ? "আগের অসম্পূর্ণ রান" : k));
+  check("…and a resumed run names it beside the fact that it was resumed",
+    line("students.xlsx  ·  শিট: Reg") === "students.xlsx  ·  শিট: Reg  ·  আগের অসম্পূর্ণ রান",
+    line("students.xlsx  ·  শিট: Reg"));
+  check("…while an older checkpoint, which carries no source, still says something true",
+    line(undefined) === "আগের অসম্পূর্ণ রান" && line("") === "আগের অসম্পূর্ণ রান",
+    JSON.stringify(line(undefined)) + " / " + JSON.stringify(line("")));
+}
+
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
 process.exit(fail ? 1 : 0);
