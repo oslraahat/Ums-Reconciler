@@ -112,6 +112,8 @@
     ck_drop: { bn: "✕ বাদ দাও", en: "✕ Discard" },
     ck_loading: { bn: "⏳ সেভ করা ফল ফিরিয়ে আনা হচ্ছে…", en: "⏳ Loading the saved answers…" },
     ck_src: { bn: "আগের অসম্পূর্ণ রান", en: "an unfinished run" },
+    ck_kept: { bn: "শুরু করা হয়নি — আগের রানটা রাখা আছে, উপরে “▶ বাকিটা চালাও” আছে",
+      en: "Not started — the earlier run is kept; “▶ Carry on” is at the top" },
     ck_dead: { bn: "⚠ এই রানটা সেভ হচ্ছে না — থামলে বা ট্যাব বন্ধ হলে আবার শুরু থেকে চালাতে হবে।",
       en: "⚠ This run is not being saved — if it stops, or the tab closes, it starts over." },
     ck_ask: { bn: "আগের রানের {n} টি ফল সেভ করা আছে। নতুন করে শুরু করলে সেগুলো মুছে যাবে।\n\nউপরের “▶ বাকিটা চালাও” চাপলে ওখান থেকেই চলবে।\n\nতবু নতুন করে শুরু করবে?",
@@ -156,6 +158,11 @@
     tt_prob: { bn: "অমিল + CW ফাঁকা + Program পাওয়া যায়নি + লোড এরর — সব মিলিয়ে (Reg + Student PID ধরে)। Zero Pay এতে নেই — টাকাই ওঠেনি, মেলানোর কিছু নেই", en: "Mismatch + CW empty + Program not found + Load error, all together (by Reg + Student PID). Zero Pay is not in it — no money was ever taken, so there is nothing to reconcile" },
     f_all: { bn: "সব", en: "All" }, f_no: { bn: "শুধু অমিল", en: "Mismatch" }, f_ok: { bn: "শুধু মিলেছে", en: "Matched" }, f_cw: { bn: "শুধু CW ফাঁকা", en: "CW Empty" }, f_zero: { bn: "Zero Pay", en: "Zero Pay" }, f_nf: { bn: "Program পাওয়া যায়নি", en: "Program Not Found" },
     pill_ok: { bn: "✓ মিলেছে", en: "✓ Matched" }, pill_no: { bn: "✕ অমিল", en: "✕ Mismatch" }, pill_cw: { bn: "CW ফাঁকা", en: "CW Empty" }, pill_zero: { bn: "Zero Pay", en: "Zero Pay" }, pill_nf: { bn: "Program পাওয়া যায়নি", en: "Program Not Found" }, pill_error: { bn: "লোড এরর", en: "Load error" },
+    /* per minute, and the time still to go. Both are read off the run rather than estimated
+       from the setting, because what the setting allows and what the server gives are two
+       different numbers and only the second one is the run. */
+    p_rate: { bn: "{n}/মিনিট", en: "{n}/min" },
+    p_left: { bn: "আর ~{t}", en: "~{t} left" },
     p_verifying: { bn: "যাচাই", en: "Verified" }, p_running: { bn: "চলছে", en: "running" }, p_done: { bn: "শেষ", en: "Done" }, p_input: { bn: "ইনপুট দাও", en: "Enter input" },
     conn_ok: { bn: "✓ লগইন আছে", en: "✓ Logged in" }, conn_no: { bn: "✗ লগইন নেই", en: "✗ Not logged in" }, conn_fail: { bn: "✗ সংযোগ ব্যর্থ", en: "✗ Connection failed" },
     items: { bn: "টি", en: "items" }, stu_checked: { bn: "টি Program যাচাই · মোট", en: "program(s) checked · of" }, stu_of: { bn: "টির মধ্যে", en: "total" },
@@ -1014,7 +1021,9 @@
         : Number(ckFound.done).toLocaleString();
       let ok = false;
       try { ok = confirm(t(same ? "ck_ask" : "ck_ask_other").replace("{n}", n)); } catch (e) { ok = true; }
-      if (!ok) return;
+      /* Escape closes that dialog as surely as Cancel does, and a Start that answers a press by
+         doing nothing at all is indistinguishable from a Start that is broken. Say which. */
+      if (!ok) { $("prog").textContent = t("ck_kept"); return; }
     }
     startRun();
   }
@@ -1053,9 +1062,20 @@
     /* When the run has narrowed itself, say so. Without it the tool simply looks slow, and the
        one thing worth knowing — that it is the server, and that the run is adapting rather than
        failing — is the thing nobody can see. */
+    /* The first seconds of a run are all latency and no answers, and a rate computed over them
+       says 0/min and then 4,000/min. Wait for both a little time and a few answers before
+       claiming a speed — an honest blank beats a number that swings by a factor of ten. */
+    function rateNow() {
+      const secs = (Date.now() - t0) / 1000;
+      if (secs < 10 || T.done < 5) return 0;
+      return Math.round(T.done / secs * 60);
+    }
     function prog() {
       const pct = T.total ? Math.round(T.done / T.total * 100) : 0;
+      const rate = rateNow(), left = T.total - T.done;
       $("prog").textContent = "⏳ " + T.done + "/" + T.total + " · " + pct + "% · ⏱ " + mmss(Date.now() - t0) +
+        (rate ? " · ⚡ " + t("p_rate").replace("{n}", rate.toLocaleString()) : "") +
+        (rate && left > 0 ? " · " + t("p_left").replace("{t}", mmss(left / rate * 60000)) : "") +
         " · " + t("p_running") + " " + running +
         (live < conc ? " · 🐢 " + t("p_eased").replace("{n}", live) : "");
     }
@@ -1143,7 +1163,13 @@
       $("prog").textContent = "💾 " + t("p_saving");
       try { saved = await saveRun(); } catch (e) { saved = ""; }
     }
-    $("prog").textContent = "✅ " + t("p_done") + " · " + T.done + "/" + T.total + " · ⏱ " + mmss(Date.now() - t0) +
+    /* Said again when it is over, because this is the number someone quotes when they say the
+       tool was faster last week — and without it the comparison is two half-remembered
+       stopwatch readings over sheets of different sizes. */
+    const took = Date.now() - t0;
+    const rate = took > 1000 ? Math.round(T.done / (took / 1000) * 60) : 0;
+    $("prog").textContent = "✅ " + t("p_done") + " · " + T.done + "/" + T.total + " · ⏱ " + mmss(took) +
+      (rate ? " · ⚡ " + t("p_rate").replace("{n}", rate.toLocaleString()) : "") +
       (left ? " · ⚠ " + t("p_unanswered").replace("{n}", left) : "") +
       (saved ? " · 💾 " + saved : (saveOnFinish ? " · ⚠ " + t("save_failed") : ""));
     $("run").disabled = !entries.length; $("stop").disabled = true; $("pause").disabled = true;
