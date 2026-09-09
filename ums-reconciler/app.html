@@ -76,7 +76,7 @@
   .bar2{height:9px;background:#232a44;border-radius:5px;overflow:hidden;margin:10px 0}
   /* an interrupted run, waiting to be picked up — an offer, so amber, not the red of a fault */
   .ckbar{display:flex;align-items:center;justify-content:space-between;gap:14px;flex-wrap:wrap;
-    margin:2px 0 10px;padding:11px 14px;border-radius:8px;
+    margin:0 0 14px;padding:11px 14px;border-radius:8px;
     background:rgba(255,180,84,.09);border:1px solid rgba(255,180,84,.34)}
   .ckl{display:flex;align-items:center;gap:11px;min-width:0}
   .cki{font-size:17px;line-height:1;color:var(--warn,#ffb454);flex:none}
@@ -86,6 +86,9 @@
   .ckb{display:flex;gap:8px;flex:none}
   .ckb .btn{padding:7px 13px;font-size:12.5px}
   body.light .ckbar{background:rgba(214,132,0,.08);border-color:rgba(214,132,0,.3)}
+  /* the run is going unprotected — said out loud, because it used to be a silent flag */
+  .ckdead{margin:2px 0 10px;padding:9px 12px;border-radius:8px;font-size:12.5px;
+    background:rgba(255,90,110,.09);border:1px solid rgba(255,90,110,.32);color:var(--no)}
   .tile .v{font-variant-numeric:tabular-nums}
   .bar2 > div{height:100%;width:0;background:linear-gradient(90deg,#6d5cf0,#8b7bf5);transition:width .2s}
   /* one row, always — minmax(0,1fr) lets the tiles shrink instead of wrapping */
@@ -296,6 +299,16 @@
   </div>
   <div class="wrap">
 
+    <!-- The offer to pick up an unfinished run sits above everything, because it is only worth
+         something if it is seen. It used to live in the results card, four cards down: measured
+         on a 1366×768 screen it landed 206px below the fold, so the person who had just lost a
+         run to a closed laptop was shown nothing, pressed Start — which is on screen — and the
+         checkpoint went with it. -->
+      <div class="ckbar" id="ckBar" style="display:none">
+        <div class="ckl"><span class="cki">⏸</span><div><div id="ckTxt"></div><div class="ckh" data-i18n="ck_hint"></div></div></div>
+        <div class="ckb"><button class="btn p" id="ckGo" data-i18n="ck_go">▶ বাকিটা চালাও</button><button class="btn g" id="ckDrop" data-i18n="ck_drop">✕ বাদ দাও</button></div>
+      </div>
+
     <div class="card">
       <div class="ch"><span class="n">1</span><h2 data-i18n="conn_h">সংযোগ</h2><span id="conn" class="badge mut">যাচাই করা হয়নি</span><span id="conn2" class="badge mut" style="display:none">—</span><label class="srvsw"><input type="checkbox" id="srvSw"><i class="tg"></i><span data-i18n="srv_mode">দুই সার্ভার মেলাও (Expected ↔ Actual)</span></label></div>
       <!-- One grid for both addresses, side by side: they are the same kind of thing and the mode
@@ -364,10 +377,7 @@
 
     <div class="card">
       <div class="ch"><span class="n">4</span><h2 data-i18n="results_h">ফলাফল</h2><span id="prog" class="badge mut" data-i18n="ready">প্রস্তুত</span></div>
-      <div class="ckbar" id="ckBar" style="display:none">
-        <div class="ckl"><span class="cki">⏸</span><div><div id="ckTxt"></div><div class="ckh" data-i18n="ck_hint"></div></div></div>
-        <div class="ckb"><button class="btn p" id="ckGo" data-i18n="ck_go">▶ বাকিটা চালাও</button><button class="btn g" id="ckDrop" data-i18n="ck_drop">✕ বাদ দাও</button></div>
-      </div>
+      <div class="ckdead" id="ckDead" style="display:none" data-i18n="ck_dead"></div>
       <div class="bar2"><div id="fill"></div></div>
       <div class="tiles">
         <div class="tile clk" data-f="ok"><div class="lft"><span class="dot" style="background:var(--ok)"></span><button class="rr" data-rr="ok" disabled>↻</button></div><div class="tv"><div class="v ok" id="t-ok">0</div><div class="l" data-i18n="t_ok">মিলেছে</div></div></div>

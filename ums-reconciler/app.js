@@ -107,6 +107,12 @@
     ck_drop: { bn: "✕ বাদ দাও", en: "✕ Discard" },
     ck_loading: { bn: "⏳ সেভ করা ফল ফিরিয়ে আনা হচ্ছে…", en: "⏳ Loading the saved answers…" },
     ck_src: { bn: "আগের অসম্পূর্ণ রান", en: "an unfinished run" },
+    ck_dead: { bn: "⚠ এই রানটা সেভ হচ্ছে না — থামলে বা ট্যাব বন্ধ হলে আবার শুরু থেকে চালাতে হবে।",
+      en: "⚠ This run is not being saved — if it stops, or the tab closes, it starts over." },
+    ck_ask: { bn: "আগের রানের {n} টি ফল সেভ করা আছে। নতুন করে শুরু করলে সেগুলো মুছে যাবে।\n\nউপরের “▶ বাকিটা চালাও” চাপলে ওখান থেকেই চলবে।\n\nতবু নতুন করে শুরু করবে?",
+      en: "{n} answers from the last run are saved. Starting fresh throws them away.\n\n“▶ Carry on” at the top picks up where it stopped.\n\nStart fresh anyway?" },
+    ck_ask_other: { bn: "অন্য একটা শিটের অসম্পূর্ণ রান সেভ করা আছে ({n} টি ফল)। এই শিট দিয়ে শুরু করলে সেটা মুছে যাবে।\n\nশুরু করব?",
+      en: "An unfinished run on a different sheet is saved ({n} answers). Starting this one throws it away.\n\nStart?" },
     ck_hint: { bn: "আগের রানটা শেষ হয়নি — ট্যাব বন্ধ হয়েছিল বা তুমি থামিয়েছিলে। শিট আবার import করতে হবে না।", en: "The last run did not finish — the tab closed, or you stopped it. The sheet does not need importing again." },
     /* not s_-prefixed: t() looks for "s_" + key first, so a key that already begins with s_ and
        has no base reads as a twin whose base has been deleted */
@@ -805,6 +811,11 @@
   const CK_EVERY = 300;      // students between writes
   const CK_MS = 15000;       // …and never longer than this, so a slow run still checkpoints
   let ckKey = "", ckSeq = 0, ckBuf = [], ckLast = 0, ckOff = false;
+  /* A database that is full, blocked by another tab, or switched off stops the checkpoint and
+     not the run — that much has to stay true. But it was also silent, so a run could go for an
+     hour with nothing behind it and the only way to find out was to lose it. */
+  function ckDie() { ckOff = true; const e = $("ckDead"); if (e) e.style.display = ""; }
+  function ckAlive() { ckOff = false; const e = $("ckDead"); if (e) e.style.display = "none"; }
 
   /* What this run is: the sheet, the servers, and the question being asked. Resuming into a
      different sheet — or into the other mode — would graft answers onto the wrong students, so
@@ -834,16 +845,35 @@
       st.delete("last");
     }, "ck").catch(function () {});
   }
+  /* Everything in the store that is not the run named here. Only one checkpoint is ever
+     offered — the one "last" points at — so anything else is a run that was stopped and then
+     not picked up, and it is not small: the whole imported sheet is kept beside the answers, so
+     an abandoned 100,000-row run is tens of megabytes that nothing will ever read again. Left
+     to accumulate they are a database that grows for as long as the tool is used, on exactly
+     the machines that use it most. Swept when a run starts and when the page opens. */
+  function ckSweep(keep) {
+    return idb(function (st) { return st.getAllKeys(); }, "ck").then(function (keys) {
+      const dead = (keys || []).filter(function (k) {
+        k = String(k);
+        return k !== "last" && (!keep || k.indexOf(keep + "|") !== 0);
+      });
+      if (!dead.length) return 0;
+      return idb(function (st) { dead.forEach(function (k) { st.delete(k); }); }, "ck")
+        .then(function () { return dead.length; });
+    }).catch(function () { return 0; });
+  }
   function ckStart() {
-    ckKey = ckSig(); ckSeq = 0; ckBuf = []; ckLast = Date.now(); ckOff = false;
-    return ckWipe(ckKey).then(function () {
+    ckKey = ckSig(); ckSeq = 0; ckBuf = []; ckLast = Date.now(); ckAlive();
+    return ckSweep(ckKey).then(function () {
+      return ckWipe(ckKey);
+    }).then(function () {
       return idb(function (st) {
         /* the sheet travels with the checkpoint, so resuming does not ask for the file again */
         st.put(entries, ckKey + "|ent");
         st.put(ckMeta(0), ckKey + "|meta");
         st.put(ckKey, "last");
       }, "ck");
-    }).catch(function () { ckOff = true; });
+    }).catch(ckDie);
   }
   function ckFlush() {
     if (ckOff || !ckKey || !ckBuf.length) return Promise.resolve();
@@ -854,7 +884,7 @@
       st.put(rows, ckKey + "|c" + seq);
       st.put(meta, ckKey + "|meta");
       st.put(ckKey, "last");
-    }, "ck").catch(function () { ckOff = true; });
+    }, "ck").catch(ckDie);
   }
   /* Only whole students are checkpointed. A student stopped between its two programmes would come
      back on resume looking answered with half its rows missing, and no tile would ever disagree. */
@@ -917,6 +947,9 @@
     if (run) return;
     let sig = "";
     try { sig = await idb(function (st) { return st.get("last"); }, "ck"); } catch (e) { return; }
+    /* Whatever else is in there is from a run nobody came back for. This is the only moment the
+       tool is reliably idle, so it is where the clearing out happens. */
+    ckSweep(sig);
     if (!sig) return;
     const got = await ckRead(sig);
     if (!got) { ckWipe(sig); return; }
@@ -957,11 +990,28 @@
         rs.forEach(function (res) { bumpTile(res.st); T.done++; });
       });
     });
-    ckKey = got.sig; ckSeq = got.seq; ckBuf = []; ckLast = Date.now(); ckOff = false;
+    ckKey = got.sig; ckSeq = got.seq; ckBuf = []; ckLast = Date.now(); ckAlive();
     renderPreview(); updateCount();
     $("impNote").innerHTML = '<span class="isrc">' + esc(importSrc) + "</span>";
     rerenderList(); applyFilterAll(); paintTiles();
     await startRun(true);
+  }
+
+  /* Start sits an inch from the offer and used to eat it without a word: ckStart() wipes the
+     saved run before the first fetch goes out. Whoever has just lost four hours to a closed
+     laptop reaches for the button they know, so the button has to ask first. */
+  async function startPressed() {
+    /* first, while the click is still worth something */
+    await claimDir();
+    if (ckFound && !run) {
+      const same = entries.length && ckFound.sig === ckSig();
+      const n = lang === "bn" ? Number(ckFound.done).toLocaleString("bn-BD")
+        : Number(ckFound.done).toLocaleString();
+      let ok = false;
+      try { ok = confirm(t(same ? "ck_ask" : "ck_ask_other").replace("{n}", n)); } catch (e) { ok = true; }
+      if (!ok) return;
+    }
+    startRun();
   }
 
   async function startRun(resumed) {
@@ -2082,6 +2132,25 @@
     catch (e) { return false; }
   }
 
+  /* Permission to write to the chosen folder does not survive the page being closed: the handle
+     comes back out of IndexedDB, the grant does not. Getting it back needs a user gesture, and
+     the end of a run is the one moment there is certainly no click — so saveRun() could only
+     ever ask whether it still had permission, find that it did not, and quietly write to
+     Downloads instead. Chosen folder, switch on, and the files somewhere else, every session
+     after the first.
+
+     Start is a click. That is the whole fix: ask here, before the run, and by the time it
+     finishes the answer is already known. A refusal is not fatal — the run still saves, to
+     Downloads, and the progress line says where it went. */
+  async function claimDir() {
+    if (!saveOnFinish || !dirHandle || !dirHandle.queryPermission) return;
+    try {
+      if ((await dirHandle.queryPermission({ mode: "readwrite" })) === "granted") return;
+      if (dirHandle.requestPermission) await dirHandle.requestPermission({ mode: "readwrite" });
+    } catch (e) { /* refused, or the folder is gone — saveRun() falls back to Downloads */ }
+    paintSaveRow();
+  }
+
   /* Local time, and safe on every filesystem — no colons, no slashes. Seconds are in it because
      re-running a small sheet twice in one minute is ordinary. */
   function runFolder() {
@@ -2352,7 +2421,7 @@
     $("saveCfg").addEventListener("click", saveCfg);
     /* not startRun directly: a click handler is handed the MouseEvent, and startRun's first
        argument means "this is a resumed run" — an event object is a truthy one. */
-    $("run").addEventListener("click", function () { startRun(); });
+    $("run").addEventListener("click", startPressed);
     $("stop").addEventListener("click", function () { if (run) { run.stop = true; run.paused = false; if (run.ac) try { run.ac.abort(); } catch (e) {} } this.disabled = true; $("pause").disabled = true; $("prog").textContent = t("stopping"); });
     $("pause").addEventListener("click", function () { if (!run) return; run.paused = !run.paused; this.textContent = run.paused ? t("resume") : t("pause"); });
     if ($("saveSw")) $("saveSw").addEventListener("change", function () {
