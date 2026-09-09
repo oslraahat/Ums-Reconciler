@@ -136,6 +136,47 @@ check("the window is a minute, and does not grow without limit",
   check("…while the progress still counts the whole sheet", /51150\/100000/.test(r.line()), r.line());
 }
 
+/* ---------- where a finished run's time actually went ----------
+   Reported: the line says 8,085/min and a hundred thousand takes twenty minutes, not twelve. Both
+   are true. The rate on screen is the workers' rate and it stops moving when they do, but the ⏱
+   keeps counting through the sweep and the saving — so the missing minutes were attributable to
+   nothing anyone could see. The finished line names the three phases when a tail is big enough to
+   have explained something. */
+{
+  /* just the statement — stopping at the ✅ line would cut through "$("prog").textContent =" */
+  const at = APP.lastIndexOf("const tails =");
+  const tail = APP.slice(at, APP.indexOf('$("prog").textContent', at));
+  const phases = (msRun, msSweep, msSave) => new Function("msRun", "msSweep", "msSave", "t", "span",
+    tail + "\nreturn tails;")(msRun, msSweep, msSave,
+    (k) => (k === "p_phases" ? "run {a} · re-asking {b} · saving {c}" : k),
+    new Function("mmss", src("span") + "\nreturn span;")(
+      new Function("return " + src("mmss") + "\nreturn mmss;")()));
+
+  check("a run with no tails says nothing about them",
+    phases(12 * 60000, 0, 0) === "", JSON.stringify(phases(12 * 60000, 0, 0)));
+  check("…nor when they are too short to have explained anything",
+    phases(12 * 60000, 4000, 3000) === "", JSON.stringify(phases(12 * 60000, 4000, 3000)));
+  {
+    /* the reported shape: twelve minutes of running inside twenty minutes of clock */
+    const l = phases(12.4 * 60000, 6 * 60000, 100000);
+    check("…but a long re-asking round is named, with the run beside it",
+      /run 12:24/.test(l) && /re-asking 06:00/.test(l) && /saving 01:40/.test(l), l);
+  }
+  check("a slow save alone is enough to be worth saying",
+    /saving 00:45/.test(phases(60000, 0, 45000)), phases(60000, 0, 45000));
+  /* the three have to be measured, not inferred from the total */
+  check("the phases are timed where they happen",
+    /const msRun = Date\.now\(\) - t0;/.test(APP) &&
+    /const msSweep = Date\.now\(\) - t0 - msRun;/.test(APP) &&
+    /const msSave = Date\.now\(\) - beforeSave;/.test(APP), "startRun");
+  check("…the sweep's, after the sweep", APP.indexOf("const msSweep") > APP.indexOf("await sweepUnanswered(t0);"), "startRun");
+  check("…and the save's around the save",
+    APP.indexOf("const beforeSave") < APP.indexOf("saved = await saveRun()") &&
+    APP.indexOf("const msSave") > APP.indexOf("saved = await saveRun()"), "startRun");
+  check("both new lines are said in both languages",
+    /p_phases: \{ bn: "[^"]+",\s*\n?\s*en: "[^"]+" \}/.test(APP), "DICT");
+}
+
 /* ---------- and the line that is quoted afterwards ---------- */
 {
   const at = APP.lastIndexOf('"✅ " + t("p_done")');

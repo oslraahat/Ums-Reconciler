@@ -171,6 +171,10 @@
        from the setting, because what the setting allows and what the server gives are two
        different numbers and only the second one is the run. */
     p_rate: { bn: "{n}/মিনিট", en: "{n}/min" },
+    /* Where a finished run's time actually went. Only said when a phase took long enough to be
+       worth explaining — on a short run the three numbers would be noise. */
+    p_phases: { bn: "রান {a} · আবার-চাওয়া {b} · সেভ {c}",
+      en: "run {a} · re-asking {b} · saving {c}" },
     p_left: { bn: "আর ~{t}", en: "~{t} left" },
     p_verifying: { bn: "যাচাই", en: "Verified" }, p_running: { bn: "চলছে", en: "running" }, p_done: { bn: "শেষ", en: "Done" }, p_input: { bn: "ইনপুট দাও", en: "Enter input" },
     conn_ok: { bn: "✓ লগইন আছে", en: "✓ Logged in" }, conn_no: { bn: "✗ লগইন নেই", en: "✗ Not logged in" }, conn_fail: { bn: "✗ সংযোগ ব্যর্থ", en: "✗ Connection failed" },
@@ -1196,9 +1200,15 @@
     live = workers; liveAt = Date.now(); pressure = 0;
     await Promise.all(Array.from({ length: workers }, function (_, n) { return worker(n); }));
     flushUI(); renderBuf = null;
+    /* A run is three things, and the clock only ever named the sum. The rate on screen is the
+       first one — it stops moving when the workers do — but the ⏱ keeps counting through the
+       other two, so a run reporting 8,000/min could take twenty minutes for a hundred thousand
+       rather than twelve, with the missing eight minutes attributable to nothing on screen. */
+    const msRun = Date.now() - t0;
     /* Not done yet. Everything the servers never actually answered about goes round again before
        the run calls itself finished — nothing is left standing on a non-answer. */
     await sweepUnanswered(t0);
+    const msSweep = Date.now() - t0 - msRun;
     const left = countUnanswered();
     /* Stopped is the case the checkpoint exists for, so it stays and the bar offers it back.
        Finished, it is only clutter — and a stale offer to resume a run that has already been
@@ -1209,10 +1219,12 @@
     /* Written before the buttons are re-enabled, so "finished" and "saved" are one moment and
        nobody closes the tab in between. */
     let saved = "";
+    const beforeSave = Date.now();
     if (saveOnFinish) {
       $("prog").textContent = "💾 " + t("p_saving");
       try { saved = await saveRun(); } catch (e) { saved = ""; }
     }
+    const msSave = Date.now() - beforeSave;
     /* Said again when it is over, because this is the number someone quotes when they say the
        tool was faster last week — and without it the comparison is two half-remembered
        stopwatch readings over sheets of different sizes. */
@@ -1221,7 +1233,14 @@
        the hours that produced it */
     const mine = T.done - done0;
     const rate = took > 1000 && mine > 0 ? Math.round(mine / (took / 1000) * 60) : 0;
-    $("prog").textContent = "✅ " + t("p_done") + " · " + T.done + "/" + T.total + " · ⏱ " + mmss(took) +
+    /* The rate above is over the whole run including the two tails, so it is smaller than the
+       one that was on screen while the workers were going. That is not a contradiction, and the
+       breakdown is what makes it read as one rather than as a discrepancy. Below ten seconds a
+       tail explains nothing, so it is not mentioned. */
+    const tails = (msSweep >= 10000 || msSave >= 10000)
+      ? " · " + t("p_phases").replace("{a}", span(msRun))
+        .replace("{b}", span(msSweep)).replace("{c}", span(msSave)) : "";
+    $("prog").textContent = "✅ " + t("p_done") + " · " + T.done + "/" + T.total + " · ⏱ " + mmss(took) + tails +
       (rate ? " · ⚡ " + t("p_rate").replace("{n}", rate.toLocaleString("en-US")) : "") +
       (left ? " · ⚠ " + t("p_unanswered").replace("{n}", left) : "") +
       (saved ? " · 💾 " + saved : (saveOnFinish ? " · ⚠ " + t("save_failed") : ""));
