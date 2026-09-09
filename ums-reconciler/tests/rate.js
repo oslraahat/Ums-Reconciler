@@ -153,6 +153,15 @@ check("the run marks where its own counting begins",
   "startRun");
 check("…and starts each run with an empty window", /rateMarks = \[\];/.test(APP), "startRun");
 
+/* The rest of the progress line is Latin numerals — the counts, the clock — because it is a line
+   of instruments rather than a sentence. A bare toLocaleString() follows the BROWSER's locale, so
+   on a Bengali Windows the rate alone would come out in Bengali digits beside a Latin count: one
+   line, two numbering systems. The conc note has the opposite convention and states it too. */
+check("the rate is in the same numerals as the count beside it",
+  (APP.match(/rate\.toLocaleString\("en-US"\)/g) || []).length === 2 &&
+  !/rate\.toLocaleString\(\)/.test(APP),
+  (APP.match(/rate\.toLocaleString\([^)]*\)/g) || []).join(", "));
+
 check("both new lines are said in both languages",
   /p_rate: \{ bn: "[^"]+", en: "[^"]+" \}/.test(APP) &&
   /p_left: \{ bn: "[^"]+", en: "[^"]+" \}/.test(APP), "DICT");

@@ -1103,7 +1103,7 @@
       const pct = T.total ? Math.round(T.done / T.total * 100) : 0;
       const rate = rateNow(), left = T.total - T.done;
       $("prog").textContent = "⏳ " + T.done + "/" + T.total + " · " + pct + "% · ⏱ " + mmss(Date.now() - t0) +
-        (rate ? " · ⚡ " + t("p_rate").replace("{n}", rate.toLocaleString()) : "") +
+        (rate ? " · ⚡ " + t("p_rate").replace("{n}", rate.toLocaleString("en-US")) : "") +
         (rate && left > 0 ? " · " + t("p_left").replace("{t}", span(left / rate * 60000)) : "") +
         " · " + t("p_running") + " " + running +
         (live < conc ? " · 🐢 " + t("p_eased").replace("{n}", live) : "");
@@ -1201,7 +1201,7 @@
     const mine = T.done - done0;
     const rate = took > 1000 && mine > 0 ? Math.round(mine / (took / 1000) * 60) : 0;
     $("prog").textContent = "✅ " + t("p_done") + " · " + T.done + "/" + T.total + " · ⏱ " + mmss(took) +
-      (rate ? " · ⚡ " + t("p_rate").replace("{n}", rate.toLocaleString()) : "") +
+      (rate ? " · ⚡ " + t("p_rate").replace("{n}", rate.toLocaleString("en-US")) : "") +
       (left ? " · ⚠ " + t("p_unanswered").replace("{n}", left) : "") +
       (saved ? " · 💾 " + saved : (saveOnFinish ? " · ⚠ " + t("save_failed") : ""));
     $("run").disabled = !entries.length; $("stop").disabled = true; $("pause").disabled = true;
