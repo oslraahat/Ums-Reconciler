@@ -394,7 +394,22 @@
     try { c = await pC; } catch (e) { if (e && e.name === "AbortError") throw e; }
     let cw = (c && !c.redirected) ? scrape(parseFrag(sliceTable(c.html, "course")), "course") : null;
     let tries = 1;
-    while (tries < CW_TRIES && !(c && cwSettled(c, cw))) {
+    /* Asking again is for a Course Wise page that has not finished being built — a real answer
+       is a moment away, and the ladder waits for it. It is not for a server that has stopped
+       producing pages: when THIS server gave no Program Wise table either, the two blanks have
+       one cause — the session, the permission, or a student it does not hold — and no amount of
+       asking for the other page will change it.
+
+       Walking the ladder anyway costs 0.8 + 1.6 + 3.2 + 6.4 + 12.8 seconds of waiting and five
+       more requests, per student, at the exact moment the server is least able to serve them;
+       then sweepUnanswered() takes every one of them round again. Measured on ten students with
+       one side blind: 354 seconds and 36 requests each, against 0.2 seconds and 4.
+
+       The single-server path has always done this — testOne() returns the moment Program Wise
+       comes back without a table, and never opens the Course Wise loop. This is the two-server
+       path catching up with it. */
+    const serverIsAnswering = !!(pw && pw.ok);
+    while (serverIsAnswering && tries < CW_TRIES && !(c && cwSettled(c, cw))) {
       await backoff(tries - 1);
       try { c = await fetchHtml(cwUrl(reg, spid, base)); }
       catch (e) { if (e && e.name === "AbortError") throw e; break; }
