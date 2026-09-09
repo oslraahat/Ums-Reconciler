@@ -146,7 +146,7 @@
   const css = `
   /* the panel body scrolls, and UMS's own page is light — without this the browser draws that
      scrollbar to match the page behind rather than the dark panel it is in */
-  #umsrec{color-scheme:dark;position:fixed;right:16px;bottom:16px;z-index:2147483647;width:360px;max-width:92vw;
+  #umsrec{color-scheme:dark;position:fixed;right:16px;bottom:16px;z-index:2147483647;width:300px;max-width:92vw;
     font:13px/1.45 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif;color:#eef1fb;background:#161a2b;
     border:1px solid #2a3050;border-radius:14px;box-shadow:0 16px 44px rgba(0,0,0,.5);overflow:hidden}
   #umsrec .hd{display:flex;align-items:center;gap:8px;padding:12px 14px;
@@ -189,9 +189,15 @@
   #umsrec details[open] summary::before{content:"▾ "}
   #umsrec details table{margin-top:4px}
   #umsrec .row-actions{display:flex;gap:8px;margin-top:8px}
-  /* the three occasional buttons: equal shares of one line, and small enough to read as secondary */
+  /* Two rows, not three. The first is what the panel is for and the switch that says whether it
+     is listening at all — the two things anyone opens it to do; Copy and Clear follow underneath.
+     Single Reconcile takes whatever room is left, so the row reads as one action with a state
+     beside it rather than two choices of equal weight. */
+  #umsrec .row-actions.main{margin-top:12px}
+  #umsrec .row-actions.main .primary{flex:1;min-width:0}
+  #umsrec .row-actions.main .pw{flex:none;padding:9px 11px;font-size:12px}
+  /* the two occasional buttons: equal shares of one line, and small enough to read as secondary */
   #umsrec .row-actions.small button{flex:1;padding:7px 6px;font-size:12px;min-width:0}
-  #umsrec .primary.wide{display:block;width:100%;margin-top:12px}
   /* running or stopped, in the space a dot takes. The minimised bubble has said it this way all
      along; the title said it in four words. */
   #umsrec .hd .dot{flex:none;width:9px;height:9px;border-radius:50%;background:#37d18b;
@@ -325,13 +331,14 @@
       '<div class="bd">' +
       '<div class="st"><span>Program Wise</span><span id="umsrec-p" class="mut">—</span></div>' +
       '<div class="st"><span>Course Wise</span><span id="umsrec-c" class="mut">—</span></div>' +
-      /* the one thing the panel is for, at the width of the panel */
-      '<button class="primary wide" id="umsrec-verify">Single Reconcile</button>' +
+      /* the one thing the panel is for, and beside it the switch for whether it is listening */
+      '<div class="row-actions main">' +
+      '<button class="primary" id="umsrec-verify">Single Reconcile</button>' +
+      '<button class="ghost pw" id="umsrec-power" title="পেজ খুললেই নিজে থেকে পড়া — বন্ধ/চালু">■ Stop</button></div>' +
       /* the occasional ones, small, on one line — the labels shrink, the titles keep the meaning */
       '<div class="row-actions small">' +
       '<button class="ghost" id="umsrec-copy" title="দুই পাতার প্রতিটা ঘর tab-separated হয়ে clipboard-এ — Excel বা মেসেজে পেস্ট করা যায়">⧉ Copy</button>' +
-      '<button class="ghost" id="umsrec-clear" title="এই ছাত্রের জমা করা দুই পাতা মুছে দাও">✕ Clear</button>' +
-      '<button class="ghost" id="umsrec-power" title="পেজ খুললেই নিজে থেকে পড়া — বন্ধ/চালু">■ Stop</button></div>' +
+      '<button class="ghost" id="umsrec-clear" title="এই ছাত্রের জমা করা দুই পাতা মুছে দাও">✕ Clear</button></div>' +
       '<div id="umsrec-out"></div>' +
       '</div>';
     document.body.appendChild(el);

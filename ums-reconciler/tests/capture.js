@@ -229,17 +229,29 @@ const U = RECG.UMSREC;
 /* ---- the shape of the panel ----
    Five buttons of equal weight in a 360px box, and a title that grew a sentence. Only one of the
    five is the thing you opened it for; Batch Reconcile is a place to go rather than an action, and
-   Start/Stop, Clear and Copy are occasional. Everything the same size hid the one that matters. */
+   Start/Stop, Clear and Copy are occasional. Everything the same size hid the one that matters.
+
+   It is narrower now, and two rows rather than three: the panel sits on top of the page it is
+   reading, so every pixel of it is a pixel of UMS nobody can see. Start/Stop moved up beside
+   Single Reconcile — whether the panel is listening at all belongs with the thing it does, and
+   the row below is then only the two buttons that are genuinely occasional. */
 {
   const markup = SRC.slice(SRC.indexOf("el.innerHTML ="), SRC.indexOf("document.body.appendChild(el);"));
 
   check("one button is the primary one", (markup.match(/class="primary/g) || []).length === 1,
     (markup.match(/class="primary[^"]*"/g) || []).join(", "));
-  check("…and it takes the width of the panel", /class="primary wide" id="umsrec-verify"/.test(markup) &&
-    /#umsrec .primary.wide{[^}]*width:100%/.test(SRC), "content.js");
-  /* the other three share one line and are visibly smaller, so they read as occasional */
-  check("…while the occasional three share one line",
-    /<div class="row-actions small">[\s\S]*?umsrec-copy[\s\S]*?umsrec-clear[\s\S]*?umsrec-power[\s\S]*?<\/div>/.test(markup) &&
+  check("the panel is no wider than it needs to be",
+    +(/#umsrec\{[^}]*?width:(\d+)px/.exec(SRC) || [])[1] <= 300,
+    (/#umsrec\{[^}]*?width:\d+px/.exec(SRC) || [""])[0]);
+  /* Single Reconcile and the switch share the first line, and Single Reconcile takes what is left
+     of it — a row of two equal buttons would put them back on the same footing */
+  check("…and Single Reconcile shares the first line with Start/Stop",
+    /<div class="row-actions main">[\s\S]*?umsrec-verify[\s\S]*?umsrec-power[\s\S]*?<\/div>/.test(markup) &&
+    /#umsrec \.row-actions\.main \.primary\{[^}]*flex:1/.test(SRC), "content.js");
+  /* the other two share one line and are visibly smaller, so they read as occasional */
+  check("…while the occasional two share the second",
+    /<div class="row-actions small">[\s\S]*?umsrec-copy[\s\S]*?umsrec-clear[\s\S]*?<\/div>/.test(markup) &&
+    !/row-actions small[\s\S]*?umsrec-power/.test(markup) &&
     /#umsrec \.row-actions\.small button\{[^}]*font-size:12px/.test(SRC), "content.js");
   /* Batch Reconcile opens another page — somewhere to go, like the pop-out and the minimise */
   check("…and Batch Reconcile is an icon with the other two",
