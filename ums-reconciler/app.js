@@ -2480,7 +2480,11 @@
     paintSaveRow();
     $("conc").addEventListener("input", function () { let v = parseInt(this.value, 10); if (isNaN(v)) return; conc = Math.max(1, Math.min(300, v)); if (v !== conc) this.value = conc; paintConc(); try { chrome.storage.local.set({ appConc: conc }); } catch (e) {} });
     $("tol").addEventListener("input", function () { const v = parseFloat(this.value); tol = isNaN(v) ? 0 : Math.max(0, v); try { chrome.storage.local.set({ appTol: tol }); } catch (e) {} });
-    $("ckGo").addEventListener("click", ckResume);
+    /* "Carry on" is a run starting, and every reason Start has to ask for the folder first
+       applies here twice over: a resumed run is one whose page was closed, which is exactly when
+       the write permission was lost. Without this the recovered run — the one that cost hours —
+       is the one that quietly saves itself to Downloads instead of the chosen folder. */
+    $("ckGo").addEventListener("click", async function () { await claimDir(); ckResume(); });
     $("ckDrop").addEventListener("click", function () {
       const g = ckFound; ckBar(null); if (g) ckWipe(g.sig);
     });

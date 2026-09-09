@@ -31,7 +31,7 @@ const CHROME = ["C:/Program Files/Google/Chrome/Application/chrome.exe",
   "/usr/bin/google-chrome", "/usr/bin/chromium"].filter((p) => fs.existsSync(p))[0];
 if (!CHROME) { console.log("SKIP  Chrome not found — saving needs a real page"); process.exit(0); }
 
-const TOTAL = 12;
+const TOTAL = 40;
 const APP = fs.readFileSync(path.join(ROOT, "app.html"), "utf8");
 
 /* ---------------- the stubs: a server, a folder, and a downloads shelf ---------------- */
@@ -43,6 +43,8 @@ window.chrome = { runtime: { id: "t", getManifest: function () { return { versio
     set: function () {}, remove: function () {} }, onChanged: { addListener: function () {} } },
   downloads: { download: function (o, cb) { window.__dl.push(o.filename); if (cb) cb(1); } } };
 window.__dl = [];
+/* how long a page takes to come back — turned up when a run has to be caught mid-flight */
+window.__lag = 40;
 
 var HEAD = ["Sl.","MRN","Date","Course","Income","Receivable","Gross Received","Net Received","Current Due"];
 function rows(reg, n) {
@@ -66,7 +68,7 @@ window.fetch = function (url) {
       res({ ok: true, status: 200, redirected: false,
         text: function () { return Promise.resolve(body); },
         headers: { get: function () { return null; } } });
-    }, 40);
+    }, window.__lag);
   });
 };
 
@@ -195,6 +197,48 @@ window.addEventListener("error", function (e) { post("/ping", "page error: " + (
     say("dl3", window.__dl.join(" | "));
     say("asked3", window.__requests.join(","));
     say("perm3", window.__fsPerm);
+
+    /* ---- and the run that is picked up rather than started ----
+       This is the case the folder is most likely to have been lost in: a resumed run is one whose
+       page was closed, and closing the page is what takes the write permission away. It does not
+       go through Start at all — "▶ Carry on" is its own button — so everything Start does before
+       a run has to be done here too, or the recovered run is the one that saves itself elsewhere. */
+    window.__written = [];
+    window.__dl = [];
+    window.__requests = [];
+    window.__lag = 300;                 // slow enough to be caught part-way
+    await new Promise(function (r) { setTimeout(r, 1100); });
+    document.getElementById("run").click();
+    await until("a fourth run to start", function () { return !document.getElementById("stop").disabled; }, 30000);
+    await until("it to get somewhere", function () {
+      var m = /(\\d+)\\//.exec(prog()); return m && +m[1] >= 8; }, 30000);
+    document.getElementById("stop").click();
+    await until("it to stop", function () { return document.getElementById("stop").disabled; }, 30000);
+    await until("the resume bar", function () {
+      return document.getElementById("ckBar").style.display !== "none"; }, 15000);
+    say("bar", "shown");
+    say("stopped_at", prog());
+    /* A stopped run saves what it has, so the files just written are ITS files. Clear them here,
+       after the stop and before the resume, or the resumed run inherits a pass it did not earn. */
+    window.__written = [];
+    window.__dl = [];
+    window.__requests = [];
+    /* the page has been closed, as far as the folder is concerned */
+    window.__fsPerm = "prompt";
+    window.__fsGesture = true;                                    // Carry on is a click too
+    setTimeout(function () { window.__fsGesture = false; }, 1000);
+    window.__lag = 40;
+    document.getElementById("ckGo").click();
+    /* and the same trap as before: the stopped run's ✅ is still on screen, so waiting for a tick
+       alone matches it and reads the stopped run as the resumed one */
+    await until("the resumed run to start", function () {
+      return !document.getElementById("stop").disabled; }, 30000);
+    await until("the resumed run to finish", function () {
+      return document.getElementById("stop").disabled && finished(); }, 60000);
+    say("prog4", prog());
+    say("files4", window.__written.join(" | "));
+    say("dl4", window.__dl.join(" | "));
+    say("asked4", window.__requests.join(","));
   } catch (e) { say("error", (e && e.message) || e); }
   done();
 })();
@@ -281,6 +325,18 @@ srv.listen(0, "127.0.0.1", () => {
     check("…and the run is never lost either way",
       names(o.files3) === "report.html,report.xlsx" || /report\.xlsx/.test(o.dl3 || ""),
       "folder: " + (o.files3 || "-") + "   downloads: " + (o.dl3 || "-"));
+
+    console.log("\n--- and a run picked up after a stop, not started ---");
+    check("the interrupted run is offered back", o.bar === "shown", o.bar);
+    check("…part-way through, not at the end",
+      /\b8\/40\b/.test(o.stopped_at || ""), o.stopped_at);
+    check("Carry on asks for the folder too — it is a run starting",
+      /granted/.test(o.asked4 || ""), o.asked4 ? "asked, got " + o.asked4 : "never asked");
+    check("…so the recovered run lands in the chosen folder",
+      names(o.files4) === "report.html,report.xlsx", o.files4 || "(nothing — it went elsewhere)");
+    check("…and not into Downloads", !o.dl4, o.dl4);
+    check("…and it finished the whole sheet",
+      new RegExp(TOTAL + "\\/" + TOTAL).test(o.prog4 || ""), o.prog4);
 
     console.log(fail ? "\n" + fail + " FAILED" : "\nall good");
     srv.close();
