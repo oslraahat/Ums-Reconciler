@@ -93,8 +93,13 @@
     /* The number, in the units the box above is set in — "all of them" named nothing a reader
        could point at, and the protocol that explains it belongs with the rest of the explanation,
        in the tooltip. */
-    conc_real: { bn: "✓ {n}টিই একসাথে যাচ্ছে", en: "✓ all {n} really go at once" },
-    conc_capped: { bn: "⚠ {n}টি যাচ্ছে, {c}টি নয়", en: "⚠ {n} go at once, not {c}" },
+    conc_real: { bn: "✓ {n} ছাত্র = {r}টি অনুরোধ একসাথে", en: "✓ {n} students = {r} requests at once" },
+    conc_capped: { bn: "⚠ {n} ছাত্র যাচ্ছে, {c} নয় — {r}টি অনুরোধ",
+      en: "⚠ {n} students go at once, not {c} — {r} requests" },
+    /* The one thing the tool cannot see: the other machines. Said in the tooltip because the
+       number in the box is per browser, and a server is met by all of them together. */
+    conc_many_pc: { bn: "এক ছাত্র মানে {e}টি পাতা, তাই {n} লিখলে এই ব্রাউজার থেকে {r}টি অনুরোধ একসাথে যায়। কয়েকটা PC থেকে একসাথে চালালে সার্ভার পায় তার গুণফল — ৪টি PC হলে {r4}টি।",
+      en: "One student is {e} pages, so {n} here means {r} requests at once from this browser. Run it from several PCs and the server meets the sum of them — {r4} from four." },
     /* The ✓ has two different reasons behind it and they lead to opposite advice, so it gets two
        tooltips. Saying "the server speaks HTTP/2" under a ✓ that only means "4 is under the
        browser's 6" would be false — and it is the sentence someone reads before deciding whether
@@ -140,7 +145,7 @@
     imp_checking: { bn: "কোন কলামে কী, UMS-এ মিলিয়ে দেখা হচ্ছে…", en: "checking with UMS which column is which…" },
     imp_swap: { bn: "কলাম উল্টো ছিল — Reg আর Student PID বদলে নেওয়া হয়েছে", en: "columns were the wrong way round — Reg and Student PID swapped back" },
     rr_run: { bn: "টি আবার চালাও", en: "to re-run" }, rr_none: { bn: "কিছু নেই", en: "nothing here" }, rr_busy: { bn: "চলছে…", en: "running…" },
-    settings_h: { bn: "সেটিংস ও রান", en: "Settings & Run" }, tol_l: { bn: "গ্রহণযোগ্য পার্থক্য", en: "Tolerance" }, conc_l: { bn: "একসাথে কয়টি অনুরোধ", en: "Parallel requests" },
+    settings_h: { bn: "সেটিংস ও রান", en: "Settings & Run" }, tol_l: { bn: "গ্রহণযোগ্য পার্থক্য", en: "Tolerance" }, conc_l: { bn: "একসাথে কয়টি ছাত্র", en: "Students at once" },
     run_btn: { bn: "▶ Start", en: "▶ Start" },
     imp_row: { bn: "টি", en: "entries" }, imp_empty: { bn: "ফাইল খালি", en: "File empty" },
     imp_excel: { bn: "⏳ Excel পড়ছি…", en: "⏳ Reading Excel…" }, imp_excel_fail: { bn: "Excel পড়া গেল না", en: "Could not read Excel" },
@@ -2279,6 +2284,12 @@
      The connection test has just loaded a page from this server, so the answer is already in the
      Resource Timing entry for it. */
   const HOST_LIMIT_H1 = 6;
+  /* One student is not one request. Program Wise and Course Wise are fetched together, and in
+     two-server mode that pair goes to each server at once — so the box, which is set in
+     students, is a number of pages twice or four times its size. It said "requests" for a long
+     time, which mattered most to whoever was holding it down to protect the server. */
+  function pagesPerStudent() { return srvMode ? 4 : 2; }
+  function pagesPerHost() { return 2; }   // …and both of them go to the same host
   function protoOf(url) {
     try {
       const es = performance.getEntriesByType("resource");
@@ -2288,14 +2299,22 @@
     } catch (e) {}
     return "";
   }
-  /* How many of the user's "conc" can be in flight at once, given what the servers speak. In
-     two-server mode the pages go to two different hosts, so each gets its own pool. */
+  /* How many STUDENTS can be in flight at once, given what the servers speak.
+
+     Two servers are two hosts and two connection pools — but a student needs both of them, so
+     the two pools do not add up: the run goes at the speed of whichever host allows fewer
+     students, and each host is asked for two pages per student, not one. Summing the pools and
+     counting a student as a request said 12 where the truth is 3, which is the number someone
+     reads before deciding the tool is fast enough. */
   function realConc() {
     const ps = [connProto.conn, srvMode ? connProto.conn2 : null].filter(function (p) { return p; });
     if (!ps.length) return null;                       // not tested yet — say nothing
-    let cap = 0;
-    ps.forEach(function (p) { cap += /^h2|^h3/.test(p) ? 1000 : HOST_LIMIT_H1; });
-    return Math.min(conc, cap);
+    let cap = Infinity;
+    ps.forEach(function (p) {
+      const students = /^h2|^h3/.test(p) ? 1000 : Math.floor(HOST_LIMIT_H1 / pagesPerHost());
+      if (students < cap) cap = students;
+    });
+    return Math.min(conc, Math.max(1, cap));
   }
   async function testOneConn(badge, base) {
     if (!$(badge)) return;
@@ -2321,10 +2340,14 @@
        as every other number on the page; a Latin 25 inside a Bengali sentence is a different kind
        of wrong from a bad translation and just as visible. */
     const num = function (v) { return lang === "bn" ? Number(v).toLocaleString("bn-BD") : String(v); };
+    const each = pagesPerStudent(), reqs = real * each;
     el.textContent = t(capped ? "conc_capped" : "conc_real")
-      .replace("{n}", num(real)).replace("{c}", num(conc));
+      .replace("{n}", num(real)).replace("{c}", num(conc)).replace("{r}", num(reqs));
+    /* two sentences: what the browser will let through, and what the box means in pages */
     el.title = t(capped ? "conc_why_capped" : (/^h2|^h3/.test(p) ? "conc_why_h2" : "conc_why_room"))
-      .replace("{p}", p);
+      .replace("{p}", p) + "\n\n" + t("conc_many_pc")
+        .replace("{e}", num(each)).replace("{n}", num(conc))
+        .replace("{r}", num(conc * each)).replace("{r4}", num(conc * each * 4));
     el.className = "cnote " + (capped ? "warn" : "ok");
   }
   /* Both servers, because a run needs a session on both — one green badge would say the run is
