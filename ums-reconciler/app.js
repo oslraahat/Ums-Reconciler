@@ -129,6 +129,9 @@
       en: "“Save the result” is on, but no folder has been chosen.\n\nRun anyway and the files go to Downloads / UMS Reconciler.\n\nStart like that?" },
     save_nodir_stopped: { bn: "শুরু করা হয়নি — “📁 ফোল্ডার” চেপে জায়গা বেছে নাও, নয়তো “ফল সেভ করো” বন্ধ করো।",
       en: "Not started — press “📁 Folder” to choose somewhere, or switch “Save the result” off." },
+    /* A fault in the tool, not a verdict about anybody's data — and the difference decides
+       whether the next thing someone does is look at a student or tell you. */
+    run_broke: { bn: "রান থেমে গেছে — টুলের ভেতরে একটা গোলমাল", en: "The run stopped — something went wrong inside the tool" },
     ck_kept: { bn: "শুরু করা হয়নি — আগের রানটা রাখা আছে, উপরে “▶ বাকিটা চালাও” আছে",
       en: "Not started — the earlier run is kept; “▶ Carry on” is at the top" },
     ck_dead: { bn: "⚠ এই রানটা সেভ হচ্ছে না — থামলে বা ট্যাব বন্ধ হলে আবার শুরু থেকে চালাতে হবে।",
@@ -1199,19 +1202,27 @@
     // Batched UI: DOM cards + tiles + progress repaint at most ~every 120ms so the main thread stays free to dispatch fetches.
     renderBuf = document.createDocumentFragment();
     let lastUI = 0, uiTimer = null;
+    /* Painting must never be able to end a run.
+       ui() schedules this on a timer, and a timer is nobody's call stack: a throw in here does not
+       land in startRun()'s try, it lands on window.onerror, and the run goes on waiting for a
+       flush that will never come — buttons disabled, nothing said, forever. So the paint is
+       wrapped where it happens rather than where it is asked for, which covers the direct call
+       too. A repaint that fails is a repaint missed; the next one is 120 ms away. */
     function flushUI() {
       if (uiTimer) { clearTimeout(uiTimer); uiTimer = null; }
       lastUI = Date.now();
-      if (renderBuf && renderBuf.childNodes.length) {
-        // re-apply the filter on the way in, in case it changed while these were queued
-        [].slice.call(renderBuf.childNodes).forEach(function (n) { if (n.nodeType === 1) applyFilterTo(n); });
-        $("list").appendChild(renderBuf); renderBuf = document.createDocumentFragment();
-      }
-      $("fill").style.width = (T.total ? Math.round(T.done / T.total * 100) : 0) + "%";
-      /* the cap note has to move while the run fills the list, not only when the list is rebuilt —
-         otherwise a long run silently stops adding cards and never says why */
-      paintTiles(); paintListNote(); prog();
-      if (T.done > 0) { $("html").disabled = false; $("xlsx").disabled = false; $("raw").disabled = false; }
+      try {
+        if (renderBuf && renderBuf.childNodes.length) {
+          // re-apply the filter on the way in, in case it changed while these were queued
+          [].slice.call(renderBuf.childNodes).forEach(function (n) { if (n.nodeType === 1) applyFilterTo(n); });
+          $("list").appendChild(renderBuf); renderBuf = document.createDocumentFragment();
+        }
+        $("fill").style.width = (T.total ? Math.round(T.done / T.total * 100) : 0) + "%";
+        /* the cap note has to move while the run fills the list, not only when the list is rebuilt —
+           otherwise a long run silently stops adding cards and never says why */
+        paintTiles(); paintListNote(); prog();
+        if (T.done > 0) { $("html").disabled = false; $("xlsx").disabled = false; $("raw").disabled = false; }
+      } catch (e) { /* see above — the run outranks its own progress bar */ }
     }
     function ui() { const now = Date.now(); if (now - lastUI >= 120) flushUI(); else if (!uiTimer) uiTimer = setTimeout(flushUI, 120 - (now - lastUI)); }
     /* A worker numbered beyond the current limit parks here rather than exiting, so the run can
@@ -1261,6 +1272,17 @@
        the first refusals say so within seconds. */
     const workers = Math.min(Math.max(1, conc), students.length);
     live = workers; liveAt = Date.now(); pressure = 0;
+    /* Everything from here to the end runs inside a try, and the buttons come back in the finally.
+
+       Start disables itself and enables Stop as its first act, and the line that undoes that sat
+       at the very end of the happy path. So anything that threw in between — a builder, a render,
+       a browser refusing memory to a hundred-thousand-row page — left Start disabled, Stop
+       enabled, `run` still set and not one word on screen: a tool that had stopped and looked
+       exactly like a tool still working, until the tab was reloaded and the hours went with it.
+
+       The checkpoint is flushed rather than wiped: whatever the run had answered is still worth
+       having, and the resume offer is the whole point of keeping it. */
+    try {
     await Promise.all(Array.from({ length: workers }, function (_, n) { return worker(n); }));
     flushUI(); renderBuf = null;
     /* A run is three things, and the clock only ever named the sum. The rate on screen is the
@@ -1328,10 +1350,23 @@
       sn.textContent = dead ? t("p_none_answered").replace("{n}", n3(left))
         .replace("{p}", Math.round(left / Math.max(1, T.total) * 100)) : "";
     }
-    $("run").disabled = !entries.length; $("stop").disabled = true; $("pause").disabled = true;
     run = null;
     if (stopped) ckOffer();       // …and here is where you left off, should you want it back
-    paintRerun();   // must come AFTER run is cleared — flushUI() painted them while still busy
+    } catch (e) {
+      /* Not a verdict about anybody's data — a fault in the tool, said as one. What was answered
+         is kept, and the offer to carry on is put back up beside it. */
+      try { await ckFlush(); } catch (e2) {}
+      $("prog").textContent = "⚠ " + t("run_broke") + " · " + ((e && e.message) || e);
+      run = null;
+      ckOffer();
+    } finally {
+      /* Whatever happened, the page comes back: Start pressable, Stop and Pause not, and the
+         re-run arrows repainted — which has to be after `run` is cleared, because flushUI() paints
+         them while a run is still going and would leave them all disabled. */
+      run = null;
+      $("run").disabled = !entries.length; $("stop").disabled = true; $("pause").disabled = true;
+      paintRerun();
+    }
   }
 
   // ---------- render ----------
