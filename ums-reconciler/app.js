@@ -121,6 +121,14 @@
     ck_drop: { bn: "✕ বাদ দাও", en: "✕ Discard" },
     ck_loading: { bn: "⏳ সেভ করা ফল ফিরিয়ে আনা হচ্ছে…", en: "⏳ Loading the saved answers…" },
     ck_src: { bn: "আগের অসম্পূর্ণ রান", en: "an unfinished run" },
+    /* Not an error — a run with nowhere chosen still saves, to Downloads, and that is a real
+       answer for someone who never wanted a folder. But it is a poor thing to find out after a
+       run instead of before one, so it is put as a question while the folder can still be
+       chosen, and Start says why it did nothing if the answer is no. */
+    save_nodir_ask: { bn: "“ফল সেভ করো” চালু আছে, কিন্তু কোনো ফোল্ডার বাছা হয়নি।\n\nএভাবে চালালে ফল যাবে Downloads / UMS Reconciler-এ।\n\nএভাবেই চালাব?",
+      en: "“Save the result” is on, but no folder has been chosen.\n\nRun anyway and the files go to Downloads / UMS Reconciler.\n\nStart like that?" },
+    save_nodir_stopped: { bn: "শুরু করা হয়নি — “📁 ফোল্ডার” চেপে জায়গা বেছে নাও, নয়তো “ফল সেভ করো” বন্ধ করো।",
+      en: "Not started — press “📁 Folder” to choose somewhere, or switch “Save the result” off." },
     ck_kept: { bn: "শুরু করা হয়নি — আগের রানটা রাখা আছে, উপরে “▶ বাকিটা চালাও” আছে",
       en: "Not started — the earlier run is kept; “▶ Carry on” is at the top" },
     ck_dead: { bn: "⚠ এই রানটা সেভ হচ্ছে না — থামলে বা ট্যাব বন্ধ হলে আবার শুরু থেকে চালাতে হবে।",
@@ -1091,8 +1099,25 @@
   /* Start sits an inch from the offer and used to eat it without a word: ckStart() wipes the
      saved run before the first fetch goes out. Whoever has just lost four hours to a closed
      laptop reaches for the button they know, so the button has to ask first. */
+  /* Saving is switched on and nothing has been chosen to save into.
+
+     Start is a click, so the picker can be opened right here — which is the useful thing to do,
+     because the person meant to choose a folder and can still do it. Dismissing the picker is an
+     answer too, and the run is then told plainly where the files will go, rather than reporting it
+     hours later on the finished line beside work that cannot be repeated cheaply. Saying no stops
+     the run before a single page is fetched. */
+  async function readyToSave() {
+    if (!saveOnFinish || dirHandle) return true;
+    await pickDir();
+    if (dirHandle) return true;
+    try { return confirm(t("save_nodir_ask")); } catch (e) { return true; }
+  }
+
   async function startPressed() {
-    /* first, while the click is still worth something */
+    /* Both of these spend the click, so they come before anything that could let it lapse: the
+       picker and the permission prompt are the two things here a browser will only open for a
+       gesture. */
+    if (!(await readyToSave())) { $("prog").textContent = t("save_nodir_stopped"); return; }
     await claimDir();
     if (ckFound && !run) {
       const same = entries.length && ckFound.sig === ckSig();
