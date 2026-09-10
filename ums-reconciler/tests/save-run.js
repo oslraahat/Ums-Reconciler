@@ -193,11 +193,22 @@ const line = (re) => (re.exec(APP) || [""])[0];
      Bengali under an English interface. */
   check("the save line follows the language switch",
     /paintRerun\(\); paintConn\(\); paintSaveRow\(\);/.test(APP), "app.js");
-  const en = /save_hint: \{ bn: "[^"]*", en: "([^"]*)" \}/.exec(APP);
+  const en = /save_hint: \{ bn: "[^"]*",\s*\n?\s*en: "([^"]*)" \}/.exec(APP);
   check("the hint has clean English", !!en && !/[ঀ-৿]/.test(en[1]), en ? en[1] : "not found");
-  /* it must say the thing that surprises people */
-  check("…and says an extension cannot write to its own folder",
-    !!en && /cannot write to its own folder/.test(en[1]), en ? en[1] : "");
+  /* Three clauses and no more. It was four sentences of small grey type under a toggle, carrying
+     the reasons behind each fact as well as the facts, and it read as a wall — the reasons live in
+     the README now, where a reason gets read. What has to survive here is what someone standing at
+     the switch needs: what is saved, that the page is a button rather than part of it, and where
+     it lands when no folder was chosen. */
+  check("…and stays short enough to be read", !!en && en[1].length < 200,
+    en ? en[1].length + " characters" : "");
+  check("…saying what is saved", !!en && /report\.xlsx/.test(en[1]) && /two tabs/.test(en[1]), en ? en[1] : "");
+  check("…that the page is a button", !!en && /HTML Report/.test(en[1]), en ? en[1] : "");
+  check("…and where it goes without a folder", !!en && /Downloads/.test(en[1]), en ? en[1] : "");
+  /* the reason it cannot simply write beside itself still has to be written down somewhere */
+  const README = fs.readFileSync(path.join(__dirname, "..", "README.md"), "utf8");
+  check("…while the README keeps the reason",
+    /নিজের ফোল্ডারে লিখতে পারে না/.test(README), "README.md");
 }
 
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");

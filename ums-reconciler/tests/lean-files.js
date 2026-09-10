@@ -111,9 +111,19 @@ const D_OK = "দুই সার্ভারে হুবহু এক — Prog
   const to = APP.indexOf("const html = '<!doctype", from);
   if (from < 0 || to < 0) throw new Error("could not find the page's row writer");
   const body = APP.slice(from, to);
-  /* which column a cell is in is what those classes were saying */
-  check("the page's cells carry no class", !/<td class=/.test(body),
-    (body.match(/<td class="[^"]*"/) || ["none"])[0]);
+  /* Cells used to carry a class saying which column they were in, which the stylesheet can see
+     for itself. The only class left is the link marker — one letter for "this is a link cell", a
+     second for "this row has no Student PID to build one from" — and it buys far more than it
+     costs: it is what lets the stylesheet write "Open ↗" into an empty cell, so no anchor has to
+     exist until somebody points at the row. At 800,000 rows that is 1.6 million elements not
+     built. Two letters a row against that. */
+  const classes = (body.match(/<td class="[^"]*"/g) || [])
+    .map(function (m) { return /class="([^"]*)"/.exec(m)[1]; });
+  check("the page's cells carry no class but the link marker",
+    classes.every(function (c) { return /^k( n)?$/.test(c); }), classes.join(" | ") || "none");
+  check("…and the marker is on the link cells, both kinds",
+    /const LK = srvMode \? '<td class="k">/.test(body) && /const NOLK/.test(body),
+    body.slice(0, 200));
   check("…and the status attribute is one character",
     /'<tr d="' \+ r\.result \+ '">'/.test(body), body.slice(0, 120));
   /* the stylesheet has to read the same attribute the rows are written with */

@@ -203,14 +203,12 @@
     save_folder: { bn: "প্রতি রানে তারিখ-সময়ের ফোল্ডার", en: "a dated folder per run" },
     save_downloads: { bn: "Downloads / UMS Reconciler / তারিখ-সময়ের ফোল্ডার", en: "Downloads / UMS Reconciler / a dated folder" },
     save_nopicker: { bn: "এই ব্রাউজার ফোল্ডার বাছতে দেয় না — Downloads-এ যাবে", en: "this browser cannot pick a folder — it will go to Downloads" },
-    /* Chrome marks everything it writes to disk on Windows as coming from the internet, and
-       Excel opens anything so marked in Protected View. It is on the file, not in the file:
-       measured on a saved run, [ZoneTransfer] ZoneId=3, HostUrl=about:internet. Nothing here
-       can remove it — the browser attaches it after the write — so the only useful thing to do
-       is say so, once, beside the switch that produces the file. */
-    save_protected: { bn: "Excel প্রথমবার হলুদ “Protected View” বার দেখাতে পারে — ফাইল নষ্ট নয়, Chrome-এর লাগানো “ইন্টারনেট থেকে এসেছে” চিহ্ন। Enable Editing চাপলেই খোলে; বারবার এড়াতে Excel → File → Options → Trust Center → Trusted Locations-এ ফোল্ডারটা যোগ করো (subfolders সহ)।",
-      en: "Excel may show a yellow “Protected View” bar the first time — the file is fine; Chrome marks everything it writes as coming from the internet. Enable Editing opens it. To stop it recurring, add the folder under Excel → File → Options → Trust Center → Trusted Locations, with subfolders included." },
-    save_hint: { bn: "report.xlsx (সমস্যা ও ঠিক আছে, দুই ট্যাব) — ফিল্টার যা-ই থাক, পুরোটাই সেভ হয়। HTML লাগলে ⬇ HTML Report চাপো; রান শেষে ওটা বানানো হয় না, কারণ ১ লাখ সারির পাতা বানাতে ও লিখতেই কয়েক মিনিট যায়। এক্সটেনশন নিজের ফোল্ডারে লিখতে পারে না, তাই ফোল্ডারটা একবার বেছে দিতে হয় (টুলের ফোল্ডারও চলবে); না বাছলে Downloads-এ যাবে।", en: "report.xlsx (two tabs, problems and matched) — saved in full, whatever the filter says. For a page, press ⬇ HTML Report; it is not written at the end of a run, because building and writing a hundred thousand rows of it costs minutes. An extension cannot write to its own folder, so pick one once (the tool's own folder is fine); without one it goes to Downloads." },
+    /* Three clauses, and they are the three things worth knowing standing at this switch: what
+       is saved, that the page is a button rather than part of it, and where it lands if no
+       folder was chosen. The reasons behind each are in the README, which is where a reason
+       gets read — under a toggle it is just small grey type nobody finishes. */
+    save_hint: { bn: "report.xlsx — দুই ট্যাব (সমস্যা, ঠিক আছে), ফিল্টার যা-ই থাক পুরো রান। HTML চাইলে ⬇ HTML Report। ফোল্ডার না বাছলে Downloads-এ যাবে।",
+      en: "report.xlsx — two tabs (problems, matched), the whole run whatever the filter says. For a page, press ⬇ HTML Report. Without a folder it goes to Downloads." },
     save_failed: { bn: "সেভ করা গেল না", en: "could not save" },
     p_saving: { bn: "ফল সেভ করা হচ্ছে…", en: "saving the results…" },
     list_capped: { bn: "নিচে প্রথম {a} টি দেখানো হচ্ছে · মোট {b} টি — পুরোটা HTML / Excel রিপোর্টে আছে", en: "showing the first {a} of {b} below — the HTML and Excel reports carry them all" },
@@ -1862,12 +1860,15 @@
        the stylesheet can see that for itself. The status attribute stays — the filter reads it —
        under a shorter name, because it is written once per row and there are a hundred thousand
        of them. Together, 4 MB of the 30 at that size. */
-    const LK = srvMode ? "<td></td><td></td>" : "<td></td>";
+    /* k marks a link cell, n one with no Student PID to build a link from. Two letters, because
+       they are written once per row and there have been eight hundred thousand of them. */
+    const LK = srvMode ? '<td class="k"></td><td class="k"></td>' : '<td class="k"></td>';
+    const NOLK = srvMode ? '<td class="k n"></td><td class="k n"></td>' : '<td class="k n"></td>';
     let body = "";
     rows.forEach(function (r) {
       body += '<tr d="' + r.result + '">' +
         "<td>" + xesc(LBL[r.result] || r.result) + "</td>" +
-        "<td>" + xesc(r.reg) + "</td><td>" + xesc(r.spid) + "</td>" + LK +
+        "<td>" + xesc(r.reg) + "</td><td>" + xesc(r.spid) + "</td>" + (r.spid ? LK : NOLK) +
         "<td>" + xesc(r.remarks || "") + "</td>" +
         "<td>" + xesc(r.details || "") + "</td></tr>";
     });
@@ -1905,6 +1906,12 @@
       '#tb td:last-child{font-size:12px;color:#8b91b4}' +
       '#tb td:nth-child(4) a,#tb td:nth-child(5) a{color:#8fb4ff;text-decoration:none}' +
       '#tb td:nth-child(4) a:hover,#tb td:nth-child(5) a:hover{text-decoration:underline}' +
+      /* An empty link cell says "Open ↗" without carrying the words: written by the
+         stylesheet, it costs nothing per row, and the moment a real anchor goes in the cell
+         stops being empty and the rule stops applying. */
+      '#tb td.k:empty::after{content:"Open ↗";color:#8fb4ff;cursor:pointer}' +
+      '#tb td.k:empty:hover::after{text-decoration:underline}' +
+      '#tb td.k.n:empty::after{content:"—";color:#8b91b4;cursor:default;text-decoration:none}' +
       '.hide{display:none}' +
       '@media print{.bar{display:none}body{background:#fff;color:#000}th{background:#eee}}' +
       '</style></head><body>' +
@@ -1922,15 +1929,34 @@
       (srvMode ? '<th>Expected Link</th><th>Actual Link</th>' : '<th>Payment History Link</th>') +
       '<th>Remarks</th><th>Details</th></tr></thead>' +
       '<tbody id="tb">' + body + '</tbody></table>' +
-      /* The two ids are in cells 2 and 3; the rest of the address is the same on every row, so
-         it is written once here and the anchors are made from it. */
+      /* The two ids are in cells 2 and 3 and the rest of the address is the same on every row,
+         so it is written once here and the anchor is made from it — but only for the row the
+         pointer is actually over.
+
+         Building all of them up front is what this used to do, and at the sizes the tool now
+         produces it is what stopped the page working: two innerHTML assignments a row, 1.6
+         million anchors on an 800,000-row report, on a page already 660 MB. Measured at 400,000
+         rows: 6.8 s of parsing HTML into anchors — and then the browser holds every one of
+         them. The report was that the links never appeared at all.
+
+         A row is filled when the pointer arrives on it, which is before any click, any
+         middle-click and any right-click — so Open in new tab and Copy link address all still
+         work, on the row you are pointing at. Nothing is built for the rows nobody visits.
+         Touch has no hover, so a click on an unfilled cell opens it directly. */
       '<script>(function(){var E=' + JSON.stringify(payBase()) + ',A=' + JSON.stringify(srvMode ? payBase(baseUrl2) : "") + ';' +
       'function u(b,reg,spid){return b+"HistoryOfPayment?studentProgramId="+encodeURIComponent(spid)+' +
       '"&programId=0&sessionId=0&stdRollOrRegistrationNo="+encodeURIComponent(reg)}' +
-      '[].forEach.call(document.querySelectorAll("#tb tr"),function(tr){var c=tr.cells,reg=c[1].textContent,spid=c[2].textContent;' +
-      'if(!spid){c[3].textContent="—";if(A)c[4].textContent="—";return}' +
-      'c[3].innerHTML=\'<a href="\'+u(E,reg,spid)+\'" target="_blank">Open ↗</a>\';' +
-      'if(A)c[4].innerHTML=\'<a href="\'+u(A,reg,spid)+\'" target="_blank">Open ↗</a>\'});' +
+      'var tb=document.getElementById("tb");' +
+      'function fill(tr){if(!tr||tr.__k)return;tr.__k=1;var c=tr.cells,reg=c[1].textContent,spid=c[2].textContent;' +
+      'if(!spid)return;' +
+      'function mk(td,b){var a=document.createElement("a");a.href=u(b,reg,spid);a.target="_blank";' +
+      'a.rel="noopener";a.textContent="Open ↗";td.appendChild(a)}' +
+      'mk(c[3],E);if(A)mk(c[4],A)}' +
+      'tb.addEventListener("mouseover",function(e){var tr=e.target.closest("tr");if(tr)fill(tr)});' +
+      'tb.addEventListener("click",function(e){var td=e.target.closest("td");' +
+      'if(!td||td.querySelector("a"))return;var i=td.cellIndex;if(i!==3&&(i!==4||!A))return;' +
+      'var c=td.parentNode.cells,spid=c[2].textContent;if(!spid)return;' +
+      'window.open(u(i===3?E:A,c[1].textContent,spid),"_blank","noopener")});' +
       'var bar=document.querySelector(".bar");bar.addEventListener("click",function(e){var b=e.target.closest(".f");if(!b)return;' +
       '[].forEach.call(bar.children,function(x){x.classList.remove("active")});b.classList.add("active");var f=b.getAttribute("data-f");' +
       '[].forEach.call(document.querySelectorAll("#tb tr"),function(tr){var st=tr.getAttribute("d");var show=f==="all"||st===f||(f==="no"&&st==="error");tr.classList.toggle("hide",!show)})})})();<\/script>' +
