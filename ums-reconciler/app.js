@@ -203,6 +203,13 @@
     save_folder: { bn: "প্রতি রানে তারিখ-সময়ের ফোল্ডার", en: "a dated folder per run" },
     save_downloads: { bn: "Downloads / UMS Reconciler / তারিখ-সময়ের ফোল্ডার", en: "Downloads / UMS Reconciler / a dated folder" },
     save_nopicker: { bn: "এই ব্রাউজার ফোল্ডার বাছতে দেয় না — Downloads-এ যাবে", en: "this browser cannot pick a folder — it will go to Downloads" },
+    /* Chrome marks everything it writes to disk on Windows as coming from the internet, and
+       Excel opens anything so marked in Protected View. It is on the file, not in the file:
+       measured on a saved run, [ZoneTransfer] ZoneId=3, HostUrl=about:internet. Nothing here
+       can remove it — the browser attaches it after the write — so the only useful thing to do
+       is say so, once, beside the switch that produces the file. */
+    save_protected: { bn: "Excel প্রথমবার হলুদ “Protected View” বার দেখাতে পারে — ফাইল নষ্ট নয়, Chrome-এর লাগানো “ইন্টারনেট থেকে এসেছে” চিহ্ন। Enable Editing চাপলেই খোলে; বারবার এড়াতে Excel → File → Options → Trust Center → Trusted Locations-এ ফোল্ডারটা যোগ করো (subfolders সহ)।",
+      en: "Excel may show a yellow “Protected View” bar the first time — the file is fine; Chrome marks everything it writes as coming from the internet. Enable Editing opens it. To stop it recurring, add the folder under Excel → File → Options → Trust Center → Trusted Locations, with subfolders included." },
     save_hint: { bn: "report.xlsx (সমস্যা ও ঠিক আছে, দুই ট্যাব) — ফিল্টার যা-ই থাক, পুরোটাই সেভ হয়। HTML লাগলে ⬇ HTML Report চাপো; রান শেষে ওটা বানানো হয় না, কারণ ১ লাখ সারির পাতা বানাতে ও লিখতেই কয়েক মিনিট যায়। এক্সটেনশন নিজের ফোল্ডারে লিখতে পারে না, তাই ফোল্ডারটা একবার বেছে দিতে হয় (টুলের ফোল্ডারও চলবে); না বাছলে Downloads-এ যাবে।", en: "report.xlsx (two tabs, problems and matched) — saved in full, whatever the filter says. For a page, press ⬇ HTML Report; it is not written at the end of a run, because building and writing a hundred thousand rows of it costs minutes. An extension cannot write to its own folder, so pick one once (the tool's own folder is fine); without one it goes to Downloads." },
     save_failed: { bn: "সেভ করা গেল না", en: "could not save" },
     p_saving: { bn: "ফল সেভ করা হচ্ছে…", en: "saving the results…" },
