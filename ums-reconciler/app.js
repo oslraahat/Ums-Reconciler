@@ -207,11 +207,11 @@
     save_failed: { bn: "সেভ করা গেল না", en: "could not save" },
     p_saving: { bn: "ফল সেভ করা হচ্ছে…", en: "saving the results…" },
     list_capped: { bn: "নিচে প্রথম {a} টি দেখানো হচ্ছে · মোট {b} টি — পুরোটা HTML / Excel রিপোর্টে আছে", en: "showing the first {a} of {b} below — the HTML and Excel reports carry them all" },
-    p_unanswered: { bn: "{n} টিতে সার্ভার সাড়াই দেয়নি", en: "{n} still unanswered" },
+    p_unanswered: { bn: "{n} টিতে উত্তর নেই", en: "{n} unanswered" },
     /* Not "the server is busy" — a busy server refuses, and refusals are counted. This is a
        server answering promptly with a page that has no table on it, for everyone. */
-    p_none_answered: { bn: "⚠ একটা ছাত্রেরও উত্তর আসেনি — সার্ভার সাড়া দিচ্ছে কিন্তু টেবিল দিচ্ছে না। লগইন আর ঠিকানা দেখো; আবার চাওয়ার মানে নেই, তাই চাওয়া হয়নি।",
-      en: "⚠ Not one student was answered — the server replies but has no table on the page. Check the login and the address; asking again would prove nothing, so it was not done." },
+    p_none_answered: { bn: "⚠ {n} টি ({p}%) ছাত্রের উত্তর আসেনি — সার্ভার সাড়া দিচ্ছে কিন্তু টেবিল দিচ্ছে না। লগইন আর ঠিকানা দেখো; আবার চাওয়ার মানে নেই, তাই চাওয়া হয়নি।",
+      en: "⚠ {n} students ({p}%) went unanswered — the server replies but has no table on the page. Check the login and the address; asking again would prove nothing, so it was not done." },
     d_noanswer: { bn: "সার্ভার সাড়া দেয়নি — {n} বার চাওয়া হয়েছে, ডেটা নিয়ে কিছুই বলা যায়নি", en: "no answer from the server — asked {n} times; nothing was concluded about the data" },
 
     /* ---- two-server mode ---- */
@@ -655,22 +655,32 @@
      line says exactly that, with the number of attempts behind it, instead of pretending. */
   /* One case the rounds cannot help with, and it is the expensive one.
 
-     If EVERY student came back unanswered while the servers were answering promptly — no
-     timeouts, no 5xx, pressure at zero — then nothing is struggling. The pages are arriving and
-     the tables are not on them, which is a session that has expired, a permission, or the wrong
-     address: one cause, shared by every row, and unchanged by asking again. Sweeping regardless
-     put a 351,335-student run through rounds of four requests each to prove it a million more
-     times, against the very server it is trying not to overwhelm.
+     If a large share of the sheet came back unanswered while the servers were answering
+     promptly — no timeouts, no 5xx, pressure at zero — then nothing is struggling. The pages
+     are arriving and the tables are not on them, which is a session that has expired, a
+     permission, or an address: one cause, shared by every row it touches, and unchanged by
+     asking again.
 
-     The existing guard reaches the same conclusion — three barren rounds with no pressure — but
-     only after three whole rounds. When it is ALL of them, one round of nothing is already the
-     whole story, so this looks before the first. A partly-unanswered run still sweeps: that is
-     the flakiness the rounds exist for. */
-  function noneAnswered() {
-    return T.total >= 20 && !pressure && countUnanswered() >= T.total;
+     Flakiness does not look like this. A server that is dropping requests refuses them —
+     timeouts, 5xx, 429 — and every refusal is counted into pressure, so pressure at zero is
+     what separates a server that cannot keep up from one that is answering and saying nothing.
+     That, rather than the share, is what this rests on.
+
+     A QUARTER, not all of them. "All" was the first version of this rule and it was too narrow
+     to catch the run that prompted it: 798,950 students, 351,335 of them blank — 44%, so the
+     guard held its peace and the sweep spent four and a half hours, 63% of the whole run,
+     re-asking 351,335 students and rescuing none of them. Below a quarter the rounds still run:
+     that is the per-student flakiness they exist for.
+
+     Nothing is lost by declining. The answers that did arrive are kept and reported, the count
+     is on the finished line, and a login fixed in a minute costs one more run rather than a
+     morning of asking a healthy server for pages it has already refused. */
+  const SWEEP_POINTLESS = 0.25;
+  function mostlyUnanswered() {
+    return T.total >= 20 && !pressure && countUnanswered() >= T.total * SWEEP_POINTLESS;
   }
   async function sweepUnanswered(t0) {
-    if (noneAnswered()) return;   // …and the finished line says so, where it will still be read
+    if (mostlyUnanswered()) return;   // …the finished line says so, where it will still be read
     let barren = 0;
     for (let round = 1; round <= SWEEP_ROUNDS && run && !run.stop; round++) {
       const jobs = [];
@@ -1107,6 +1117,7 @@
        above it added up to 10,515. Count the pairs — entries.length is exactly Σ items.length. */
     T.total = entries.length;
     if (!resumed) { $("list").innerHTML = ""; listShown = 0; listTotal = 0; paintListNote(); }
+    { const sn = $("srvNote"); if (sn) { sn.style.display = "none"; sn.textContent = ""; } }
     paintTiles(); $("fill").style.width = (T.total ? Math.round(T.done / T.total * 100) : 0) + "%";
     /* Whichever way a run starts, the offer is over: resuming takes it, and starting afresh
        wipes it in ckStart() below — leaving the bar up would keep offering a checkpoint that no
@@ -1262,11 +1273,31 @@
     const tails = (msSweep >= 10000 || msSave >= 10000)
       ? " · " + t("p_phases").replace("{a}", span(msRun))
         .replace("{b}", span(msSweep)).replace("{c}", span(msSave)) : "";
-    $("prog").textContent = "✅ " + t("p_done") + " · " + T.done + "/" + T.total + " · ⏱ " + mmss(took) + tails +
+    /* 798950/798950 says one number twice; when a run is stopped the two differ and both are
+       worth seeing. Grouped, because six digits unbroken is not a number anyone reads. */
+    const n3 = function (v) { return Number(v).toLocaleString("en-US"); };
+    const count = T.done === T.total ? n3(T.total) : n3(T.done) + "/" + n3(T.total);
+    /* The destination, not the timestamp. Which folder it went to is the fact worth reading —
+       the chosen one or Downloads, which is what the fallback looks like from outside — and the
+       timestamped subfolder underneath is both the longest part of the path and the least
+       surprising. The whole thing is a hover away; see the title below. */
+    const where = saved ? String(saved).split(" / ")[0] : "";
+    $("prog").textContent = "✅ " + t("p_done") + " · " + count + " · ⏱ " + span(took) + tails +
       (rate ? " · ⚡ " + t("p_rate").replace("{n}", rate.toLocaleString("en-US")) : "") +
-      (left ? " · " + (noneAnswered() ? t("p_none_answered")
-        : "⚠ " + t("p_unanswered").replace("{n}", left)) : "") +
-      (saved ? " · 💾 " + saved : (saveOnFinish ? " · ⚠ " + t("save_failed") : ""));
+      (left ? " · ⚠ " + t("p_unanswered").replace("{n}", n3(left)) : "") +
+      (saved ? " · 💾 " + where : (saveOnFinish ? " · ⚠ " + t("save_failed") : ""));
+    /* what would not fit: the full path, and the phases when they were too short to be named */
+    $("prog").title = (saved ? saved + "\n" : "") +
+      t("p_phases").replace("{a}", span(msRun)).replace("{b}", span(msSweep)).replace("{c}", span(msSave));
+    /* …and when the rounds were declined, why — under the line rather than in it, because it
+       is the one thing here that asks the reader to go and do something. */
+    const sn = $("srvNote");
+    if (sn) {
+      const dead = left > 0 && mostlyUnanswered();
+      sn.style.display = dead ? "" : "none";
+      sn.textContent = dead ? t("p_none_answered").replace("{n}", n3(left))
+        .replace("{p}", Math.round(left / Math.max(1, T.total) * 100)) : "";
+    }
     $("run").disabled = !entries.length; $("stop").disabled = true; $("pause").disabled = true;
     run = null;
     if (stopped) ckOffer();       // …and here is where you left off, should you want it back

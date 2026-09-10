@@ -110,8 +110,14 @@ function until(what, fn, ms) {
     })();
   });
 }
+/* The line says "12/40" while a run is going and, once the two are equal, a single grouped "40" —
+   one number twice was six characters of nothing on a line that had outgrown its badge. Read
+   either, or a finished run reads as zero done. */
 function doneCount() {
-  var m = /(\\d+)\\/(\\d+)/.exec(document.getElementById("prog").textContent || "");
+  var s = (document.getElementById("prog").textContent || "").replace(/,/g, "");
+  var m = /(\\d+)\\/(\\d+)/.exec(s);
+  if (m) return +m[1];
+  m = /\\u2705[^\\u00b7]*\\u00b7\\s*(\\d+)/.exec(s);      // ✅ Done · 40 · …
   return m ? +m[1] : 0;
 }
 function readDb() {

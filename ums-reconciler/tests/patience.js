@@ -208,7 +208,7 @@ async function sweepTests() {
     "run", "students", "$", "t", "mmss", "sleep", "breathe", "processItem",
     "recountAll", "paintTiles", "rerenderList", "applyFilterAll", "conc", "SWEEP_ROUNDS", "pressure",
     "T",
-    src("countUnanswered") + src("noneAnswered") + src("sweepUnanswered") + "\nreturn sweepUnanswered;"
+    src("countUnanswered") + src("mostlyUnanswered") + src("sweepUnanswered") + "\nreturn sweepUnanswered;"
   )(run, students, () => prog, (k) => k, () => "0:00", () => Promise.resolve(),
     () => Promise.resolve(), processItem, () => {}, () => {}, () => {}, () => {},
     4, constOf("SWEEP_ROUNDS"), 0,   // pressure 0 — the server is answering fine, so a barren

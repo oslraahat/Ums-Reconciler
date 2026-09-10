@@ -338,8 +338,10 @@ srv.listen(0, "127.0.0.1", () => {
     check("…so the recovered run lands in the chosen folder",
       names(o.files4) === "report.xlsx", o.files4 || "(nothing — it went elsewhere)");
     check("…and not into Downloads", !o.dl4, o.dl4);
+    /* a finished run says one grouped number, not "40/40" — the same figure twice was six
+       characters of nothing on a line that had outgrown its badge */
     check("…and it finished the whole sheet",
-      new RegExp(TOTAL + "\\/" + TOTAL).test(o.prog4 || ""), o.prog4);
+      new RegExp("✅[^·]*·\\s*" + TOTAL + "\\b").test(o.prog4 || ""), o.prog4);
 
     console.log(fail ? "\n" + fail + " FAILED" : "\nall good");
     srv.close();

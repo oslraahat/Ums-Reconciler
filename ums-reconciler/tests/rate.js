@@ -143,9 +143,11 @@ check("the window is a minute, and does not grow without limit",
    nothing anyone could see. The finished line names the three phases when a tail is big enough to
    have explained something. */
 {
-  /* just the statement — stopping at the ✅ line would cut through "$("prog").textContent =" */
-  const at = APP.lastIndexOf("const tails =");
-  const tail = APP.slice(at, APP.indexOf('$("prog").textContent', at));
+  /* Just this one statement. Reaching to the ✅ line cuts through "$("prog").textContent =", and
+     reaching to the line before it now drags in the count and the save path, which stand on T and
+     on saveRun()'s answer — neither of which this is about. */
+  const tail = (/const tails = [\s\S]*?: "";/.exec(APP) || [""])[0];
+  check("the tails line is still one statement", !!tail, tail.slice(0, 40));
   const phases = (msRun, msSweep, msSave) => new Function("msRun", "msSweep", "msSave", "t", "span",
     tail + "\nreturn tails;")(msRun, msSweep, msSave,
     (k) => (k === "p_phases" ? "run {a} · re-asking {b} · saving {c}" : k),
@@ -186,7 +188,10 @@ check("the window is a minute, and does not grow without limit",
   check("…over what THIS run did, not what it inherited",
     /const mine = T\.done - done0;/.test(tail) && /mine \/ \(took \/ 1000\)/.test(tail),
     tail.slice(0, 260));
-  check("…and over the run's own elapsed time", /mmss\(took\)/.test(tail), tail.slice(0, 200));
+  /* span(), not mmss(): a seven-hour run read "⏱ 428:09" on the line that was reported, which is
+     the same unreadable minutes-past-a-hundred that span() was written for. */
+  check("…and over the run's own elapsed time, in hours when there are any",
+    /span\(took\)/.test(tail) && !/mmss\(took\)/.test(tail), tail.slice(0, 200));
 }
 /* done0 has to be taken inside the run, after a resume has filled T.done */
 check("the run marks where its own counting begins",

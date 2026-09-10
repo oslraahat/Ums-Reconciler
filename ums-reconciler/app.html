@@ -397,6 +397,10 @@
     <div class="card">
       <div class="ch"><span class="n">4</span><h2 data-i18n="results_h">ফলাফল</h2><span id="prog" class="badge mut" data-i18n="ready">প্রস্তুত</span></div>
       <div class="ckdead" id="ckDead" style="display:none" data-i18n="ck_dead"></div>
+      <!-- The servers answered promptly and produced no table for a large part of the sheet.
+           That is a sentence, not a status token, and it will not fit on the badge above: the
+           finished line was already 936px of text in 926px of room before this was added. -->
+      <div class="ckdead" id="srvNote" style="display:none"></div>
       <div class="bar2"><div id="fill"></div></div>
       <div class="tiles">
         <div class="tile clk" data-f="ok"><div class="lft"><span class="dot" style="background:var(--ok)"></span><button class="rr" data-rr="ok" disabled>↻</button></div><div class="tv"><div class="v ok" id="t-ok">0</div><div class="l" data-i18n="t_ok">মিলেছে</div></div></div>

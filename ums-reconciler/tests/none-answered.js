@@ -1,21 +1,21 @@
-/* When nothing came back for anyone.
+/* When a large part of the sheet came back with nothing on it.
  *
- * Reported, mid-run: "351335 unanswered — asking again (round 1) · 10856/351335 · ⏱ 29:33". Every
- * student in the sheet, unanswered, and the sweep starting on all of them.
+ * Two reports, a day apart, the same fault seen from both ends.
  *
- * The sweep is for a server that is struggling — a slow one is allowed to delay a result, never to
- * decide it, so everything it never spoke about goes round again. But a struggling server refuses:
- * timeouts, 5xx, 429, and every one of those is counted into `pressure`. A server answering
- * promptly with a page that has no table on it is not struggling. It is a session that has
- * expired, a permission, or the wrong address — one cause, shared by every row, and unchanged by
- * asking again. Six rounds of four requests each over 351,335 students is upwards of a million
- * requests to prove that, aimed at the server the tool is trying not to overwhelm.
+ * Mid-run: "351335 unanswered — asking again (round 1) · 10856/351335 · ⏱ 29:33".
+ * And afterwards: "Done · 798950/798950 · ⏱ 428:09 · run 2:39:05 · re-asking 4:28:34 ·
+ * saving 00:28 · ⚡ 1,866/min · ⚠ 351335 still unanswered" — four and a half hours of re-asking,
+ * 63% of the whole run, that began with 351,335 unanswered and ended with 351,335 unanswered.
  *
- * The existing guard reaches the same conclusion after three barren rounds. When it is ALL of
- * them, one round of nothing is already the whole story.
+ * The sweep is for a server that is struggling: a slow one may delay a result, never decide it, so
+ * everything it never spoke about goes round again. But a struggling server REFUSES — timeouts,
+ * 5xx, 429 — and every refusal is counted into `pressure`. A server answering promptly with a page
+ * that has no table on it is not struggling. It is a session that has expired, a permission, or an
+ * address: one cause, shared by every row it touches, and unchanged by asking again.
  *
- * The risk in the fix is the opposite mistake: giving up on a run that the rounds would have
- * rescued. So the partly-unanswered cases are checked as carefully as the total one.
+ * The first version of this guard asked for ALL of them and so held its peace at 44%. It is a
+ * quarter now. Below that the rounds still run — that is the per-student flakiness they exist for
+ * — and the cases that must still sweep are checked here as carefully as the ones that must not.
  *
  *   node tests/none-answered.js
  */
@@ -40,55 +40,73 @@ function src(name) {
   }
   throw new Error("unbalanced " + name);
 }
+const SHARE = +(/const SWEEP_POINTLESS = ([\d.]+);/.exec(APP) || [])[1];
+const MIN = +(/T\.total >= (\d+)/.exec(src("mostlyUnanswered")) || [])[1];
 
-/* the real noneAnswered(), over the real countUnanswered() and a sheet of results */
+/* the real mostlyUnanswered(), over the real countUnanswered() and a sheet of results */
 function verdict(total, unansweredCount, pressure) {
   const students = [];
   for (let i = 0; i < total; i++) {
     students.push({ results: [{ res: { unanswered: i < unansweredCount } }] });
   }
-  return new Function("T", "pressure", "students",
-    src("countUnanswered") + src("noneAnswered") + "\nreturn noneAnswered();")(
-    { total: total }, pressure, students);
+  return new Function("T", "pressure", "students", "SWEEP_POINTLESS",
+    src("countUnanswered") + src("mostlyUnanswered") + "\nreturn mostlyUnanswered();")(
+    { total: total }, pressure, students, SHARE);
 }
 
-/* ---------- the reported run ---------- */
-check("every student unanswered, servers answering: the rounds are not run",
-  verdict(351335, 351335, 0) === true);
-check("…and the same at any size worth the name", verdict(40, 40, 0) === true);
+check("the share is written down once, and is a share", SHARE > 0 && SHARE < 1, String(SHARE));
+check("…and so is the smallest sheet worth judging", MIN >= 20, String(MIN));
+
+/* ---------- the two reported runs ---------- */
+check("798,950 students with 351,335 blank: the rounds are not run",
+  verdict(798950, 351335, 0) === true, "44%");
+check("…and every student blank, all the more so", verdict(400, 400, 0) === true);
+
+/* ---------- either side of the line ---------- */
+check("a quarter of the sheet is enough", verdict(400, 100, 0) === true, "100 of 400");
+check("…and a hair under it is not", verdict(400, 99, 0) === false, "99 of 400");
 
 /* ---------- the cases the sweep exists for, which must still run ---------- */
-check("one student short of all still sweeps", verdict(40, 39, 0) === false,
-  "39 of 40");
-check("half a sheet still sweeps", verdict(40, 20, 0) === false);
-check("a single unanswered student still sweeps", verdict(40, 1, 0) === false);
-check("nothing unanswered, nothing to decide", verdict(40, 0, 0) === false);
+check("a tenth of a sheet still sweeps", verdict(400, 40, 0) === false);
+check("a single unanswered student still sweeps", verdict(400, 1, 0) === false);
+check("nothing unanswered, nothing to decide", verdict(400, 0, 0) === false);
 
-/* ---------- a struggling server is not a refusing one ---------- */
-/* This is the whole distinction. Refusals — timeouts, 5xx, 429 — are counted into pressure, and
-   while any are outstanding a run of blanks says the server is busy, which is exactly what the
-   rounds are for. Only a server answering promptly and producing nothing is making a statement. */
-check("all unanswered WHILE the server is refusing: the rounds still run",
-  verdict(351335, 351335, 1) === false, "pressure 1");
-check("…however hard it is refusing", verdict(351335, 351335, 20) === false, "pressure 20");
+/* ---------- a struggling server is not a refusing one ----------
+   This is what the whole thing rests on — not the share, which only says how much is at stake.
+   Refusals are counted into pressure, and while any are outstanding a run of blanks says the
+   server is busy, which is exactly the case the rounds are for. Only a server answering promptly
+   and producing nothing is making a statement about the data. */
+check("every student blank WHILE the server is refusing: the rounds still run",
+  verdict(798950, 798950, 1) === false, "pressure 1");
+check("…however hard it is refusing", verdict(798950, 798950, 20) === false, "pressure 20");
 
 /* ---------- a handful of students is not evidence of anything ---------- */
 check("a tiny sheet is left alone", verdict(3, 3, 0) === false, "3 of 3");
-check("…and the threshold is stated once", /T\.total >= (\d+)/.test(src("noneAnswered")),
-  src("noneAnswered"));
+check("…right up to the threshold", verdict(MIN - 1, MIN - 1, 0) === false, (MIN - 1) + " students");
+check("…and judged from it", verdict(MIN, MIN, 0) === true, MIN + " students");
 
 /* ---------- and where it is said ---------- */
 const sweep = src("sweepUnanswered");
-check("the sweep declines before its first round", /^\s*if \(noneAnswered\(\)\) return;/m.test(sweep),
-  sweep.slice(0, 160));
-/* the progress line is overwritten by the finished line a moment later, so saying it inside the
-   sweep would have been saying it to nobody */
-check("…and the finished line is where it is said", /noneAnswered\(\) \? t\("p_none_answered"\)/.test(APP),
+check("the sweep declines before its first round",
+  /^\s*if \(mostlyUnanswered\(\)\) return;/m.test(sweep), sweep.slice(0, 160));
+
+/* The badge holds a line of status tokens and this is a sentence — 936px of text in 926px of room
+   before it was even added. The count goes on the line; the reason goes under it, in the strip
+   that already exists for telling someone something is wrong. */
+check("the finished line carries the count, not the sentence",
+  /\(left \? " · ⚠ " \+ t\("p_unanswered"\)\.replace\("\{n\}", n3\(left\)\) : ""\)/.test(APP), "startRun");
+check("…and the reason goes in a strip of its own",
+  /const dead = left > 0 && mostlyUnanswered\(\);/.test(APP) &&
+  /sn\.textContent = dead \? t\("p_none_answered"\)/.test(APP), "startRun");
+check("…which app.html has somewhere to put", /id="srvNote"/.test(
+  fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8")), "app.html");
+check("…and which a new run clears before it starts",
+  /\{ const sn = \$\("srvNote"\); if \(sn\) \{ sn\.style\.display = "none"; sn\.textContent = ""; \} \}/.test(APP),
   "startRun");
-check("…instead of the count, which would read as a tally rather than a cause",
-  /: "⚠ " \+ t\("p_unanswered"\)/.test(APP), "startRun");
 check("the message names what to check, in both languages",
   /p_none_answered: \{ bn: "[^"]*লগইন[^"]*",\s*\n?\s*en: "[^"]*login[^"]*" \}/.test(APP), "DICT");
+check("…and how many, and what share of the sheet",
+  /p_none_answered: \{ bn: "[^"]*\{n\}[^"]*\{p\}[^"]*"/.test(APP), "DICT");
 
 console.log(fail ? "\n" + fail + " FAILED" : "\nall good");
 process.exit(fail ? 1 : 0);

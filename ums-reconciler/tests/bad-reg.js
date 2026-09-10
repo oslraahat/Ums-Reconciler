@@ -210,8 +210,9 @@ const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  "
     /res0\.detail \+= " · " \+ t\("d_noanswer"\)\.replace\("\{n\}", res0\.tried\)/.test(APP), "app.js");
   check("…and the attempt count carries across sweep rounds",
     /res0\.tried = \(\(prior && prior\.tried\) \|\| 0\) \+ attempts;/.test(APP), "app.js");
+  /* grouped, because six digits unbroken is not a number anyone reads off a status line */
   check("…and the finished run reports what is still outstanding",
-    /t\("p_unanswered"\)\.replace\("\{n\}", left\)/.test(APP), "app.js");
+    /t\("p_unanswered"\)\.replace\("\{n\}", n3\(left\)\)/.test(APP), "app.js");
   ["p_retry", "p_unanswered", "d_noanswer"].forEach(function (k) {
     const m = APP.match(new RegExp(k + ': \\{ bn: "[^"]*", en: "([^"]*)" \\}'));
     check(k + " has clean English", !!m && !/[ঀ-৿]/.test(m[1]), m ? m[1] : "not found");

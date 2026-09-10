@@ -160,7 +160,14 @@ const line = (re) => (re.exec(APP) || [""])[0];
     savedAt < 0 ? "never saves" : "saves after the buttons are re-enabled");
   check("…after the unanswered have been swept, so the archive is the final answer",
     body.indexOf("await sweepUnanswered(t0);") < savedAt, "app.js");
-  check("…and says where it went", /" · 💾 " \+ saved/.test(APP), "app.js");
+  /* The destination — the chosen folder, or Downloads, which is what the fallback looks like from
+     outside. That distinction is the whole reason this line says anything at all; the timestamped
+     subfolder under it is the longest part of the path and the least surprising, so it went to the
+     tooltip when the line outgrew its badge. */
+  check("…and says where it went", /" · 💾 " \+ where/.test(APP) &&
+    /const where = saved \? String\(saved\)\.split\(" \/ "\)\[0\]/.test(APP), "app.js");
+  check("…with the whole path a hover away", /\$\("prog"\)\.title = \(saved \? saved \+ "\\n" : ""\)/.test(APP),
+    "app.js");
   /* silence here would read as "it saved" */
   check("…or that it could not", /t\("save_failed"\)/.test(APP), "app.js");
   check("…and never blocks the run finishing", /try \{ saved = await saveRun\(\); \} catch \(e\) \{ saved = ""; \}/.test(APP), "app.js");
