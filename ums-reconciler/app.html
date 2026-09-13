@@ -18,8 +18,11 @@
   *{box-sizing:border-box}
   body{margin:0;background:var(--bg);color:var(--text);
        font:14px/1.5 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif}
+  /* Stays where it is while the page moves under it. The background is a solid gradient and
+     the z-index puts it over the cards, or a scrolling card would show through it. */
   .topbar{background:linear-gradient(90deg,#2a1d5e,#5a3ff0);color:#fff;padding:9px 22px;border-bottom:1px solid #2a3050;
-          display:flex;align-items:center;justify-content:space-between;gap:12px}
+          display:flex;align-items:center;justify-content:space-between;gap:12px;
+          position:sticky;top:0;z-index:30}
   .topbar h1{margin:0;font-size:16px;font-weight:800}
   .topbar p{margin:1px 0 0;font-size:11px;opacity:.8}
   .tbtn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;
@@ -33,9 +36,17 @@
      hundred students the checkpoint has not written yet all live in this document, and a
      navigation takes every one of them. A section that hides is a section whose run carries
      on, and the menu shows a dot while it does. */
-  .shell{display:flex;align-items:flex-start}
-  .side{position:sticky;top:0;flex:none;width:196px;padding:18px 12px;
-    min-height:calc(100vh - 56px);border-right:1px solid var(--line)}
+  .shell{display:flex}
+  /* …and the menu sticks below it, not under it. The offset is measured rather than written
+     down: the topbar is 61px here and 77px once the subtitle wraps, and it would move again
+     with a different font or a browser zoom. --top-h is set from the element itself. */
+  /* Two elements, and the division is the whole trick. The column stretches to the height of the
+     page so its border runs the full length; the menu inside it is what sticks. Sticking the
+     column itself looked right until the page was long — a sticky box can only hold within its
+     own, and the column was as tall as its buttons, so past about 740px of scrolling the menu
+     scrolled away with everything else. Measured: y=-1118 on a page 1,180px deep. */
+  .side{flex:none;width:196px;border-right:1px solid var(--line)}
+  .sidein{position:sticky;top:var(--top-h,61px);padding:18px 12px}
   .side h3{margin:0 0 8px 11px;font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
     color:var(--mut);font-weight:700}
   .nav{display:flex;flex-direction:column;gap:4px}
@@ -44,6 +55,13 @@
     background:transparent;color:var(--text)}
   .nav button:hover{background:#1b2038}
   .nav button.on{background:var(--accent);color:#fff}
+  /* What is inside a section, shown only while that section is the open one — a menu that
+     lists everything at once stops being a menu. Indented past the icon column so the nesting
+     is visible without a second colour or a line. */
+  .nav .sub{display:none;flex-direction:column;gap:2px;margin:2px 0 4px 26px}
+  .nav .sub.on{display:flex}
+  .nav .sub button{padding:7px 10px;font-size:12.5px;font-weight:600;color:var(--mut)}
+  .nav .sub button.on{background:rgba(124,108,255,.18);color:var(--text)}
   .nav .ic{font-size:15px;line-height:1;flex:none;width:17px;text-align:center}
   /* a run does not stop because you looked at something else — this is the page saying so */
   .nav .busy{margin-left:auto;width:7px;height:7px;border-radius:50%;background:var(--ok);
@@ -227,8 +245,8 @@
     .runbtns{grid-column:auto;margin-top:0}
     /* the menu lies down across the top rather than taking a fifth of a narrow screen */
     .shell{display:block}
-    .side{position:static;width:auto;min-height:0;border-right:none;
-      border-bottom:1px solid var(--line);padding:10px 12px}
+    .side{width:auto;border-right:none;border-bottom:1px solid var(--line)}
+    .sidein{position:static;padding:10px 12px}
     .side h3{display:none}
     .nav{flex-direction:row;flex-wrap:wrap}
     .nav button{width:auto} }
@@ -353,13 +371,16 @@
     </div>
   </div>
   <div class="shell">
-    <nav class="side">
+    <nav class="side"><div class="sidein">
       <h3 data-i18n="nav_head">বিভাগ</h3>
       <div class="nav">
         <button id="navPay" class="on"><span class="ic">৳</span><span data-i18n="nav_pay">Payment History</span><span class="busy" title="চলছে"></span></button>
         <button id="navCrm"><span class="ic">☎</span><span data-i18n="nav_crm">CRM</span></button>
+        <div class="sub" id="crmSub">
+          <button id="navCrmDash" class="on" data-i18n="crm_dash">Dashboard</button>
+        </div>
       </div>
-    </nav>
+    </div></nav>
     <div class="main">
     <section id="pgPay" class="page on">
   <div class="wrap">
@@ -481,9 +502,13 @@
 
     <section id="pgCrm" class="page">
       <div class="wrap">
-        <div class="card">
-          <div class="ch"><h2 data-i18n="crm_h">CRM</h2></div>
-          <p class="soon" data-i18n="crm_note"></p>
+        <!-- One tab so far. The shape is here so the second one is a button and a div rather
+             than a rearrangement. -->
+        <div class="page on" id="crmDash">
+          <div class="card">
+            <div class="ch"><h2 data-i18n="crm_dash_h">CRM · Dashboard</h2></div>
+            <p class="soon" data-i18n="crm_note"></p>
+          </div>
         </div>
       </div>
     </section>

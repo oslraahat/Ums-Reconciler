@@ -128,7 +128,34 @@ addEventListener("load", function () {
 
     /* the dot only means something if it is off when nothing is running */
     out.dotAtRest = document.getElementById("navPay").classList.contains("running");
+    out.crmSubHidden = getComputedStyle(document.getElementById("crmSub")).display;
+    document.getElementById("navCrmDash").click();
+    out.dashOpens = [on("pgCrm"), on("crmDash"), on("navCrmDash")].join(",");
+    out.crmSubShown = getComputedStyle(document.getElementById("crmSub")).display;
+
+    /* and the bar that is supposed to stay where it is — back on the long section, because
+       CRM is one card and there is nothing there to scroll */
+    document.getElementById("navPay").click();
+    var before = document.querySelector(".topbar").getBoundingClientRect().top;
+    scrollTo(0, 1200);
+    /* A sticky offset is applied while the scroll is processed, not when scrollTo() returns —
+       measuring in the same breath reads the position the element would have had without it,
+       which is how this first reported a menu 1,118px above the window. */
+    setTimeout(function () {
+    var t = document.querySelector(".topbar").getBoundingClientRect();
+    /* the column stretches the whole page so its border does; the menu inside it is what sticks */
+    var side = document.querySelector(".sidein").getBoundingClientRect();
+    var col = document.querySelector(".side").getBoundingClientRect();
+    out.colH = Math.round(col.height);
+    out.docH = Math.round(document.documentElement.scrollHeight);
+    out.scrolled = Math.round(scrollY);
+    out.topBefore = Math.round(before);
+    out.topAfter = Math.round(t.top);
+    out.topH = Math.round(t.height);
+    out.menuTop = Math.round(side.top);
+    out.topVar = getComputedStyle(document.documentElement).getPropertyValue("--top-h").trim();
     post(JSON.stringify(out));
+    }, 250);
   }, 300);
 });
 <\/script></body></html>`;
@@ -158,6 +185,10 @@ const srv = http.createServer((q, r) => {
 
 srv.listen(0, "127.0.0.1", () => {
   const ch = spawn(CHROME, ["--headless=new", "--disable-gpu", "--no-sandbox", "--no-first-run",
+    /* wide on purpose: below 820px the menu is supposed to lie down across the top and stop
+       being sticky at all, and a headless window defaults to 800 — which read as a broken
+       sidebar for as long as it took to notice */
+    "--window-size=1366,900",
     "--user-data-dir=" + path.join(TMP, "prof"),
     "http://127.0.0.1:" + srv.address().port + "/a.html"], { stdio: "ignore" });
   const timer = setTimeout(() => { const w = waiting; waiting = null; if (w) w(null); }, 60000);
@@ -189,6 +220,27 @@ srv.listen(0, "127.0.0.1", () => {
       check("…drawn again, with CRM put away", o.backShown === "true,false", o.backShown);
       check("…and that choice is remembered too", o.rememberedAgain === "pay", String(o.rememberedAgain));
       check("the running dot is off while nothing runs", o.dotAtRest === false, String(o.dotAtRest));
+
+      console.log("\n--- what is inside CRM ---");
+      check("its pages are not listed while another section is open",
+        o.crmSubHidden === "none", o.crmSubHidden);
+      check("…and Dashboard opens CRM and itself",
+        o.dashOpens === "true,true,true", o.dashOpens);
+      check("…and the list appears with it", o.crmSubShown === "flex", o.crmSubShown);
+
+      console.log("\n--- the topbar, with the page scrolled under it ---");
+      check("the page really scrolled", o.scrolled > 0, o.scrolled + "px");
+      check("the topbar stays at the top", o.topAfter === 0 && o.topBefore === 0,
+        "before " + o.topBefore + ", after " + o.topAfter);
+      /* the offset is measured rather than written down: 61px here, 77 once the subtitle wraps */
+      check("…and its height is published for whatever sticks below it",
+        o.topVar === o.topH + "px", o.topVar + " vs " + o.topH + "px");
+      check("…which is where the menu starts", o.menuTop === o.topH,
+        "menu at " + o.menuTop + ", topbar " + o.topH + " tall");
+      /* and it has to keep starting there however far the page goes: the column is as tall as
+         the page, so the sticky menu inside it never runs out of room to stick in */
+      check("…and the column runs the length of the page",
+        o.colH >= o.docH - o.topH - 2, o.colH + " of " + (o.docH - o.topH));
     }
     console.log(fail ? "\n" + fail + " FAILED" : "\nall good");
     srv.close();

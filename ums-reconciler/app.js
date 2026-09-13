@@ -130,7 +130,8 @@
     nav_pay: { bn: "Payment History", en: "Payment History" },
     nav_crm: { bn: "CRM", en: "CRM" },
     crm_sub: { bn: "CRM — আলাদা নিয়মে কাজ", en: "CRM — a different set of rules" },
-    crm_h: { bn: "CRM", en: "CRM" },
+    crm_dash: { bn: "Dashboard", en: "Dashboard" },
+    crm_dash_h: { bn: "CRM · Dashboard", en: "CRM · Dashboard" },
     /* An empty section reads as a broken one. Say what is missing, and say the thing somebody
        standing here actually needs to know: that coming to look did not stop their run. */
     crm_note: { bn: "এই অংশটা এখনো বানানো হয়নি — এখানে কী নিয়মে কাজ হবে সেটা ঠিক হলে তবেই।\n\nPayment History-র রান এই একই পাতায় চলে, তাই এখানে এসে দেখলে কিছুই থামে না; চললে বাঁদিকের মেনুতে সবুজ বিন্দু থাকবে।",
@@ -281,6 +282,7 @@
        during wire(), before the stored language is applied, so the save line stayed Bengali under
        an English interface. */
     updateCount(); rerenderList(); renderPreview(); paintRerun(); paintConn(); paintSaveRow();
+    measureTop();   // the words in the topbar just changed, and so may its height
   }
 
   // ---------- scrape ----------
@@ -2659,6 +2661,17 @@
     try { chrome.storage.local.set({ srvMode: srvMode }); } catch (e) {}
   }
 
+  /* What the sticky topbar leaves for everything under it.
+     Measured, not assumed: 61px on a wide screen and 77px once the subtitle wraps onto a
+     second line, and it moves again with the language, the theme's font or a zoom. Anything
+     that sticks below the topbar reads this, so it is taken from the element and re-taken
+     whenever the thing that changes it changes. */
+  function measureTop() {
+    const t = document.querySelector(".topbar"); if (!t) return;
+    const h = Math.round(t.getBoundingClientRect().height);
+    if (h) document.documentElement.style.setProperty("--top-h", h + "px");
+  }
+
   /* ---------- sections ----------
      Both live in this document and one of them is shown. Nothing is torn down on the way out:
      a run in Payment History keeps its workers, its answers and its list, because none of that
@@ -2670,12 +2683,26 @@
     const set = function (id, yes) { const e = $(id); if (e) e.classList.toggle("on", yes); };
     set("pgPay", on); set("pgCrm", !on);
     set("navPay", on); set("navCrm", !on);
+    /* what is inside CRM is listed only while CRM is the open section */
+    set("crmSub", !on);
+    if (!on) showCrm(crmTab);
     /* The subtitle belongs to whichever section is open. Written as a data-i18n key rather than
        as text, so applyLang() keeps it right when the language changes under it. */
     const sub = $("sub");
     if (sub) { sub.setAttribute("data-i18n", on ? "subtitle" : "crm_sub"); sub.textContent = t(on ? "subtitle" : "crm_sub"); }
     try { chrome.storage.local.set({ page: page }); } catch (e) {}
+    measureTop();      // the subtitle changed, and on a narrow screen that changes the height
   }
+  /* Which of CRM's own pages is open. One so far; the shape is here so that the second is a
+     button and a div rather than a rearrangement. */
+  let crmTab = "dash";
+  function showCrm(tab) {
+    crmTab = tab === "dash" ? "dash" : "dash";
+    const set = function (id, yes) { const e = $(id); if (e) e.classList.toggle("on", yes); };
+    set("crmDash", crmTab === "dash");
+    set("navCrmDash", crmTab === "dash");
+  }
+
   /* …and the menu says whether the other section is busy, since leaving it running is the whole
      point of keeping both in one page */
   function paintBusy() {
@@ -2740,8 +2767,11 @@
     /* not startRun directly: a click handler is handed the MouseEvent, and startRun's first
        argument means "this is a resumed run" — an event object is a truthy one. */
     $("run").addEventListener("click", startPressed);
+    measureTop();
+    window.addEventListener("resize", measureTop);
     $("navPay").addEventListener("click", function () { showPage("pay"); });
     $("navCrm").addEventListener("click", function () { showPage("crm"); });
+    $("navCrmDash").addEventListener("click", function () { showPage("crm"); showCrm("dash"); });
     $("stop").addEventListener("click", function () { if (run) { run.stop = true; run.paused = false; if (run.ac) try { run.ac.abort(); } catch (e) {} } this.disabled = true; $("pause").disabled = true; $("prog").textContent = t("stopping"); });
     $("pause").addEventListener("click", function () { if (!run) return; run.paused = !run.paused; this.textContent = run.paused ? t("resume") : t("pause"); });
     if ($("saveSw")) $("saveSw").addEventListener("change", function () {
