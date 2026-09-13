@@ -532,12 +532,17 @@
               <input id="crmBase" spellcheck="false" placeholder="https://ums-41.osl.team"></div>
 
             <div style="margin-top:14px"><label data-i18n="crm_users_l">Username, Password — প্রতি লাইনে একজন</label>
-              <textarea id="crmUsers" class="paste" data-ph="crm_users_ph" style="min-height:120px"></textarea></div>
+              <div class="row-actions" style="align-items:stretch;margin-top:0">
+                <textarea id="crmUsers" class="paste" data-ph="crm_users_ph" style="min-height:120px"></textarea>
+                <div class="pstack">
+                  <label class="btn g impbtn" for="crmFile" style="cursor:pointer" data-i18n="crm_import">⬆ Import Excel</label>
+                  <input type="file" id="crmFile" accept=".csv,.txt,.xlsx" style="display:none">
+                  <button class="btn g impbtn" id="crmLinkBtn" data-i18n="crm_link_btn">↧ Sheet Link</button>
+                  <button class="btn g impbtn" id="crmClear" data-i18n="crm_clear">✕ Clear</button>
+                </div>
+              </div></div>
             <div class="row-actions" style="margin-top:8px">
-              <label class="btn g impbtn" for="crmFile" style="cursor:pointer" data-i18n="crm_import">⬆ Import Excel</label>
-              <input type="file" id="crmFile" accept=".csv,.txt,.xlsx" style="display:none">
               <input id="crmLink" data-ph="crm_link_ph" placeholder="…অথবা Google Sheet লিংক" style="flex:1;min-width:160px">
-              <button class="btn g impbtn" id="crmLinkBtn" data-i18n="crm_link_btn">↧ Sheet Link</button>
             </div>
             <div class="row-actions" style="margin-top:8px;align-items:center">
               <span class="badge mut" id="crmPairs">০ জন</span>
@@ -553,16 +558,19 @@
                 </div>
                 <span id="crmCountWrap" style="display:inline-flex;align-items:center;gap:8px">
                   <span class="hint" style="margin:0" data-i18n="crm_count_l">একসাথে কতজন</span>
-                  <input id="crmCount" type="number" min="1" max="500" value="25" style="width:88px">
+                  <input id="crmCount" type="number" min="1" max="500" value="1" style="width:88px">
                 </span>
                 <label class="srvsw"><input type="checkbox" id="crmHeaded"><i class="tg"></i><span data-i18n="crm_headed">ব্রাউজার দেখাও</span></label>
+                <label class="srvsw"><input type="checkbox" id="crmClose"><i class="tg"></i><span data-i18n="crm_close">ভিজিটের পর বন্ধ করো</span></label>
               </div>
             </div>
 
             <div class="row-actions" style="margin-top:14px;align-items:center">
               <button class="btn p" id="crmRun" data-i18n="crm_run">▶ Run</button>
-              <span class="hint" data-i18n="crm_run_hint" style="margin:0"></span>
+              <button class="btn g" id="crmStop" disabled data-i18n="crm_stop">✕ ব্রাউজার বন্ধ</button>
+              <span class="hint" id="crmNext" style="margin:0"></span>
             </div>
+            <span class="hint" data-i18n="crm_run_hint" style="display:block;margin:6px 0 0"></span>
             <pre class="crmout" id="crmOut" style="display:none"></pre>
 
             <details style="margin-top:16px"><summary class="hint" data-i18n="crm_manual_sum" style="cursor:pointer"></summary>

@@ -147,19 +147,25 @@
     crm_import: { bn: "⬆ Import Excel", en: "⬆ Import Excel" },
     crm_link_ph: { bn: "…অথবা Google Sheet লিংক", en: "…or a Google Sheet link" },
     crm_link_btn: { bn: "↧ Sheet Link", en: "↧ Sheet Link" },
+    crm_clear: { bn: "✕ Clear", en: "✕ Clear" },
     crm_pairs: { bn: "{n} জন", en: "{n} users" },
     crm_dl: { bn: "⬇ users.txt", en: "⬇ users.txt" },
     crm_cmd_l: { bn: "এই কমান্ডটা crm-loadtest ফোল্ডারে চালাও", en: "Run this in the crm-loadtest folder" },
     crm_copy: { bn: "⧉ Copy", en: "⧉ Copy" },
     crm_run: { bn: "▶ চালাও", en: "▶ Run" },
     crm_running: { bn: "⏳ চলছে…", en: "⏳ running…" },
-    crm_run_hint: { bn: "লগইন করে Dashboard-এ চাপ ফেলে মেপে দেখে — ফল নিচে আসবে।", en: "Logs in, loads the Dashboard together, and times it — the report appears below." },
+    crm_run_hint: { bn: "▶ চালাও: লগইন করে Dashboard খোলে, সময় মাপে। “ভিজিটের পর বন্ধ করো” বন্ধ রাখলে ব্রাউজার খোলা থাকে — Sequential-এ আবার চাপলে পরের জন ওই খোলা ব্রাউজারেই যোগ হয়। ✕ দিয়ে বন্ধ করলে আবার প্রথম থেকে।",
+      en: "▶ Run logs in, opens the Dashboard and times it. With “Close after each visit” off the browser stays open — in Sequential, pressing Run again adds the next user to that same window. ✕ closes it and starts over." },
     crm_manual_sum: { bn: "▸ অথবা নিজে টার্মিনালে চালাও (সহায়ক ছাড়া)", en: "▸ or run it yourself in a terminal (no helper)" },
     crm_need_users: { bn: "আগে username, password দাও", en: "add some username,password lines first" },
     crm_need_base: { bn: "UMS ঠিকানা (Base URL) দাও", en: "fill in the UMS address first" },
     crm_host_missing: { bn: "সহায়ক প্রোগ্রামটা ইনস্টল করা নেই। একবার crm-loadtest/host ফোল্ডারে টার্মিনাল খুলে চালাও:  node install.js  — তারপর এক্সটেনশন reload করো। (অথবা নিচের কমান্ডটা নিজে চালাও।)",
       en: "The helper is not installed. Open a terminal in crm-loadtest/host once and run:  node install.js  — then reload the extension. (Or run the command below yourself.)" },
-    crm_done: { bn: "✓ শেষ", en: "✓ done" },
+    crm_close: { bn: "ভিজিটের পর বন্ধ করো", en: "Close after each visit" },
+    crm_stop: { bn: "✕ ব্রাউজার বন্ধ", en: "✕ Close browser" },
+    crm_closed: { bn: "— ব্রাউজার বন্ধ, আবার প্রথম থেকে —", en: "— browser closed, back to the start —" },
+    crm_next: { bn: "পরের: {u}  ({n}/{m})", en: "next: {u}  ({n}/{m})" },
+    crm_next_wrap: { bn: "সব শেষ — আবার প্রথম জন থেকে", en: "reached the end — starts over from the first" },
     crm_copied: { bn: "✓ কপি হয়েছে", en: "✓ copied" },
     crm_steps: { bn: "১) ⬇ users.txt চেপে ফাইলটা crm-loadtest ফোল্ডারে রাখো  ২) প্রথমবার: npm install  ৩) উপরের কমান্ডটা চালাও।  ছোট সংখ্যায় শুরু করো — এটা সার্ভারে সত্যিকারের চাপ ফেলে।",
       en: "1) press ⬇ users.txt and save it into the crm-loadtest folder  2) first time only: npm install  3) run the command above.  Start with a small number — this puts real load on the server." },
@@ -2749,7 +2755,8 @@
   function crmCommand() {
     const base = ($("crmBase").value || "").trim() || "<base-url>";
     const headed = $("crmHeaded").checked ? " --headed" : "";
-    return "node loadtest.js --base " + base + " --users users.txt --count " + crmCount() + headed;
+    const keep = ($("crmClose") && $("crmClose").checked) ? "" : " --keep-open";
+    return "node loadtest.js --base " + base + " --users users.txt --count " + crmCount() + headed + keep;
   }
   function crmRender() {
     if (!$("crmUsers")) return;
@@ -2761,6 +2768,14 @@
     if ($("crmCmd")) $("crmCmd").textContent = crmCommand();
   }
   /* users.txt, normalised to exactly what the tool reads — its own name, not the export tag. */
+  function crmClear() {
+    if ($("crmUsers")) $("crmUsers").value = "";
+    if ($("crmLink")) $("crmLink").value = "";
+    crmSay("");
+    crmRender();
+    if (typeof crmNextLabel === "function") crmNextLabel();
+    if ($("crmUsers")) $("crmUsers").focus();
+  }
   function crmDownload() {
     const pairs = crmParse($("crmUsers").value);
     if (!pairs.length) return;
@@ -2828,37 +2843,75 @@
     if ($("crmSeq")) $("crmSeq").classList.toggle("on", !par);
     if ($("crmCountWrap")) $("crmCountWrap").style.display = par ? "inline-flex" : "none";
     crmRender();
+    if (typeof crmNextLabel === "function") crmNextLabel();
   }
   function crmCount() { return crmMode === "sequential" ? 1 : Math.max(1, parseInt($("crmCount").value, 10) || 1); }
   const CRM_HOST = "com.umsreconciler.crmloadtest";
   let crmPort = null;
   function crmOutLine(s) { const o = $("crmOut"); if (!o) return; o.style.display = ""; o.textContent += (o.textContent ? "\n" : "") + s; o.scrollTop = o.scrollHeight; }
   function crmBusy(on) { const b = $("crmRun"); if (b) { b.disabled = on; b.textContent = t(on ? "crm_running" : "crm_run"); } }
+  /* The port is kept open across presses: while the browser is up, pressing Run again sends the
+     next message on the same connection, which is how one window can gather user after user.
+     crmCursor is where Sequential is up to; Close (or the host going away) resets it. */
+  let crmCursor = 0, crmInFlight = false, crmSawMsg = false;
+  function crmNextLabel() {
+    const el = $("crmNext"); if (!el) return;
+    if (crmMode !== "sequential") { el.textContent = ""; return; }
+    const users = crmParse($("crmUsers").value);
+    if (!users.length) { el.textContent = ""; return; }
+    const i = crmCursor % users.length;
+    el.textContent = t("crm_next").replace("{u}", users[i].user)
+      .replace("{n}", i + 1).replace("{m}", users.length);
+  }
+  function crmConnect() {
+    crmSawMsg = false;
+    try { crmPort = chrome.runtime.connectNative(CRM_HOST); }
+    catch (e) { crmPort = null; return false; }
+    crmPort.onMessage.addListener(function (m) {
+      crmSawMsg = true;
+      if (m.type === "out") crmOutLine(m.text);
+      else if (m.type === "error") crmOutLine("⚠ " + m.text);
+      else if (m.type === "done") { crmInFlight = false; crmBusy(false);
+        if ($("crmStop")) $("crmStop").disabled = false; crmNextLabel(); crmOutLine(""); }
+    });
+    crmPort.onDisconnect.addListener(function () {
+      const err = chrome.runtime.lastError, missing = !crmSawMsg;
+      crmPort = null; crmInFlight = false; crmCursor = 0; crmBusy(false);
+      if ($("crmStop")) $("crmStop").disabled = true;
+      if (missing) { crmOutLine(t("crm_host_missing")); if (err && err.message) crmOutLine("(" + err.message + ")"); }
+      crmNextLabel();
+    });
+    return true;
+  }
   function crmRun() {
-    if (crmPort) return;                              // a run is already going
+    if (crmInFlight) return;
     const users = crmParse($("crmUsers").value);
     if (!users.length) { crmSay(t("crm_need_users")); return; }
     const base = ($("crmBase").value || "").trim();
     if (!base) { crmSay(t("crm_need_base")); return; }
     crmSay("");
-    const out = $("crmOut"); if (out) { out.style.display = ""; out.textContent = ""; }
-    crmBusy(true);
-    let started = false;
-    try { crmPort = chrome.runtime.connectNative(CRM_HOST); }
-    catch (e) { crmBusy(false); crmOutLine(t("crm_host_missing")); crmPort = null; return; }
-    crmPort.onMessage.addListener(function (m) {
-      started = true;
-      if (m.type === "out") crmOutLine(m.text);
-      else if (m.type === "error") crmOutLine("⚠ " + m.text);
-      else if (m.type === "done") crmOutLine("\n" + t("crm_done"));
-    });
-    crmPort.onDisconnect.addListener(function () {
-      const err = chrome.runtime.lastError;
-      crmPort = null; crmBusy(false);
-      if (!started) { crmOutLine(t("crm_host_missing")); if (err && err.message) crmOutLine("(" + err.message + ")"); }
-    });
-    crmPort.postMessage({ base: base, count: crmCount(),
-      headed: $("crmHeaded").checked, users: users });
+    const fresh = !crmPort;
+    if (fresh) { const out = $("crmOut"); if (out) { out.style.display = ""; out.textContent = ""; } crmCursor = 0; }
+    if (!crmPort && !crmConnect()) { crmOutLine(t("crm_host_missing")); return; }
+    const keepOpen = !($("crmClose") && $("crmClose").checked);
+    let batch, count;
+    if (crmMode === "sequential") {
+      if (crmCursor >= users.length) { crmCursor = 0; crmOutLine(t("crm_next_wrap")); }
+      batch = [users[crmCursor]]; count = 1; crmCursor++;
+    } else { batch = users; count = crmCount(); }
+    crmInFlight = true; crmBusy(true);
+    if ($("crmStop")) $("crmStop").disabled = false;
+    crmPort.postMessage({ base: base, count: count, headed: $("crmHeaded").checked,
+      keepOpen: keepOpen, users: batch });
+    crmNextLabel();
+  }
+  function crmStop() {
+    if (!crmPort) return;
+    try { crmPort.postMessage({ action: "close" }); } catch (e) {}
+    try { crmPort.disconnect(); } catch (e) {}
+    crmPort = null; crmInFlight = false; crmCursor = 0; crmBusy(false);
+    if ($("crmStop")) $("crmStop").disabled = true;
+    crmOutLine("\n" + t("crm_closed")); crmNextLabel();
   }
 
   function showCrm(tab) {
@@ -2941,12 +2994,17 @@
     $("navCrm").addEventListener("click", function () { showPage("crm"); });
     $("navCrmDash").addEventListener("click", function () { showPage("crm"); showCrm("dash"); });
     ["crmBase", "crmCount", "crmUsers"].forEach(function (id) { const e = $(id); if (e) e.addEventListener("input", crmRender); });
+    if ($("crmBase")) $("crmBase").addEventListener("input", function () { try { chrome.storage.local.set({ crmBase: this.value }); } catch (e) {} });
+    if ($("crmUsers")) $("crmUsers").addEventListener("input", crmNextLabel);
     if ($("crmHeaded")) $("crmHeaded").addEventListener("change", crmRender);
+    if ($("crmClose")) $("crmClose").addEventListener("change", crmRender);
     if ($("crmFile")) $("crmFile").addEventListener("change", function (ev) { const f = ev.target.files && ev.target.files[0]; if (f) crmImportFile(f); ev.target.value = ""; });
     if ($("crmLinkBtn")) $("crmLinkBtn").addEventListener("click", crmImportSheet);
     if ($("crmLink")) $("crmLink").addEventListener("keydown", function (e) { if (e.key === "Enter") crmImportSheet(); });
     if ($("crmDl")) $("crmDl").addEventListener("click", crmDownload);
+    if ($("crmClear")) $("crmClear").addEventListener("click", crmClear);
     if ($("crmRun")) $("crmRun").addEventListener("click", crmRun);
+    if ($("crmStop")) $("crmStop").addEventListener("click", crmStop);
     if ($("crmPar")) $("crmPar").addEventListener("click", function () { crmSetMode("parallel"); });
     if ($("crmSeq")) $("crmSeq").addEventListener("click", function () { crmSetMode("sequential"); });
     crmSetMode(crmMode);
@@ -3068,9 +3126,10 @@
     });
   }
 
-  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page"], function (o) { if (o.manualOk) manualOk = o.manualOk;
+  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page", "crmBase"], function (o) { if (o.manualOk) manualOk = o.manualOk;
     saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
     showPage(o.page === "crm" ? "crm" : "pay");
+    if (o.crmBase && $("crmBase")) $("crmBase").value = o.crmBase;
     /* The handle comes back from IndexedDB, but the permission on it may not have — dirUsable()
        decides that at the end of the run, when it matters. */
     idb(function (st) { return st.get("dir"); }).then(function (h) { if (h) dirHandle = h; paintSaveRow(); }).catch(function () { paintSaveRow(); }); if (o.baseUrl) baseUrl = o.baseUrl; if (o.baseUrl2) baseUrl2 = o.baseUrl2; srvMode = o.srvMode === true; if (o.appConc) conc = o.appConc;

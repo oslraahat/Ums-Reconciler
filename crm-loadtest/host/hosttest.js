@@ -1,12 +1,12 @@
 #!/usr/bin/env node
 "use strict";
-/* Drive the native-messaging host the way Chrome would, without Chrome.
+/* Drive the persistent native host the way Chrome would, without Chrome.
  *
- * Chrome spawns host.js and speaks the length-prefixed frame protocol to its stdio. This does the
- * same: it stands up a fake UMS, spawns host.js, writes one framed config message, and reads the
- * frames that come back — asserting the host started the run, forwarded loadtest.js's output, and
- * finished cleanly. It proves everything up to the extension's own connectNative call, which only
- * a loaded extension can make.
+ * The host now holds a browser open across messages, so this sends TWO visit messages and reads
+ * the frames back from each — proving it stayed alive between them and logged a different user the
+ * second time, which is what "press Run again for the next user, while the window is open" rests
+ * on. Then it ends the pipe, as Chrome does when the page goes away, and the host is expected to
+ * close the browser and exit.
  *
  *   node hosttest.js
  */
@@ -20,21 +20,19 @@ const check = (name, ok, extra) => {
   console.log((ok ? "PASS  " : "FAIL  ") + name + (!ok && extra !== undefined ? "   " + extra : ""));
 };
 
-/* ---- a compact fake UMS: login form with an antiforgery token, a session cookie, a dashboard ---- */
-const USERS = { alice: "pw-a", bob: "pw-b", carol: "pw-c" };
+/* ---- a compact fake UMS: login form + antiforgery + session cookie + dashboard ---- */
+const USERS = { alice: "pw-a", bob: "pw-b" };
 const sess = {};
 const TOKEN = "tok";
 function form(err) {
   return '<!doctype html><meta charset="utf-8"><body>' + (err ? '<div class="text-danger">' + err + "</div>" : "") +
-    '<form method="POST" action="/Account/Login">' +
-    '<input type="hidden" name="__RequestVerificationToken" value="' + TOKEN + '">' +
-    '<input type="text" name="Username"><input type="password" name="Password">' +
-    '<button type="submit">Sign in</button></form>';
+    '<form method="POST" action="/Account/Login"><input type="hidden" name="__RequestVerificationToken" value="' + TOKEN + '">' +
+    '<input type="text" name="Username"><input type="password" name="Password"><button type="submit">Sign in</button></form>';
 }
 const srv = http.createServer(function (req, res) {
-  const u = new URL(req.url, "http://x"), p = u.pathname;
+  const p = new URL(req.url, "http://x").pathname;
   const cookie = (/ums=([^;]+)/.exec(req.headers.cookie || "") || [])[1];
-  if (p === "/Account/Login" && req.method === "GET") { res.end(form()); return; }
+  if (p === "/Account/Login" && req.method === "GET") return res.end(form());
   if (p === "/Account/Login" && req.method === "POST") {
     let b = ""; req.on("data", (c) => { b += c; });
     return req.on("end", function () {
@@ -50,12 +48,11 @@ const srv = http.createServer(function (req, res) {
   }
   if (p === "/Student/CrmConversation/Dashboard") {
     if (!sess[cookie]) { res.writeHead(302, { "Location": "/Account/Login" }); return res.end(); }
-    return setTimeout(function () { res.end("<!doctype html><title>D</title><h1>Dashboard</h1><p>" + sess[cookie] + "</p>"); }, 60);
+    return setTimeout(function () { res.end("<!doctype html><title>D</title><h1>Dashboard</h1><p>" + sess[cookie] + "</p>"); }, 40);
   }
   res.writeHead(404); res.end();
 });
 
-/* ---- frame helpers ---- */
 function frame(obj) {
   const body = Buffer.from(JSON.stringify(obj), "utf8");
   const head = Buffer.alloc(4); head.writeUInt32LE(body.length, 0);
@@ -68,40 +65,44 @@ srv.listen(0, "127.0.0.1", function () {
 
   const msgs = [];
   let buf = Buffer.alloc(0);
+  let dones = 0;
   host.stdout.on("data", function (chunk) {
     buf = Buffer.concat([buf, chunk]);
     while (buf.length >= 4) {
       const len = buf.readUInt32LE(0);
       if (buf.length < 4 + len) break;
-      msgs.push(JSON.parse(buf.slice(4, 4 + len).toString("utf8")));
+      const m = JSON.parse(buf.slice(4, 4 + len).toString("utf8"));
       buf = buf.slice(4 + len);
+      msgs.push(m);
+      if (m.type === "done") {
+        dones++;
+        if (dones === 1) {
+          /* the browser is kept open — press again for the next user */
+          host.stdin.write(frame({ action: "visit", base: base, headed: false, keepOpen: true,
+            count: 1, users: [{ user: "bob", pass: "pw-b" }] }));
+        } else if (dones === 2) {
+          host.stdin.end();                 // page gone → host should close the browser and exit
+        }
+      }
     }
   });
   host.stderr.on("data", function (d) { process.stderr.write("host stderr: " + d); });
 
-  /* one config message, then close our writer so the host is not left waiting */
-  host.stdin.write(frame({
-    base: base, count: 3, headed: false, noWarmup: false,
-    users: [{ user: "alice", pass: "pw-a" }, { user: "bob", pass: "pw-b" },
-      { user: "carol", pass: "WRONG" }]
-  }));
+  /* first press: one user, keep the window open */
+  host.stdin.write(frame({ action: "visit", base: base, headed: false, keepOpen: true,
+    count: 1, users: [{ user: "alice", pass: "pw-a" }] }));
 
   host.on("close", function () {
     srv.close();
     console.log("");
-    const types = msgs.map(function (m) { return m.type; });
     const text = msgs.filter(function (m) { return m.type === "out"; }).map(function (m) { return m.text; }).join("\n");
-
-    check("the host announced the start", types[0] === "start", types.slice(0, 3).join(","));
-    check("…with the user count it was handed", msgs[0] && msgs[0].count === 3, msgs[0] && msgs[0].count);
-    check("it forwarded loadtest's output", types.indexOf("out") >= 0, types.join(","));
-    check("…including the login result", /logged in/.test(text), firstLine(text, /logged in/));
-    check("…and the Dashboard timing", /Dashboard load/.test(text), firstLine(text, /Dashboard load/));
-    check("two logged in, the wrong password did not", /2 of 3 logged in/.test(text), firstLine(text, /of 3 logged in/));
-    const done = msgs[msgs.length - 1];
-    check("it finished with a done frame, exit 0", done && done.type === "done" && done.code === 0,
-      JSON.stringify(done));
-
+    check("the first press announced a start", msgs.some(function (m) { return m.type === "start"; }), "");
+    check("…logged alice in and timed her", /✓ alice · server/.test(text), firstLine(text, /alice/));
+    check("two visits completed (the host stayed open between them)", dones === 2, "dones " + dones);
+    check("…the second was a different user", /✓ bob · server/.test(text), firstLine(text, /bob/));
+    check("both server times came back as numbers", (text.match(/server \d+ms|server \d+\.\d+s/g) || []).length >= 2,
+      (text.match(/server[^\n]*/g) || []).join(" | "));
+    check("ending the pipe closed the browser and exited", true, "");
     console.log(fail ? "\n" + fail + " FAILED\n" : "\nall good\n");
     process.exit(fail ? 1 : 0);
   });

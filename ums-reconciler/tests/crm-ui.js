@@ -119,6 +119,7 @@ addEventListener("load", function () {
     out.basePrefill = base.value;                       // showCrm should have filled it from payment
     out.cmdEmpty = document.getElementById("crmCmd").textContent;
     out.dlDisabledEmpty = document.getElementById("crmDl").disabled;
+    out.countDefault = count.value;                     // "how many at once" starts at 1
 
     users.value = "username,password\\nalice,pw-a\\n# note\\n\\nbob,pw-b\\ncarol a long pass";
     fire(users, "input");
@@ -131,6 +132,13 @@ addEventListener("load", function () {
 
     headed.checked = true; fire(headed, "change");
     out.cmdHeaded = document.getElementById("crmCmd").textContent;
+
+    /* close-after-visit: off by default (browser stays open → --keep-open); ticking it drops the flag */
+    var close = document.getElementById("crmClose");
+    out.cmdKeepOpen = out.cmdHeaded;
+    close.checked = true; fire(close, "change");
+    out.cmdClosed = document.getElementById("crmCmd").textContent;
+    close.checked = false; fire(close, "change");
 
     /* the mode control: sequential is --count 1 and hides the count; back to parallel restores it */
     document.getElementById("crmSeq").click();
@@ -145,7 +153,14 @@ addEventListener("load", function () {
     setTimeout(function () {
       out.dl = window.__dl[0] || null;
       document.getElementById("crmCopy").click();
-      setTimeout(function () { out.copied = window.__copied; post(JSON.stringify(out)); }, 60);
+      setTimeout(function () {
+        out.copied = window.__copied;
+        document.getElementById("crmClear").click();          // ✕ Clear empties the user box
+        out.afterClearUsers = document.getElementById("crmUsers").value;
+        out.afterClearBadge = document.getElementById("crmPairs").textContent;
+        out.afterClearDl = document.getElementById("crmDl").disabled;
+        post(JSON.stringify(out));
+      }, 60);
     }, 120);
   }, 250);
 });
@@ -187,18 +202,23 @@ srv.listen(0, "127.0.0.1", () => {
       check("the base is prefilled from the Payment History side", o.basePrefill === "https://ums-5.osl.team", o.basePrefill);
       check("…the command shows its shape before anything is typed", /node loadtest\.js/.test(o.cmdEmpty), o.cmdEmpty);
       check("…and users.txt cannot be downloaded while empty", o.dlDisabledEmpty === true, String(o.dlDisabledEmpty));
+      check("…and “how many at once” defaults to 1", o.countDefault === "1", o.countDefault);
 
       console.log("");
       check("the badge counts the real users, skipping header/blank/comment", /\b3\b/.test(o.badge), o.badge);
       check("…and download turns on", o.dlDisabledFull === false, String(o.dlDisabledFull));
       check("the command carries the base, users.txt and the count",
-        o.cmd === "node loadtest.js --base https://ums-41.osl.team --users users.txt --count 40", o.cmd);
+        o.cmd === "node loadtest.js --base https://ums-41.osl.team --users users.txt --count 40 --keep-open", o.cmd);
       check("…the count is a plain number, not localized into another script", /--count 40\b/.test(o.cmd), o.cmd);
-      check("the headed toggle reaches the command", / --headed$/.test(o.cmdHeaded), o.cmdHeaded);
+      check("the headed toggle reaches the command", / --headed --keep-open$/.test(o.cmdHeaded), o.cmdHeaded);
+
+      console.log("");
+      check("with close-after-visit off the browser is kept open (--keep-open)", / --keep-open$/.test(o.cmdKeepOpen), o.cmdKeepOpen);
+      check("…and ticking it drops --keep-open", !/--keep-open/.test(o.cmdClosed), o.cmdClosed);
 
       console.log("");
       check("parallel is the default, and it carries the typed count", /--count 40/.test(o.cmd), o.cmd);
-      check("Sequential switches the command to --count 1", /--count 1( --headed)?$/.test(o.cmdSeq), o.cmdSeq);
+      check("Sequential switches the command to --count 1", /--count 1\b/.test(o.cmdSeq) && !/--count 40/.test(o.cmdSeq), o.cmdSeq);
       check("…and marks itself the chosen one", o.seqOn === true, String(o.seqOn));
       check("…and hides the count, which means nothing one at a time", o.countHidden === "none", o.countHidden);
       check("back to Parallel restores the count in the command", /--count 40/.test(o.cmdPar), o.cmdPar);
@@ -209,6 +229,11 @@ srv.listen(0, "127.0.0.1", () => {
       check("…holding exactly the clean two-column lines",
         o.dl && o.dl.text === "alice,pw-a\nbob,pw-b\ncarol,a long pass\n", o.dl && JSON.stringify(o.dl.text));
       check("Copy puts the command on the clipboard", o.copied === o.cmdHeaded, o.copied);
+
+      console.log("");
+      check("✕ Clear empties the user box", o.afterClearUsers === "", JSON.stringify(o.afterClearUsers));
+      check("…the badge falls back to none", /0|০/.test(o.afterClearBadge) && !/\b3\b/.test(o.afterClearBadge), o.afterClearBadge);
+      check("…and users.txt is disabled again", o.afterClearDl === true, String(o.afterClearDl));
     }
     console.log(fail ? "\n" + fail + " FAILED" : "\nall good");
     srv.close();

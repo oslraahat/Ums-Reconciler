@@ -44,7 +44,8 @@ const DEFAULTS = {
   wait: "load",           // "load" | "domcontentloaded" | "networkidle"
   navTimeout: 60000,      // per navigation, ms
   out: "",                // write a CSV here as well
-  warmup: true            // one lone user first, as the "not busy" baseline
+  warmup: true,           // one lone user first, as the "not busy" baseline
+  keepOpen: false         // leave the browser open at the end instead of closing it
 };
 
 function parseArgs(argv) {
@@ -66,6 +67,7 @@ function parseArgs(argv) {
     else if (a === "--nav-timeout") o.navTimeout = Math.max(1000, parseInt(next(), 10) || 60000);
     else if (a === "--out") o.out = next();
     else if (a === "--no-warmup") o.warmup = false;
+    else if (a === "--keep-open") o.keepOpen = true;
     else { console.error("unknown option: " + a); o.help = true; }
   }
   return o;
@@ -90,6 +92,7 @@ CRM Dashboard load test — N isolated logins in parallel, timed.
   --nav-timeout <ms>    give up on a page after this long (default ${DEFAULTS.navTimeout})
   --out <file.csv>      also write the per-user numbers to a CSV
   --no-warmup           skip the single lone-user baseline
+  --keep-open           leave the browser open at the end (for a look)
 `;
 
 /* ---------------- users file ---------------- */
@@ -352,7 +355,8 @@ async function main() {
     console.log("\n  per-user numbers written to " + opts.out);
   }
 
-  await browser.close();
+  if (!opts.keepOpen) await browser.close();
+  else console.log("\n  (browser left open — close it yourself, or Ctrl+C here)");
   console.log("");
 }
 function csv(s) { s = String(s == null ? "" : s); return /[",\n]/.test(s) ? '"' + s.replace(/"/g, '""') + '"' : s; }
@@ -360,4 +364,5 @@ function csv(s) { s = String(s == null ? "" : s); return /[",\n]/.test(s) ? '"' 
 if (require.main === module) {
   main().catch(function (e) { console.error("\nfailed: " + (e && e.stack || e)); process.exit(1); });
 }
-module.exports = { readUsers: readUsers, stats: stats, parseArgs: parseArgs };
+module.exports = { readUsers: readUsers, stats: stats, parseArgs: parseArgs,
+  login: login, hitDashboard: hitDashboard, ms: ms };

@@ -149,7 +149,7 @@ const RELS = '<?xml version="1.0"?><Relationships>' +
     const HTML = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
     const hdr = HTML.slice(HTML.indexOf('data-i18n="verify_h"'));
     check("…in the card header, not under the paste box",
-      hdr.indexOf('id="sheetRow"') >= 0 && hdr.indexOf('id="sheetRow"') < hdr.indexOf("</div>\n"),
+      hdr.indexOf('id="sheetRow"') >= 0 && hdr.indexOf('id="sheetRow"') < hdr.search(/<\/div>\r?\n/),
       "app.html");
     check("…pushed into the space on the right",
       /\.ch \.sheetrow\{margin-left:auto/.test(HTML), "app.html");

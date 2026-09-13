@@ -1,88 +1,110 @@
 #!/usr/bin/env node
 "use strict";
-/* Native-messaging host for the CRM load test.
+/* Native-messaging host for the CRM load test — a persistent browser session.
  *
- * A browser extension cannot run Playwright or open isolated sessions, but Chrome lets an
- * extension talk to one small local program that can — this is it. The CRM · Dashboard "Run"
- * button connects here, sends the base URL, the user list and the count, and this runs the real
- * loadtest.js and streams every line it prints back to the page, so the report appears in the UI.
+ * The extension connects once and keeps the port open. Each "Run" press sends a "visit" message;
+ * this host holds one real Chrome open across them and, message by message, logs the given users
+ * into their own isolated contexts and opens the Dashboard, timing each. Because the browser stays
+ * open between messages, pressing Run again lands the next user in the same window beside the ones
+ * already there — until "Close" is sent, or the extension disconnects, at which point the browser
+ * closes and their sessions are gone.
  *
- * The wire format is Chrome's: each message is a 4-byte little-endian length followed by that many
- * bytes of UTF-8 JSON. stdout carries ONLY these frames — loadtest.js's own output is captured on
- * a pipe and forwarded as frames, never written straight through, or it would corrupt the stream.
+ * Which users a message carries is the extension's business: sequential sends one at a time and
+ * advances; parallel sends the whole list with a count. Keep-open vs close-after-each is a flag on
+ * the message. The login and timing themselves are loadtest.js's own functions, imported, so the
+ * numbers here and on the command line are produced by the same code.
  *
- * Installed by install.js, which registers this host and locks it to the one extension ID.
+ * Wire format is Chrome's: 4-byte little-endian length, then that many bytes of UTF-8 JSON. stdout
+ * carries only these frames.
  */
-const fs = require("fs");
-const os = require("os");
 const path = require("path");
-const { spawn } = require("child_process");
+const lt = require(path.join(__dirname, "..", "loadtest.js"));
+const { chromium } = require(path.join(__dirname, "..", "node_modules", "playwright-core"));
 
 /* ---------------- framing ---------------- */
 function send(obj) {
   const body = Buffer.from(JSON.stringify(obj), "utf8");
-  const head = Buffer.alloc(4);
-  head.writeUInt32LE(body.length, 0);
+  const head = Buffer.alloc(4); head.writeUInt32LE(body.length, 0);
   process.stdout.write(Buffer.concat([head, body]));
 }
-
 let buf = Buffer.alloc(0);
-let handled = false;
+const queue = [];
+let working = false;
 process.stdin.on("data", function (chunk) {
   buf = Buffer.concat([buf, chunk]);
-  /* one config message is all we expect; read the first complete frame and act on it */
   while (buf.length >= 4) {
     const len = buf.readUInt32LE(0);
     if (buf.length < 4 + len) break;
-    const msg = buf.slice(4, 4 + len);
+    const msg = JSON.parse(buf.slice(4, 4 + len).toString("utf8"));
     buf = buf.slice(4 + len);
-    if (!handled) { handled = true; onConfig(JSON.parse(msg.toString("utf8"))); }
+    queue.push(msg); pump();
   }
 });
-/* If Chrome closes the port (the page navigated away, the button was pressed again), go quietly. */
-process.stdin.on("end", function () { if (!child) process.exit(0); });
+process.stdin.on("end", function () { shutdown(0); });
 
-/* ---------------- run ---------------- */
-let child = null;
-function onConfig(cfg) {
-  const tool = path.join(__dirname, "..", "loadtest.js");
-  if (!fs.existsSync(tool)) { send({ type: "error", text: "loadtest.js not found beside the host" }); return end(1); }
+/* ---------------- the browser it holds ---------------- */
+let browser = null;
 
-  /* the user list arrives in the message, never on disk; write it to a private temp file just for
-     the length of the run and delete it after, passwords and all */
-  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "crmlt-"));
-  const usersFile = path.join(dir, "users.txt");
-  const lines = (cfg.users || []).map(function (u) { return String(u.user || "") + "," + String(u.pass || ""); });
-  fs.writeFileSync(usersFile, lines.join("\n"));
-
-  const args = [tool, "--base", String(cfg.base || ""), "--users", usersFile,
-    "--count", String(Math.max(1, parseInt(cfg.count, 10) || 1))];
-  if (cfg.headed) args.push("--headed");
-  if (cfg.dash) { args.push("--dash", String(cfg.dash)); }
-  if (cfg.noWarmup) args.push("--no-warmup");
-
-  send({ type: "start", count: lines.length });
-
-  child = spawn(process.execPath, args, { cwd: path.join(__dirname, "..") });
-  let tail = "";
-  const feed = function (data) {
-    tail += data.toString("utf8");
-    const parts = tail.split(/\r?\n/);
-    tail = parts.pop();
-    parts.forEach(function (line) { send({ type: "out", text: line }); });
-  };
-  child.stdout.on("data", feed);
-  child.stderr.on("data", feed);
-  child.on("error", function (e) { send({ type: "error", text: (e && e.message) || String(e) }); end(1, dir); });
-  child.on("close", function (code) {
-    if (tail) send({ type: "out", text: tail });
-    send({ type: "done", code: code });
-    end(code, dir);
-  });
+async function pump() {
+  if (working) return;                     // one message at a time, in order
+  working = true;
+  while (queue.length) {
+    const m = queue.shift();
+    try {
+      if (m.action === "close") { await closeBrowser(); send({ type: "closed" }); }
+      else await visit(m);
+    } catch (e) { send({ type: "error", text: (e && e.message) || String(e) }); }
+  }
+  working = false;
 }
 
-function end(code, dir) {
-  if (dir) { try { fs.rmSync(dir, { recursive: true, force: true }); } catch (e) {} }
-  /* let the last frame flush before the pipe closes */
-  setTimeout(function () { process.exit(code || 0); }, 50);
+async function visit(m) {
+  const base = String(m.base || "").replace(/\/+$/, "");
+  const users = m.users || [];
+  const count = Math.max(1, parseInt(m.count, 10) || 1);
+  const keepOpen = !!m.keepOpen;
+  const opts = {
+    dash: m.dash || "/Student/CrmConversation/Dashboard", login: "/Account/Login",
+    userField: m.userField || "", passField: m.passField || "",
+    wait: "load", navTimeout: 60000
+  };
+  const dashUrl = base + opts.dash;
+
+  if (!browser) browser = await chromium.launch({ channel: "chrome", headless: !m.headed });
+  send({ type: "start", count: users.length, keepOpen: keepOpen });
+
+  /* a small pool so `count` users go at once; each keeps or drops its context per keepOpen */
+  let next = 0;
+  async function one(u) {
+    const context = await browser.newContext();
+    send({ type: "out", text: "→ " + u.user });
+    let li;
+    try { li = await lt.login(context, base, Object.assign({}, opts, { __user: u.user, __pass: u.pass })); }
+    catch (e) { li = { ok: false, why: (e.message || String(e)).split("\n")[0].slice(0, 80) }; }
+    if (!li.ok) { send({ type: "out", text: "  ✗ " + (li.why || "login failed") }); await context.close().catch(function () {}); return; }
+    let d;
+    try { d = await lt.hitDashboard(li.page, dashUrl, opts); }
+    catch (e) { d = { ok: false, why: (e.message || String(e)).split("\n")[0].slice(0, 80) }; }
+    if (d.ok) send({ type: "out", text: "  ✓ " + u.user + " · server " + lt.ms(d.server) + " · full " + lt.ms(d.load) });
+    else send({ type: "out", text: "  ✗ " + u.user + " — " + (d.why || "dashboard failed") });
+    if (!keepOpen) await context.close().catch(function () {});
+  }
+  await Promise.all(Array.from({ length: Math.min(count, users.length || 1) }, async function () {
+    while (next < users.length) { const i = next++; await one(users[i]); }
+  }));
+
+  if (!keepOpen && browser) {
+    /* nothing is meant to stay on screen — free the window, but keep the host alive for the next
+       press so the extension's port need not reconnect */
+    await browser.close().catch(function () {});
+    browser = null;
+  }
+  send({ type: "done", keepOpen: keepOpen });
+}
+
+async function closeBrowser() {
+  if (browser) { try { await browser.close(); } catch (e) {} browser = null; }
+}
+function shutdown(code) {
+  closeBrowser().finally(function () { setTimeout(function () { process.exit(code || 0); }, 50); });
 }
