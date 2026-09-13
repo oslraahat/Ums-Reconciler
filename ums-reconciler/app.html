@@ -72,6 +72,13 @@
   .page.on{display:block}
   /* an empty section is worse than no section: say what it is for and what is missing */
   .soon{color:var(--mut);font-size:13.5px;line-height:1.65;white-space:pre-line;margin:0}
+  /* the command to copy into a terminal — monospace, and it may be long, so it scrolls
+     inside its own box rather than stretching the card */
+  .cmdbox{display:flex;gap:8px;align-items:stretch;margin-top:5px}
+  .cmdbox code{flex:1;min-width:0;overflow-x:auto;white-space:nowrap;background:var(--fld);
+    border:1px solid var(--line);border-radius:10px;padding:11px 12px;
+    font:13px ui-monospace,Consolas,monospace;color:var(--text)}
+  .cmdbox .btn{flex:none}
   body.light .nav button:hover{background:#eceafe}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px;
         box-shadow:0 8px 24px rgba(0,0,0,.25)}
@@ -507,7 +514,28 @@
         <div class="page on" id="crmDash">
           <div class="card">
             <div class="ch"><h2 data-i18n="crm_dash_h">CRM · Dashboard</h2></div>
-            <p class="soon" data-i18n="crm_note"></p>
+            <p class="hint" data-i18n="crm_lt_intro" style="margin:0 0 14px"></p>
+
+            <div class="grid g3">
+              <div style="grid-column:1/3"><label data-i18n="crm_base_l">UMS ঠিকানা (Base URL)</label>
+                <input id="crmBase" spellcheck="false" placeholder="https://ums-41.osl.team"></div>
+              <div><label data-i18n="crm_count_l">একসাথে কতজন</label>
+                <input id="crmCount" type="number" min="1" max="500" value="25"></div>
+            </div>
+            <label class="srvsw" style="margin-top:12px"><input type="checkbox" id="crmHeaded"><i class="tg"></i><span data-i18n="crm_headed">ব্রাউজার চোখে দেখাও (headed)</span></label>
+
+            <div style="margin-top:14px"><label data-i18n="crm_users_l">Username, Password — প্রতি লাইনে একজন</label>
+              <textarea id="crmUsers" class="paste" data-ph="crm_users_ph" style="min-height:120px"></textarea></div>
+            <div class="row-actions" style="margin-top:8px;align-items:center">
+              <label class="btn g impbtn" for="crmFile" style="cursor:pointer" data-i18n="crm_import">⬆ Excel/CSV import</label>
+              <input type="file" id="crmFile" accept=".csv,.txt,.xlsx" style="display:none">
+              <span class="badge mut" id="crmPairs">০ জন</span>
+              <button class="btn g" id="crmDl" disabled data-i18n="crm_dl">⬇ users.txt</button>
+            </div>
+
+            <div style="margin-top:16px"><label data-i18n="crm_cmd_l">এই কমান্ডটা crm-loadtest ফোল্ডারে চালাও</label>
+              <div class="cmdbox"><code id="crmCmd"></code><button class="btn g" id="crmCopy" data-i18n="crm_copy">⧉ Copy</button></div></div>
+            <p class="hint" data-i18n="crm_steps" style="white-space:pre-line"></p>
           </div>
         </div>
       </div>

@@ -1,6 +1,6 @@
 # One user per line: username then password.
-# A comma, a tab, or the last space separates the two — a password may contain
-# spaces, a username does not, so the LAST space is the split point.
+# A comma, a tab, or the first space separates the two — a username has no
+# spaces, a password may, so everything after the first space is the password.
 # Blank lines and lines starting with # are ignored. A "username,password"
 # header line is skipped.
 #

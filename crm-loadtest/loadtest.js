@@ -76,7 +76,7 @@ CRM Dashboard load test — N isolated logins in parallel, timed.
 
   --base <url>          UMS address, e.g. https://ums-41.osl.team   (required)
   --users <file>        one "username,password" per line           (required)
-                        (comma, tab or the last space separates the two;
+                        (comma, tab or the first space separates the two;
                          blank lines and a "username,password" header are skipped)
   --count <n>           how many at once (default ${DEFAULTS.count})
   --headed              show the browser (default: hidden/headless)
@@ -99,12 +99,12 @@ function readUsers(file) {
   raw.split(/\r?\n/).forEach(function (line, i) {
     const s = line.trim();
     if (!s || s.startsWith("#")) return;
-    /* comma or tab first; otherwise the LAST space, since a password may contain none but a
-       username never contains a space */
+    /* comma or tab first; otherwise the FIRST space — the username has no spaces, the password
+       may, so everything after the first space is the password */
     let user, pass;
     if (s.indexOf(",") >= 0) { const p = s.split(","); user = p[0]; pass = p.slice(1).join(","); }
     else if (s.indexOf("\t") >= 0) { const p = s.split("\t"); user = p[0]; pass = p.slice(1).join("\t"); }
-    else { const at = s.lastIndexOf(" "); if (at < 0) { user = s; pass = ""; } else { user = s.slice(0, at); pass = s.slice(at + 1); } }
+    else { const at = s.indexOf(" "); if (at < 0) { user = s; pass = ""; } else { user = s.slice(0, at); pass = s.slice(at + 1); } }
     user = user.trim(); pass = pass.trim();
     if (i === 0 && /^user(name)?$/i.test(user) && /^pass(word)?$/i.test(pass)) return;  // header
     if (user) out.push({ user: user, pass: pass, line: i + 1 });

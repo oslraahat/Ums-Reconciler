@@ -132,10 +132,23 @@
     crm_sub: { bn: "CRM — আলাদা নিয়মে কাজ", en: "CRM — a different set of rules" },
     crm_dash: { bn: "Dashboard", en: "Dashboard" },
     crm_dash_h: { bn: "CRM · Dashboard", en: "CRM · Dashboard" },
-    /* An empty section reads as a broken one. Say what is missing, and say the thing somebody
-       standing here actually needs to know: that coming to look did not stop their run. */
-    crm_note: { bn: "এই অংশটা এখনো বানানো হয়নি — এখানে কী নিয়মে কাজ হবে সেটা ঠিক হলে তবেই।\n\nPayment History-র রান এই একই পাতায় চলে, তাই এখানে এসে দেখলে কিছুই থামে না; চললে বাঁদিকের মেনুতে সবুজ বিন্দু থাকবে।",
-      en: "This section has not been built yet — it waits on what the rules here should be.\n\nA Payment History run lives in this same page, so coming here stops nothing; while one is going the menu keeps a green dot beside it." },
+    /* CRM · Dashboard is a load-test configurator: it cannot run the test — one browser is one
+       session — so it builds the users.txt and the command for the separate crm-loadtest tool. */
+    crm_lt_intro: { bn: "অনেকজন একসাথে CRM Dashboard খুললে ধীর হয় কিনা — সেটা মাপার সাজানো। এখান থেকে চলে না (এক ব্রাউজার = একজন), তাই username-তালিকা আর কমান্ড বানিয়ে দেয়; আসল কাজটা করে পাশের crm-loadtest টুল।",
+      en: "Set up a test of whether the CRM Dashboard slows down when many open it at once. It does not run here (one browser is one person) — it builds the user list and the command for the separate crm-loadtest tool, which does the work." },
+    crm_base_l: { bn: "UMS ঠিকানা (Base URL)", en: "UMS address (Base URL)" },
+    crm_count_l: { bn: "একসাথে কতজন", en: "How many at once" },
+    crm_headed: { bn: "ব্রাউজার চোখে দেখাও (headed)", en: "Show the browser (headed)" },
+    crm_users_l: { bn: "Username, Password — প্রতি লাইনে একজন", en: "Username, Password — one per line" },
+    crm_users_ph: { bn: "প্রতি লাইনে: username, password", en: "one per line: username, password" },
+    crm_import: { bn: "⬆ Excel/CSV import", en: "⬆ Excel/CSV import" },
+    crm_pairs: { bn: "{n} জন", en: "{n} users" },
+    crm_dl: { bn: "⬇ users.txt", en: "⬇ users.txt" },
+    crm_cmd_l: { bn: "এই কমান্ডটা crm-loadtest ফোল্ডারে চালাও", en: "Run this in the crm-loadtest folder" },
+    crm_copy: { bn: "⧉ Copy", en: "⧉ Copy" },
+    crm_copied: { bn: "✓ কপি হয়েছে", en: "✓ copied" },
+    crm_steps: { bn: "১) ⬇ users.txt চেপে ফাইলটা crm-loadtest ফোল্ডারে রাখো  ২) প্রথমবার: npm install  ৩) উপরের কমান্ডটা চালাও।  ছোট সংখ্যায় শুরু করো — এটা সার্ভারে সত্যিকারের চাপ ফেলে।",
+      en: "1) press ⬇ users.txt and save it into the crm-loadtest folder  2) first time only: npm install  3) run the command above.  Start with a small number — this puts real load on the server." },
     save_nodir_ask: { bn: "“ফল সেভ করো” চালু আছে, কিন্তু কোনো ফোল্ডার বাছা হয়নি।\n\nএভাবে চালালে ফল যাবে Downloads / UMS Reconciler-এ।\n\nএভাবেই চালাব?",
       en: "“Save the result” is on, but no folder has been chosen.\n\nRun anyway and the files go to Downloads / UMS Reconciler.\n\nStart like that?" },
     save_nodir_stopped: { bn: "শুরু করা হয়নি — “📁 ফোল্ডার” চেপে জায়গা বেছে নাও, নয়তো “ফল সেভ করো” বন্ধ করো।",
@@ -282,6 +295,7 @@
        during wire(), before the stored language is applied, so the save line stayed Bengali under
        an English interface. */
     updateCount(); rerenderList(); renderPreview(); paintRerun(); paintConn(); paintSaveRow();
+    crmRender();
     measureTop();   // the words in the topbar just changed, and so may its height
   }
 
@@ -2696,11 +2710,89 @@
   /* Which of CRM's own pages is open. One so far; the shape is here so that the second is a
      button and a div rather than a rearrangement. */
   let crmTab = "dash";
+  /* One username,password per line, split the way the tool itself splits them: a comma or a
+     tab, else the FIRST space, since a username holds no spaces and the password may. Blank
+     lines, # comments and a header row are dropped, so the count matches what will actually
+     run. Kept in step with crm-loadtest/loadtest.js readUsers(). */
+  function crmParse(text) {
+    const out = [];
+    String(text || "").split(/\r?\n/).forEach(function (line, i) {
+      const t = line.trim();
+      if (!t || t.charAt(0) === "#") return;
+      let u, pw;
+      if (t.indexOf(",") >= 0) { const a = t.split(","); u = a[0]; pw = a.slice(1).join(","); }
+      else if (t.indexOf("\t") >= 0) { const a = t.split("\t"); u = a[0]; pw = a.slice(1).join("\t"); }
+      else { const at = t.indexOf(" "); if (at < 0) { u = t; pw = ""; } else { u = t.slice(0, at); pw = t.slice(at + 1); } }
+      u = u.trim(); pw = pw.trim();
+      if (i === 0 && /^user(name)?$/i.test(u) && /^pass(word)?$/i.test(pw)) return;
+      if (u) out.push({ user: u, pass: pw });
+    });
+    return out;
+  }
+  /* The command stays ASCII on purpose — it is pasted into a shell, so the count is a Latin
+     number even under a Bengali interface, and the base falls back to a visible placeholder so
+     the shape is shown before anything is filled in. */
+  function crmCommand() {
+    const base = ($("crmBase").value || "").trim() || "<base-url>";
+    const n = Math.max(1, parseInt($("crmCount").value, 10) || 1);
+    const headed = $("crmHeaded").checked ? " --headed" : "";
+    return "node loadtest.js --base " + base + " --users users.txt --count " + n + headed;
+  }
+  function crmRender() {
+    if (!$("crmUsers")) return;
+    const pairs = crmParse($("crmUsers").value);
+    const badge = $("crmPairs");
+    const num = lang === "bn" ? pairs.length.toLocaleString("bn-BD") : String(pairs.length);
+    if (badge) badge.textContent = t("crm_pairs").replace("{n}", num);
+    if ($("crmDl")) $("crmDl").disabled = pairs.length === 0;
+    if ($("crmCmd")) $("crmCmd").textContent = crmCommand();
+  }
+  /* users.txt, normalised to exactly what the tool reads — its own name, not the export tag. */
+  function crmDownload() {
+    const pairs = crmParse($("crmUsers").value);
+    if (!pairs.length) return;
+    const body = pairs.map(function (x) { return x.user + "," + x.pass; }).join("\n") + "\n";
+    const u = URL.createObjectURL(new Blob([body], { type: "text/plain;charset=utf-8" }));
+    const a = document.createElement("a"); a.href = u; a.download = "users.txt";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function () { URL.revokeObjectURL(u); }, 1000);
+  }
+  function crmCopy() {
+    const cmd = crmCommand(), btn = $("crmCopy"), was = btn ? btn.textContent : "";
+    const done = function () { if (btn) { btn.textContent = t("crm_copied"); setTimeout(function () { btn.textContent = was; }, 1500); } };
+    try { navigator.clipboard.writeText(cmd).then(done, function () { legacyCopy(cmd); done(); }); }
+    catch (e) { legacyCopy(cmd); done(); }
+  }
+  function legacyCopy(text) {
+    const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
+    ta.select(); try { document.execCommand("copy"); } catch (e) {} ta.remove();
+  }
+  async function crmImport(file) {
+    try {
+      let pairs;
+      if (/\.xlsx$/i.test(file.name)) {
+        const buf = await file.arrayBuffer();
+        const x = await readXlsx(buf);
+        pairs = (x.rows || []).map(function (r) { return [r[0], r[1]]; });
+      } else {
+        const txt = await file.text();
+        pairs = parseCSV(txt).map(function (r) { return [r[0], r[1]]; });
+      }
+      const lines = pairs.map(function (r) { return String(r[0] == null ? "" : r[0]).trim() + "," + String(r[1] == null ? "" : r[1]).trim(); })
+        .filter(function (l) { return l.replace(/,/g, "").trim(); });
+      $("crmUsers").value = lines.join("\n");
+      crmRender();
+    } catch (e) { /* a bad file leaves the box as it was */ }
+  }
+
   function showCrm(tab) {
     crmTab = tab === "dash" ? "dash" : "dash";
     const set = function (id, yes) { const e = $(id); if (e) e.classList.toggle("on", yes); };
     set("crmDash", crmTab === "dash");
     set("navCrmDash", crmTab === "dash");
+    /* a convenience only — the Payment History address is usually the one under test too */
+    const cb = $("crmBase"); if (cb && !cb.value && baseUrl) { cb.value = baseUrl; }
+    crmRender();
   }
 
   /* …and the menu says whether the other section is busy, since leaving it running is the whole
@@ -2772,6 +2864,12 @@
     $("navPay").addEventListener("click", function () { showPage("pay"); });
     $("navCrm").addEventListener("click", function () { showPage("crm"); });
     $("navCrmDash").addEventListener("click", function () { showPage("crm"); showCrm("dash"); });
+    ["crmBase", "crmCount", "crmUsers"].forEach(function (id) { const e = $(id); if (e) e.addEventListener("input", crmRender); });
+    if ($("crmHeaded")) $("crmHeaded").addEventListener("change", crmRender);
+    if ($("crmFile")) $("crmFile").addEventListener("change", function (ev) { const f = ev.target.files && ev.target.files[0]; if (f) crmImport(f); ev.target.value = ""; });
+    if ($("crmDl")) $("crmDl").addEventListener("click", crmDownload);
+    if ($("crmCopy")) $("crmCopy").addEventListener("click", crmCopy);
+    crmRender();
     $("stop").addEventListener("click", function () { if (run) { run.stop = true; run.paused = false; if (run.ac) try { run.ac.abort(); } catch (e) {} } this.disabled = true; $("pause").disabled = true; $("prog").textContent = t("stopping"); });
     $("pause").addEventListener("click", function () { if (!run) return; run.paused = !run.paused; this.textContent = run.paused ? t("resume") : t("pause"); });
     if ($("saveSw")) $("saveSw").addEventListener("change", function () {
