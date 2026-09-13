@@ -95,7 +95,9 @@
   .crmtop{display:grid;grid-template-columns:minmax(190px,260px) 1fr;gap:18px;align-items:start}
   .crmtop .moderows{display:flex;flex-direction:column;gap:8px;max-width:560px}
   /* both rows fill the same width so their left AND right edges line up — no zig-zag */
-  .crmtop .moderows .row-actions{margin-top:0;width:100%;flex-wrap:nowrap}
+  /* fixed row height so showing/hiding the count in one mode does not shove the card up or down */
+  .crmtop .moderows .row-actions{margin-top:0;width:100%;flex-wrap:nowrap;min-height:var(--ctl-h)}
+  .crmtop .moderows #crmCount{height:var(--ctl-h)}
   .crmtop .moderows .seg{flex:1;display:flex}
   .crmtop .moderows .seg button{flex:1;text-align:center;white-space:nowrap}
   .crmtop .moderows .srvsw{flex:1}
