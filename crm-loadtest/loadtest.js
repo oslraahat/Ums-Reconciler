@@ -109,7 +109,8 @@ function readUsers(file) {
     else if (s.indexOf("\t") >= 0) { const p = s.split("\t"); user = p[0]; pass = p.slice(1).join("\t"); }
     else { const at = s.indexOf(" "); if (at < 0) { user = s; pass = ""; } else { user = s.slice(0, at); pass = s.slice(at + 1); } }
     user = user.trim(); pass = pass.trim();
-    if (i === 0 && /^user(name)?$/i.test(user) && /^pass(word)?$/i.test(pass)) return;  // header
+    // a column-name header, in any capitalisation ("User Name", "Login", "Pwd" …) — not a login
+    if (i === 0 && /^(user\s*(name|id)?|login|email)$/i.test(user) && /^(pass\s*(word)?|pwd)$/i.test(pass)) return;
     if (user) out.push({ user: user, pass: pass, line: i + 1 });
   });
   return out;

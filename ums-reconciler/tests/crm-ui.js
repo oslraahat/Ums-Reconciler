@@ -29,19 +29,23 @@ const check = (name, ok, extra) => {
 /* ---------- the parser agrees with the tool's own ---------- */
 {
   const APP = fs.readFileSync(path.join(ROOT, "app.js"), "utf8");
-  const at = APP.indexOf("function crmParse(");
-  let d = 0, body = "";
-  for (let j = APP.indexOf("{", at); j < APP.length; j++) {
-    if (APP[j] === "{") d++;
-    else if (APP[j] === "}") { d--; if (!d) { body = APP.slice(at, j + 1); break; } }
+  function lift(name) {
+    const at = APP.indexOf("function " + name + "(");
+    let d = 0;
+    for (let j = APP.indexOf("{", at); j < APP.length; j++) {
+      if (APP[j] === "{") d++;
+      else if (APP[j] === "}") { d--; if (!d) return APP.slice(at, j + 1); }
+    }
+    return "";
   }
-  const crmParse = new Function(body + "\nreturn crmParse;")();
+  /* crmParse leans on crmIsHeader, so both come across */
+  const crmParse = new Function(lift("crmIsHeader") + "\n" + lift("crmParse") + "\nreturn crmParse;")();
 
   const lt = require(path.join(ROOT, "..", "crm-loadtest", "loadtest.js"));
   const tmp = path.join(os.tmpdir(), "crm-parse-" + Date.now() + ".txt");
 
   const sample = [
-    "username,password",          // header, skipped by both
+    "UserName,Password",          // Excel's column-name row, in real capitalisation — dropped by both
     "# a comment",                // skipped
     "",                           // blank
     "alice,pw-a",                 // comma
@@ -65,6 +69,10 @@ const check = (name, ok, extra) => {
   check("…the last-space split keeps a spaced password whole",
     mine[2] && mine[2].user === "carol" && mine[2].pass === "a long pass phrase",   // first-space split
     JSON.stringify(mine[2]));
+  check("…the Excel column-name row is dropped, not taken as a login",
+    mine[0] && mine[0].user === "alice", JSON.stringify(mine[0]));
+  check("…even 'User Name' / 'Pwd' style headers are recognised",
+    crmParse("User Name,Pwd\nalice,pw-a").length === 1, JSON.stringify(crmParse("User Name,Pwd\nalice,pw-a")));
 }
 
 const CHROME = ["C:/Program Files/Google/Chrome/Application/chrome.exe",

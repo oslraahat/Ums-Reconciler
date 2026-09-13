@@ -2734,6 +2734,12 @@
      tab, else the FIRST space, since a username holds no spaces and the password may. Blank
      lines, # comments and a header row are dropped, so the count matches what will actually
      run. Kept in step with crm-loadtest/loadtest.js readUsers(). */
+  /* Excel/Sheets almost always carry a header row (UserName, Password — with any capitalisation,
+     an inner space like "User Name", or "Login"/"Pwd"). It is not a login, so it is dropped: at
+     import time by crmFillRows so the box never shows it, and here too for pasted text. */
+  function crmIsHeader(u, pw) {
+    return /^(user\s*(name|id)?|login|email)$/i.test(u) && /^(pass\s*(word)?|pwd)$/i.test(pw);
+  }
   function crmParse(text) {
     const out = [];
     String(text || "").split(/\r?\n/).forEach(function (line, i) {
@@ -2744,7 +2750,7 @@
       else if (t.indexOf("\t") >= 0) { const a = t.split("\t"); u = a[0]; pw = a.slice(1).join("\t"); }
       else { const at = t.indexOf(" "); if (at < 0) { u = t; pw = ""; } else { u = t.slice(0, at); pw = t.slice(at + 1); } }
       u = u.trim(); pw = pw.trim();
-      if (i === 0 && /^user(name)?$/i.test(u) && /^pass(word)?$/i.test(pw)) return;
+      if (i === 0 && crmIsHeader(u, pw)) return;
       if (u) out.push({ user: u, pass: pw });
     });
     return out;
@@ -2799,7 +2805,10 @@
      username and password, and write them into the box the paste option already fills — so the
      three ways share one destination and one live count. */
   function crmFillRows(rows) {
-    const lines = (rows || []).map(function (r) { return String(r[0] == null ? "" : r[0]).trim() + "," + String(r[1] == null ? "" : r[1]).trim(); })
+    rows = (rows || []).slice();
+    if (rows.length && crmIsHeader(String(rows[0][0] == null ? "" : rows[0][0]).trim(),
+      String(rows[0][1] == null ? "" : rows[0][1]).trim())) rows.shift();   // drop the column-name row
+    const lines = rows.map(function (r) { return String(r[0] == null ? "" : r[0]).trim() + "," + String(r[1] == null ? "" : r[1]).trim(); })
       .filter(function (l) { return l.replace(/,/g, "").trim(); });
     $("crmUsers").value = lines.join("\n");
     crmRender();
