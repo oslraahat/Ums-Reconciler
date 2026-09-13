@@ -134,8 +134,11 @@
     crm_dash_h: { bn: "CRM · Dashboard", en: "CRM · Dashboard" },
     /* CRM · Dashboard is a load-test configurator: it cannot run the test — one browser is one
        session — so it builds the users.txt and the command for the separate crm-loadtest tool. */
-    crm_lt_intro: { bn: "অনেকজন একসাথে CRM Dashboard খুললে ধীর হয় কিনা — সেটা মাপার সাজানো। এখান থেকে চলে না (এক ব্রাউজার = একজন), তাই username-তালিকা আর কমান্ড বানিয়ে দেয়; আসল কাজটা করে পাশের crm-loadtest টুল।",
-      en: "Set up a test of whether the CRM Dashboard slows down when many open it at once. It does not run here (one browser is one person) — it builds the user list and the command for the separate crm-loadtest tool, which does the work." },
+    crm_lt_intro: { bn: "অনেকজন একসাথে — বা একজন একজন করে — CRM Dashboard খুললে ধীর হয় কিনা মেপে দেখো। নিচে ঠিকানা আর username-তালিকা দাও, কীভাবে ভিজিট করবে বাছো, তারপর ▶ চালাও। লগইন করে, Dashboard খোলে, সময় মেপে ফল নিচে দেখায়। (এক্সটেনশন নিজে চালাতে পারে না, তাই পাশের crm-loadtest সহায়ক কাজটা করে — প্রথমবার একবার ইনস্টল লাগে।)",
+      en: "See whether the CRM Dashboard slows down when many — or one at a time — open it. Give the address and the user list below, choose how to visit, then press ▶ Run: it logs in, opens the Dashboard, times it, and shows the result below. (The extension cannot run it itself, so the crm-loadtest helper beside it does — a one-time install the first time.)" },
+    crm_mode_l: { bn: "কীভাবে ভিজিট করবে", en: "How to visit" },
+    crm_parallel: { bn: "একসাথে (Parallel)", en: "All at once (Parallel)" },
+    crm_sequential: { bn: "একজন একজন (Sequential)", en: "One at a time (Sequential)" },
     crm_base_l: { bn: "UMS ঠিকানা (Base URL)", en: "UMS address (Base URL)" },
     crm_count_l: { bn: "একসাথে কতজন", en: "How many at once" },
     crm_headed: { bn: "ব্রাউজার চোখে দেখাও (headed)", en: "Show the browser (headed)" },
@@ -2745,9 +2748,8 @@
      the shape is shown before anything is filled in. */
   function crmCommand() {
     const base = ($("crmBase").value || "").trim() || "<base-url>";
-    const n = Math.max(1, parseInt($("crmCount").value, 10) || 1);
     const headed = $("crmHeaded").checked ? " --headed" : "";
-    return "node loadtest.js --base " + base + " --users users.txt --count " + n + headed;
+    return "node loadtest.js --base " + base + " --users users.txt --count " + crmCount() + headed;
   }
   function crmRender() {
     if (!$("crmUsers")) return;
@@ -2814,6 +2816,20 @@
      there disconnects at once with nothing sent, which is how "not installed" is told from a
      real run. Every line the host forwards is a line loadtest.js printed, so the report reads
      exactly as it would in a terminal. */
+  /* Parallel opens the Dashboard for everyone at once — the concurrency the test is about.
+     Sequential is one login and one visit at a time, which is --count 1 to the tool: a baseline,
+     or just a check that the login works. The count only means anything in parallel, so it hides
+     in sequential. */
+  let crmMode = "parallel";
+  function crmSetMode(m) {
+    crmMode = m === "sequential" ? "sequential" : "parallel";
+    const par = crmMode === "parallel";
+    if ($("crmPar")) $("crmPar").classList.toggle("on", par);
+    if ($("crmSeq")) $("crmSeq").classList.toggle("on", !par);
+    if ($("crmCountWrap")) $("crmCountWrap").style.display = par ? "inline-flex" : "none";
+    crmRender();
+  }
+  function crmCount() { return crmMode === "sequential" ? 1 : Math.max(1, parseInt($("crmCount").value, 10) || 1); }
   const CRM_HOST = "com.umsreconciler.crmloadtest";
   let crmPort = null;
   function crmOutLine(s) { const o = $("crmOut"); if (!o) return; o.style.display = ""; o.textContent += (o.textContent ? "\n" : "") + s; o.scrollTop = o.scrollHeight; }
@@ -2841,7 +2857,7 @@
       crmPort = null; crmBusy(false);
       if (!started) { crmOutLine(t("crm_host_missing")); if (err && err.message) crmOutLine("(" + err.message + ")"); }
     });
-    crmPort.postMessage({ base: base, count: Math.max(1, parseInt($("crmCount").value, 10) || 1),
+    crmPort.postMessage({ base: base, count: crmCount(),
       headed: $("crmHeaded").checked, users: users });
   }
 
@@ -2931,6 +2947,9 @@
     if ($("crmLink")) $("crmLink").addEventListener("keydown", function (e) { if (e.key === "Enter") crmImportSheet(); });
     if ($("crmDl")) $("crmDl").addEventListener("click", crmDownload);
     if ($("crmRun")) $("crmRun").addEventListener("click", crmRun);
+    if ($("crmPar")) $("crmPar").addEventListener("click", function () { crmSetMode("parallel"); });
+    if ($("crmSeq")) $("crmSeq").addEventListener("click", function () { crmSetMode("sequential"); });
+    crmSetMode(crmMode);
     if ($("crmCopy")) $("crmCopy").addEventListener("click", crmCopy);
     crmRender();
     $("stop").addEventListener("click", function () { if (run) { run.stop = true; run.paused = false; if (run.ac) try { run.ac.abort(); } catch (e) {} } this.disabled = true; $("pause").disabled = true; $("prog").textContent = t("stopping"); });

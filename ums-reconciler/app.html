@@ -85,6 +85,12 @@
     border-radius:10px;padding:12px 14px;font:12.5px/1.5 ui-monospace,Consolas,monospace;
     color:var(--text);white-space:pre-wrap;word-break:break-word}
   body.light .crmout{background:#0f1320;color:#eef1fb}
+  /* two choices, one control — clearer than a toggle whose "off" you have to guess */
+  .seg{display:inline-flex;border:1px solid var(--line);border-radius:9px;overflow:hidden;background:var(--fld)}
+  .seg button{border:none;background:transparent;color:var(--mut);cursor:pointer;
+    padding:9px 15px;font:600 12.5px/1 inherit}
+  .seg button + button{border-left:1px solid var(--line)}
+  .seg button.on{background:var(--accent);color:#fff}
   body.light .nav button:hover{background:#eceafe}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px;
         box-shadow:0 8px 24px rgba(0,0,0,.25)}
@@ -522,17 +528,8 @@
             <div class="ch"><h2 data-i18n="crm_dash_h">CRM · Dashboard</h2></div>
             <p class="hint" data-i18n="crm_lt_intro" style="margin:0 0 14px"></p>
 
-            <!-- base | headed | count, in that order — the toggle sits between the two the way
-                 it is set. align-items:end lines the pill up with the inputs, which carry a label
-                 above; the blank label over the toggle reserves that same top row. -->
-            <div class="grid" style="grid-template-columns:minmax(200px,1.5fr) auto minmax(110px,.7fr);align-items:end">
-              <div><label data-i18n="crm_base_l">UMS ঠিকানা (Base URL)</label>
-                <input id="crmBase" spellcheck="false" placeholder="https://ums-41.osl.team"></div>
-              <div><label>&nbsp;</label>
-                <label class="srvsw" style="height:var(--ctl-h)"><input type="checkbox" id="crmHeaded"><i class="tg"></i><span data-i18n="crm_headed">ব্রাউজার চোখে দেখাও (headed)</span></label></div>
-              <div><label data-i18n="crm_count_l">একসাথে কতজন</label>
-                <input id="crmCount" type="number" min="1" max="500" value="25"></div>
-            </div>
+            <div><label data-i18n="crm_base_l">UMS ঠিকানা (Base URL)</label>
+              <input id="crmBase" spellcheck="false" placeholder="https://ums-41.osl.team"></div>
 
             <div style="margin-top:14px"><label data-i18n="crm_users_l">Username, Password — প্রতি লাইনে একজন</label>
               <textarea id="crmUsers" class="paste" data-ph="crm_users_ph" style="min-height:120px"></textarea></div>
@@ -548,7 +545,21 @@
               <span class="note" id="crmNote" style="display:none;margin:0;padding:6px 10px;text-align:left;flex:1;min-width:0"></span>
             </div>
 
-            <div class="row-actions" style="margin-top:16px;align-items:center">
+            <div style="margin-top:16px"><label data-i18n="crm_mode_l">কীভাবে ভিজিট করবে</label>
+              <div class="row-actions" style="align-items:center;gap:12px">
+                <div class="seg">
+                  <button type="button" id="crmPar" class="on" data-i18n="crm_parallel">একসাথে (Parallel)</button>
+                  <button type="button" id="crmSeq" data-i18n="crm_sequential">একজন একজন (Sequential)</button>
+                </div>
+                <span id="crmCountWrap" style="display:inline-flex;align-items:center;gap:8px">
+                  <span class="hint" style="margin:0" data-i18n="crm_count_l">একসাথে কতজন</span>
+                  <input id="crmCount" type="number" min="1" max="500" value="25" style="width:88px">
+                </span>
+                <label class="srvsw"><input type="checkbox" id="crmHeaded"><i class="tg"></i><span data-i18n="crm_headed">ব্রাউজার দেখাও</span></label>
+              </div>
+            </div>
+
+            <div class="row-actions" style="margin-top:14px;align-items:center">
               <button class="btn p" id="crmRun" data-i18n="crm_run">▶ Run</button>
               <span class="hint" data-i18n="crm_run_hint" style="margin:0"></span>
             </div>

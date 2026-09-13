@@ -132,6 +132,15 @@ addEventListener("load", function () {
     headed.checked = true; fire(headed, "change");
     out.cmdHeaded = document.getElementById("crmCmd").textContent;
 
+    /* the mode control: sequential is --count 1 and hides the count; back to parallel restores it */
+    document.getElementById("crmSeq").click();
+    out.cmdSeq = document.getElementById("crmCmd").textContent;
+    out.seqOn = document.getElementById("crmSeq").classList.contains("on");
+    out.countHidden = getComputedStyle(document.getElementById("crmCountWrap")).display;
+    document.getElementById("crmPar").click();
+    out.cmdPar = document.getElementById("crmCmd").textContent;
+    out.countShown = getComputedStyle(document.getElementById("crmCountWrap")).display;
+
     document.getElementById("crmDl").click();
     setTimeout(function () {
       out.dl = window.__dl[0] || null;
@@ -186,6 +195,14 @@ srv.listen(0, "127.0.0.1", () => {
         o.cmd === "node loadtest.js --base https://ums-41.osl.team --users users.txt --count 40", o.cmd);
       check("…the count is a plain number, not localized into another script", /--count 40\b/.test(o.cmd), o.cmd);
       check("the headed toggle reaches the command", / --headed$/.test(o.cmdHeaded), o.cmdHeaded);
+
+      console.log("");
+      check("parallel is the default, and it carries the typed count", /--count 40/.test(o.cmd), o.cmd);
+      check("Sequential switches the command to --count 1", /--count 1( --headed)?$/.test(o.cmdSeq), o.cmdSeq);
+      check("…and marks itself the chosen one", o.seqOn === true, String(o.seqOn));
+      check("…and hides the count, which means nothing one at a time", o.countHidden === "none", o.countHidden);
+      check("back to Parallel restores the count in the command", /--count 40/.test(o.cmdPar), o.cmdPar);
+      check("…and the count field returns", o.countShown !== "none", o.countShown);
 
       console.log("");
       check("⬇ users.txt hands over a file named users.txt", o.dl && o.dl.name === "users.txt", o.dl && o.dl.name);
