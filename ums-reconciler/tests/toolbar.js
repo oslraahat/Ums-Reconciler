@@ -66,8 +66,11 @@ check("…and opening the Batch page", /chrome\.runtime\.getURL\(PAGE\)/.test(BG
     /chrome\.runtime\.getContexts/.test(CODE) && !/chrome\.tabs\.query/.test(CODE), "background.js");
   check("…so \"tabs\" is not in the permissions",
     (M.permissions || []).indexOf("tabs") < 0, (M.permissions || []).join(", "));
-  check("…and the permission list has not grown otherwise",
-    JSON.stringify(M.permissions) === JSON.stringify(["storage", "downloads"]),
+  /* nativeMessaging is a deliberate third: the CRM · Dashboard Run button reaches a local host
+     that runs the load test, since the extension itself cannot. It carries no browsing-data
+     prompt. The guard stays — the set is exactly these three and nothing has crept in beside them. */
+  check("…and the permission list is exactly the three it should be",
+    JSON.stringify(M.permissions) === JSON.stringify(["storage", "downloads", "nativeMessaging"]),
     JSON.stringify(M.permissions));
   /* an older Chrome has no getContexts; the click must still open the page */
   check("…and where getContexts is missing, the click still works",

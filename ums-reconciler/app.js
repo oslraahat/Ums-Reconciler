@@ -148,6 +148,15 @@
     crm_dl: { bn: "⬇ users.txt", en: "⬇ users.txt" },
     crm_cmd_l: { bn: "এই কমান্ডটা crm-loadtest ফোল্ডারে চালাও", en: "Run this in the crm-loadtest folder" },
     crm_copy: { bn: "⧉ Copy", en: "⧉ Copy" },
+    crm_run: { bn: "▶ চালাও", en: "▶ Run" },
+    crm_running: { bn: "⏳ চলছে…", en: "⏳ running…" },
+    crm_run_hint: { bn: "লগইন করে Dashboard-এ চাপ ফেলে মেপে দেখে — ফল নিচে আসবে।", en: "Logs in, loads the Dashboard together, and times it — the report appears below." },
+    crm_manual_sum: { bn: "▸ অথবা নিজে টার্মিনালে চালাও (সহায়ক ছাড়া)", en: "▸ or run it yourself in a terminal (no helper)" },
+    crm_need_users: { bn: "আগে username, password দাও", en: "add some username,password lines first" },
+    crm_need_base: { bn: "UMS ঠিকানা (Base URL) দাও", en: "fill in the UMS address first" },
+    crm_host_missing: { bn: "সহায়ক প্রোগ্রামটা ইনস্টল করা নেই। একবার crm-loadtest/host ফোল্ডারে টার্মিনাল খুলে চালাও:  node install.js  — তারপর এক্সটেনশন reload করো। (অথবা নিচের কমান্ডটা নিজে চালাও।)",
+      en: "The helper is not installed. Open a terminal in crm-loadtest/host once and run:  node install.js  — then reload the extension. (Or run the command below yourself.)" },
+    crm_done: { bn: "✓ শেষ", en: "✓ done" },
     crm_copied: { bn: "✓ কপি হয়েছে", en: "✓ copied" },
     crm_steps: { bn: "১) ⬇ users.txt চেপে ফাইলটা crm-loadtest ফোল্ডারে রাখো  ২) প্রথমবার: npm install  ৩) উপরের কমান্ডটা চালাও।  ছোট সংখ্যায় শুরু করো — এটা সার্ভারে সত্যিকারের চাপ ফেলে।",
       en: "1) press ⬇ users.txt and save it into the crm-loadtest folder  2) first time only: npm install  3) run the command above.  Start with a small number — this puts real load on the server." },
@@ -2801,6 +2810,40 @@
       }).catch(function (e) { crmSay(t("imp_fail") + " — " + String((e && e.message) || e)); });
   }
   function crmSay(msg) { const e = $("crmNote"); if (e) { e.textContent = msg || ""; e.style.display = msg ? "" : "none"; } }
+  /* The button. connectNative spawns the host (install.js registered it); a host that is not
+     there disconnects at once with nothing sent, which is how "not installed" is told from a
+     real run. Every line the host forwards is a line loadtest.js printed, so the report reads
+     exactly as it would in a terminal. */
+  const CRM_HOST = "com.umsreconciler.crmloadtest";
+  let crmPort = null;
+  function crmOutLine(s) { const o = $("crmOut"); if (!o) return; o.style.display = ""; o.textContent += (o.textContent ? "\n" : "") + s; o.scrollTop = o.scrollHeight; }
+  function crmBusy(on) { const b = $("crmRun"); if (b) { b.disabled = on; b.textContent = t(on ? "crm_running" : "crm_run"); } }
+  function crmRun() {
+    if (crmPort) return;                              // a run is already going
+    const users = crmParse($("crmUsers").value);
+    if (!users.length) { crmSay(t("crm_need_users")); return; }
+    const base = ($("crmBase").value || "").trim();
+    if (!base) { crmSay(t("crm_need_base")); return; }
+    crmSay("");
+    const out = $("crmOut"); if (out) { out.style.display = ""; out.textContent = ""; }
+    crmBusy(true);
+    let started = false;
+    try { crmPort = chrome.runtime.connectNative(CRM_HOST); }
+    catch (e) { crmBusy(false); crmOutLine(t("crm_host_missing")); crmPort = null; return; }
+    crmPort.onMessage.addListener(function (m) {
+      started = true;
+      if (m.type === "out") crmOutLine(m.text);
+      else if (m.type === "error") crmOutLine("⚠ " + m.text);
+      else if (m.type === "done") crmOutLine("\n" + t("crm_done"));
+    });
+    crmPort.onDisconnect.addListener(function () {
+      const err = chrome.runtime.lastError;
+      crmPort = null; crmBusy(false);
+      if (!started) { crmOutLine(t("crm_host_missing")); if (err && err.message) crmOutLine("(" + err.message + ")"); }
+    });
+    crmPort.postMessage({ base: base, count: Math.max(1, parseInt($("crmCount").value, 10) || 1),
+      headed: $("crmHeaded").checked, users: users });
+  }
 
   function showCrm(tab) {
     crmTab = tab === "dash" ? "dash" : "dash";
@@ -2887,6 +2930,7 @@
     if ($("crmLinkBtn")) $("crmLinkBtn").addEventListener("click", crmImportSheet);
     if ($("crmLink")) $("crmLink").addEventListener("keydown", function (e) { if (e.key === "Enter") crmImportSheet(); });
     if ($("crmDl")) $("crmDl").addEventListener("click", crmDownload);
+    if ($("crmRun")) $("crmRun").addEventListener("click", crmRun);
     if ($("crmCopy")) $("crmCopy").addEventListener("click", crmCopy);
     crmRender();
     $("stop").addEventListener("click", function () { if (run) { run.stop = true; run.paused = false; if (run.ac) try { run.ac.abort(); } catch (e) {} } this.disabled = true; $("pause").disabled = true; $("prog").textContent = t("stopping"); });

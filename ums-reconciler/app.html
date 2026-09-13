@@ -79,6 +79,12 @@
     border:1px solid var(--line);border-radius:10px;padding:11px 12px;
     font:13px ui-monospace,Consolas,monospace;color:var(--text)}
   .cmdbox .btn{flex:none}
+  /* the host's output, streamed line by line — monospace, and it scrolls inside itself so a
+     long report does not push the page down forever */
+  .crmout{margin-top:10px;max-height:340px;overflow:auto;background:#0b0e18;border:1px solid var(--line);
+    border-radius:10px;padding:12px 14px;font:12.5px/1.5 ui-monospace,Consolas,monospace;
+    color:var(--text);white-space:pre-wrap;word-break:break-word}
+  body.light .crmout{background:#0f1320;color:#eef1fb}
   body.light .nav button:hover{background:#eceafe}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px;
         box-shadow:0 8px 24px rgba(0,0,0,.25)}
@@ -542,9 +548,17 @@
               <span class="note" id="crmNote" style="display:none;margin:0;padding:6px 10px;text-align:left;flex:1;min-width:0"></span>
             </div>
 
-            <div style="margin-top:16px"><label data-i18n="crm_cmd_l">এই কমান্ডটা crm-loadtest ফোল্ডারে চালাও</label>
-              <div class="cmdbox"><code id="crmCmd"></code><button class="btn g" id="crmCopy" data-i18n="crm_copy">⧉ Copy</button></div></div>
-            <p class="hint" data-i18n="crm_steps" style="white-space:pre-line"></p>
+            <div class="row-actions" style="margin-top:16px;align-items:center">
+              <button class="btn p" id="crmRun" data-i18n="crm_run">▶ Run</button>
+              <span class="hint" data-i18n="crm_run_hint" style="margin:0"></span>
+            </div>
+            <pre class="crmout" id="crmOut" style="display:none"></pre>
+
+            <details style="margin-top:16px"><summary class="hint" data-i18n="crm_manual_sum" style="cursor:pointer"></summary>
+              <div style="margin-top:8px"><label data-i18n="crm_cmd_l">এই কমান্ডটা crm-loadtest ফোল্ডারে চালাও</label>
+                <div class="cmdbox"><code id="crmCmd"></code><button class="btn g" id="crmCopy" data-i18n="crm_copy">⧉ Copy</button></div></div>
+              <p class="hint" data-i18n="crm_steps" style="white-space:pre-line"></p>
+            </details>
           </div>
         </div>
       </div>
