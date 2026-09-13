@@ -1,0 +1,12 @@
+# One user per line: username then password.
+# A comma, a tab, or the last space separates the two — a password may contain
+# spaces, a username does not, so the LAST space is the split point.
+# Blank lines and lines starting with # are ignored. A "username,password"
+# header line is skipped.
+#
+# Copy this to users.txt and put your real accounts in it. Keep that file out of
+# git — it is already covered by .gitignore.
+
+alice,secret-a
+bob,secret-b
+carol,a longer pass phrase

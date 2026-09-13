@@ -1,0 +1,5 @@
+# real credentials never go in git
+users.txt
+*.csv
+# playwright-core and its lockfile-installed deps
+node_modules/

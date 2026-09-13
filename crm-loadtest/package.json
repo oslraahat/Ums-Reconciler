@@ -1,0 +1,15 @@
+{
+  "name": "crm-loadtest",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Load-test the UMS CRM Dashboard: N isolated logins in parallel, measure how slow the page gets under concurrency.",
+  "type": "commonjs",
+  "bin": { "crm-loadtest": "loadtest.js" },
+  "scripts": {
+    "start": "node loadtest.js",
+    "selftest": "node selftest.js"
+  },
+  "dependencies": {
+    "playwright-core": "^1.48.0"
+  }
+}
