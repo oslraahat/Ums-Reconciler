@@ -2907,7 +2907,7 @@
     if (crmMode === "sequential") {
       if (crmCursor >= users.length) { crmCursor = 0; crmOutLine(t("crm_next_wrap")); }
       batch = [users[crmCursor]]; count = 1; crmCursor++;
-    } else { batch = users; count = crmCount(); }
+    } else { batch = users.slice(0, crmCount()); count = batch.length; }   // visit exactly this many, all at once
     crmInFlight = true; crmBusy(true);
     if ($("crmStop")) $("crmStop").disabled = false;
     crmPort.postMessage({ base: base, count: count, headed: $("crmHeaded").checked,
