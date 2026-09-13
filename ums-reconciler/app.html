@@ -93,8 +93,12 @@
   .seg button.on{background:var(--accent);color:#fff}
   /* base on the left (kept narrow), the "how to visit" choices stacked on the right */
   .crmtop{display:grid;grid-template-columns:minmax(190px,260px) 1fr;gap:18px;align-items:start}
-  .crmtop .moderows{display:flex;flex-direction:column;gap:8px}
-  .crmtop .moderows .row-actions{margin-top:0}
+  .crmtop .moderows{display:flex;flex-direction:column;gap:8px;max-width:560px}
+  /* both rows fill the same width so their left AND right edges line up — no zig-zag */
+  .crmtop .moderows .row-actions{margin-top:0;width:100%;flex-wrap:nowrap}
+  .crmtop .moderows .seg{flex:1;display:flex}
+  .crmtop .moderows .seg button{flex:1;text-align:center;white-space:nowrap}
+  .crmtop .moderows .srvsw{flex:1}
   body.light .nav button:hover{background:#eceafe}
   .card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:18px 20px;margin-bottom:18px;
         box-shadow:0 8px 24px rgba(0,0,0,.25)}
