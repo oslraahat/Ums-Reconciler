@@ -125,6 +125,16 @@
        answer for someone who never wanted a folder. But it is a poor thing to find out after a
        run instead of before one, so it is put as a question while the folder can still be
        chosen, and Start says why it did nothing if the answer is no. */
+    /* The menu, and the two places it leads. */
+    nav_head: { bn: "বিভাগ", en: "Sections" },
+    nav_pay: { bn: "Payment History", en: "Payment History" },
+    nav_crm: { bn: "CRM", en: "CRM" },
+    crm_sub: { bn: "CRM — আলাদা নিয়মে কাজ", en: "CRM — a different set of rules" },
+    crm_h: { bn: "CRM", en: "CRM" },
+    /* An empty section reads as a broken one. Say what is missing, and say the thing somebody
+       standing here actually needs to know: that coming to look did not stop their run. */
+    crm_note: { bn: "এই অংশটা এখনো বানানো হয়নি — এখানে কী নিয়মে কাজ হবে সেটা ঠিক হলে তবেই।\n\nPayment History-র রান এই একই পাতায় চলে, তাই এখানে এসে দেখলে কিছুই থামে না; চললে বাঁদিকের মেনুতে সবুজ বিন্দু থাকবে।",
+      en: "This section has not been built yet — it waits on what the rules here should be.\n\nA Payment History run lives in this same page, so coming here stops nothing; while one is going the menu keeps a green dot beside it." },
     save_nodir_ask: { bn: "“ফল সেভ করো” চালু আছে, কিন্তু কোনো ফোল্ডার বাছা হয়নি।\n\nএভাবে চালালে ফল যাবে Downloads / UMS Reconciler-এ।\n\nএভাবেই চালাব?",
       en: "“Save the result” is on, but no folder has been chosen.\n\nRun anyway and the files go to Downloads / UMS Reconciler.\n\nStart like that?" },
     save_nodir_stopped: { bn: "শুরু করা হয়নি — “📁 ফোল্ডার” চেপে জায়গা বেছে নাও, নয়তো “ফল সেভ করো” বন্ধ করো।",
@@ -1164,6 +1174,7 @@
     $("prog").textContent = "⏳ 0/" + T.total + " · " + t("p_running");
     if (!resumed) await ckStart();
     $("run").disabled = true; $("stop").disabled = false; $("pause").disabled = false; $("pause").textContent = t("pause");
+    paintBusy();
     $("html").disabled = true; $("xlsx").disabled = true; $("raw").disabled = true;
     const t0 = Date.now();
     /* Where this run's own counting begins. A resumed run arrives with T.done already holding
@@ -1365,6 +1376,7 @@
          them while a run is still going and would leave them all disabled. */
       run = null;
       $("run").disabled = !entries.length; $("stop").disabled = true; $("pause").disabled = true;
+      paintBusy();
       paintRerun();
     }
   }
@@ -2647,6 +2659,29 @@
     try { chrome.storage.local.set({ srvMode: srvMode }); } catch (e) {}
   }
 
+  /* ---------- sections ----------
+     Both live in this document and one of them is shown. Nothing is torn down on the way out:
+     a run in Payment History keeps its workers, its answers and its list, because none of that
+     survives a page that is left. */
+  let page = "pay";
+  function showPage(p) {
+    page = p === "crm" ? "crm" : "pay";
+    const on = page === "pay";
+    const set = function (id, yes) { const e = $(id); if (e) e.classList.toggle("on", yes); };
+    set("pgPay", on); set("pgCrm", !on);
+    set("navPay", on); set("navCrm", !on);
+    /* The subtitle belongs to whichever section is open. Written as a data-i18n key rather than
+       as text, so applyLang() keeps it right when the language changes under it. */
+    const sub = $("sub");
+    if (sub) { sub.setAttribute("data-i18n", on ? "subtitle" : "crm_sub"); sub.textContent = t(on ? "subtitle" : "crm_sub"); }
+    try { chrome.storage.local.set({ page: page }); } catch (e) {}
+  }
+  /* …and the menu says whether the other section is busy, since leaving it running is the whole
+     point of keeping both in one page */
+  function paintBusy() {
+    const b = $("navPay"); if (b) b.classList.toggle("running", !!run);
+  }
+
   // ---------- wire ----------
   /* toggle, not assign: body also carries .srv, which says the tiles are counting a different set
      of things, and an outright assignment threw that away every time the theme was switched. */
@@ -2705,6 +2740,8 @@
     /* not startRun directly: a click handler is handed the MouseEvent, and startRun's first
        argument means "this is a resumed run" — an event object is a truthy one. */
     $("run").addEventListener("click", startPressed);
+    $("navPay").addEventListener("click", function () { showPage("pay"); });
+    $("navCrm").addEventListener("click", function () { showPage("crm"); });
     $("stop").addEventListener("click", function () { if (run) { run.stop = true; run.paused = false; if (run.ac) try { run.ac.abort(); } catch (e) {} } this.disabled = true; $("pause").disabled = true; $("prog").textContent = t("stopping"); });
     $("pause").addEventListener("click", function () { if (!run) return; run.paused = !run.paused; this.textContent = run.paused ? t("resume") : t("pause"); });
     if ($("saveSw")) $("saveSw").addEventListener("change", function () {
@@ -2821,8 +2858,9 @@
     });
   }
 
-  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName"], function (o) { if (o.manualOk) manualOk = o.manualOk;
+  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page"], function (o) { if (o.manualOk) manualOk = o.manualOk;
     saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
+    showPage(o.page === "crm" ? "crm" : "pay");
     /* The handle comes back from IndexedDB, but the permission on it may not have — dirUsable()
        decides that at the end of the run, when it matters. */
     idb(function (st) { return st.get("dir"); }).then(function (h) { if (h) dirHandle = h; paintSaveRow(); }).catch(function () { paintSaveRow(); }); if (o.baseUrl) baseUrl = o.baseUrl; if (o.baseUrl2) baseUrl2 = o.baseUrl2; srvMode = o.srvMode === true; if (o.appConc) conc = o.appConc;
