@@ -162,7 +162,7 @@
     crm_host_missing: { bn: "সহায়ক প্রোগ্রামটা ইনস্টল করা নেই। একবার crm-loadtest/host ফোল্ডারে টার্মিনাল খুলে চালাও:  node install.js  — তারপর এক্সটেনশন reload করো। (অথবা নিচের কমান্ডটা নিজে চালাও।)",
       en: "The helper is not installed. Open a terminal in crm-loadtest/host once and run:  node install.js  — then reload the extension. (Or run the command below yourself.)" },
     crm_close: { bn: "ভিজিটের পর বন্ধ করো", en: "Close after each visit" },
-    crm_stop: { bn: "✕ ব্রাউজার বন্ধ", en: "✕ Close browser" },
+    crm_stop: { bn: "✕ ব্রাউজার বন্ধ", en: "✕ Close Browser" },
     crm_closed: { bn: "— ব্রাউজার বন্ধ, আবার প্রথম থেকে —", en: "— browser closed, back to the start —" },
     crm_next: { bn: "পরের: {u}  ({n}/{m})", en: "next: {u}  ({n}/{m})" },
     crm_next_wrap: { bn: "সব শেষ — আবার প্রথম জন থেকে", en: "reached the end — starts over from the first" },
