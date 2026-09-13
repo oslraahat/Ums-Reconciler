@@ -1,4 +1,4 @@
-/* UMS Payment Reconciler — verification logic.
+/* UMS Reconciler — verification logic.
  *
  * This file is the CLI tool's logic, moved into the browser as-is:
  *   Desktop/UMS-Payment-Verify/lib/parse.js     → money, norm, spread, PW_COLS/CW_COLS, parseTable

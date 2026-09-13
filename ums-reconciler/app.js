@@ -1933,7 +1933,7 @@
         "<td>" + xesc(r.details || "") + "</td></tr>";
     });
     const html = '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
-      '<title>UMS Payment Reconciler — Report</title><style>' +
+      '<title>UMS Reconciler — Report</title><style>' +
       'body{margin:0;background:#0d0f1a;color:#eef1fb;padding:24px;' +
       /* the same stack the app itself uses — this file is mostly Bengali and is the one that
          gets mailed to people whose machines are not this one */
@@ -1975,7 +1975,7 @@
       '.hide{display:none}' +
       '@media print{.bar{display:none}body{background:#fff;color:#000}th{background:#eee}}' +
       '</style></head><body>' +
-      '<h1>UMS Payment Reconciler — Report</h1>' +
+      '<h1>UMS Reconciler — Report</h1>' +
       '<p class="sub">' + xesc(baseUrl) + ' · ' + nStu + ' students · ' + rows.length + ' rows · ' + xesc(new Date().toLocaleString()) + '</p>' +
       '<div class="chips">' + chip("ok") + chip("no") + chip("error") + chip("cw") + chip("zero") + chip("nf") + '</div>' +
       '<div class="bar">' +
@@ -2259,7 +2259,7 @@
        on ink. A blank line above each heading and one short rule under it separate the students
        just as clearly, and what is left is the cells, which are why the file exists. */
     const NL = "\n", THIN = "-".repeat(20) + NL;
-    let out = "UMS Payment Reconciler " + ver() + " · " + new Date().toLocaleString() +
+    let out = "UMS Reconciler " + ver() + " · " + new Date().toLocaleString() +
       " · " + rows.length + " flagged" + NL + baseUrl + NL;
     rows.forEach(function (r) {
       out += NL +

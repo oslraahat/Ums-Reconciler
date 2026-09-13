@@ -261,7 +261,7 @@ const U = RECG.UMSREC;
      along, and one bit of information does not need a sentence */
   check("the running state is a dot, not a sentence",
     /id="umsrec-dot"/.test(markup) && !/\(stopped\)/.test(SRC),
-    (/UMS Payment Reconciler[^"]*/.exec(SRC) || [""])[0]);
+    (/UMS Reconciler[^"]*/.exec(SRC) || [""])[0]);
   check("…coloured from one class on the panel",
     /el\.classList\.toggle\("off", !val\)/.test(SRC) && /#umsrec\.off \.hd \.dot\{/.test(SRC), "content.js");
   check("…and it says which state it is in, on hover",

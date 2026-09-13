@@ -1,4 +1,4 @@
-# UMS Payment Reconciler (Browser Extension)
+# UMS Reconciler (Browser Extension)
 
 Program Wise ও Course Wise — একই ছাত্রের দুই পেজের হিসাব মিলিয়ে দেখে **কোথায়, কত টাকা, কোন
 নিয়ম ভেঙে** গরমিল হয়েছে। আর **দুই সার্ভারের** একই ছাত্র এক আছে কিনা, ঘরে ঘরে (§৪)।

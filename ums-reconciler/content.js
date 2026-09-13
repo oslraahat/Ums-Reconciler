@@ -1,4 +1,4 @@
-/* UMS Payment Reconciler — in-page panel.
+/* UMS Reconciler — in-page panel.
  * Reads the Program Wise / Course Wise table on each page, stores per-receipt
  * (MRN+CRN) column sums, and verifies the two views reconcile.
  * Pure reconcile logic lives in reconcile.js (self.UMSREC).
