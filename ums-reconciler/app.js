@@ -141,7 +141,9 @@
     crm_headed: { bn: "ব্রাউজার চোখে দেখাও (headed)", en: "Show the browser (headed)" },
     crm_users_l: { bn: "Username, Password — প্রতি লাইনে একজন", en: "Username, Password — one per line" },
     crm_users_ph: { bn: "প্রতি লাইনে: username, password", en: "one per line: username, password" },
-    crm_import: { bn: "⬆ Excel/CSV import", en: "⬆ Excel/CSV import" },
+    crm_import: { bn: "⬆ Import Excel", en: "⬆ Import Excel" },
+    crm_link_ph: { bn: "…অথবা Google Sheet লিংক", en: "…or a Google Sheet link" },
+    crm_link_btn: { bn: "↧ Sheet Link", en: "↧ Sheet Link" },
     crm_pairs: { bn: "{n} জন", en: "{n} users" },
     crm_dl: { bn: "⬇ users.txt", en: "⬇ users.txt" },
     crm_cmd_l: { bn: "এই কমান্ডটা crm-loadtest ফোল্ডারে চালাও", en: "Run this in the crm-loadtest folder" },
@@ -2767,23 +2769,38 @@
     const ta = document.createElement("textarea"); ta.value = text; document.body.appendChild(ta);
     ta.select(); try { document.execCommand("copy"); } catch (e) {} ta.remove();
   }
-  async function crmImport(file) {
-    try {
-      let pairs;
-      if (/\.xlsx$/i.test(file.name)) {
-        const buf = await file.arrayBuffer();
-        const x = await readXlsx(buf);
-        pairs = (x.rows || []).map(function (r) { return [r[0], r[1]]; });
-      } else {
-        const txt = await file.text();
-        pairs = parseCSV(txt).map(function (r) { return [r[0], r[1]]; });
-      }
-      const lines = pairs.map(function (r) { return String(r[0] == null ? "" : r[0]).trim() + "," + String(r[1] == null ? "" : r[1]).trim(); })
-        .filter(function (l) { return l.replace(/,/g, "").trim(); });
-      $("crmUsers").value = lines.join("\n");
-      crmRender();
-    } catch (e) { /* a bad file leaves the box as it was */ }
+  /* Excel, a Sheet or a paste all end here: take the first two columns of every row as
+     username and password, and write them into the box the paste option already fills — so the
+     three ways share one destination and one live count. */
+  function crmFillRows(rows) {
+    const lines = (rows || []).map(function (r) { return String(r[0] == null ? "" : r[0]).trim() + "," + String(r[1] == null ? "" : r[1]).trim(); })
+      .filter(function (l) { return l.replace(/,/g, "").trim(); });
+    $("crmUsers").value = lines.join("\n");
+    crmRender();
   }
+  async function crmImportFile(file) {
+    try {
+      if (/\.xlsx$/i.test(file.name)) { const buf = await file.arrayBuffer(); const x = await readXlsx(buf); crmFillRows(x.rows); }
+      else { const txt = await file.text(); crmFillRows(parseCSV(txt)); }
+      crmSay("");
+    } catch (e) { crmSay(t("imp_excel_fail")); }
+  }
+  /* The same Google export URL the payment side uses; kept apart so that path stays untouched,
+     and the CSV is fed into crmFillRows rather than the reg/spid importer. */
+  function crmImportSheet() {
+    const link = ($("crmLink").value || "").trim();
+    const m = link.match(/\/spreadsheets\/d\/([a-zA-Z0-9\-_]+)/);
+    if (!m) { crmSay(t("imp_badlink")); return; }
+    const g = link.match(/[#&?]gid=(\d+)/), gid = g ? g[1] : "0";
+    const url = "https://docs.google.com/spreadsheets/d/" + m[1] + "/export?format=csv&gid=" + gid;
+    crmSay(t("imp_sheet"));
+    fetch(url, { credentials: "include" }).then(function (r) { if (!r.ok) throw new Error("HTTP " + r.status); return r.text(); })
+      .then(function (txt) {
+        if (/^\s*<(!doctype|html)/i.test(txt)) { crmSay(t("imp_login")); return; }
+        crmSay(""); crmFillRows(parseCSV(txt));
+      }).catch(function (e) { crmSay(t("imp_fail") + " — " + String((e && e.message) || e)); });
+  }
+  function crmSay(msg) { const e = $("crmNote"); if (e) { e.textContent = msg || ""; e.style.display = msg ? "" : "none"; } }
 
   function showCrm(tab) {
     crmTab = tab === "dash" ? "dash" : "dash";
@@ -2866,7 +2883,9 @@
     $("navCrmDash").addEventListener("click", function () { showPage("crm"); showCrm("dash"); });
     ["crmBase", "crmCount", "crmUsers"].forEach(function (id) { const e = $(id); if (e) e.addEventListener("input", crmRender); });
     if ($("crmHeaded")) $("crmHeaded").addEventListener("change", crmRender);
-    if ($("crmFile")) $("crmFile").addEventListener("change", function (ev) { const f = ev.target.files && ev.target.files[0]; if (f) crmImport(f); ev.target.value = ""; });
+    if ($("crmFile")) $("crmFile").addEventListener("change", function (ev) { const f = ev.target.files && ev.target.files[0]; if (f) crmImportFile(f); ev.target.value = ""; });
+    if ($("crmLinkBtn")) $("crmLinkBtn").addEventListener("click", crmImportSheet);
+    if ($("crmLink")) $("crmLink").addEventListener("keydown", function (e) { if (e.key === "Enter") crmImportSheet(); });
     if ($("crmDl")) $("crmDl").addEventListener("click", crmDownload);
     if ($("crmCopy")) $("crmCopy").addEventListener("click", crmCopy);
     crmRender();

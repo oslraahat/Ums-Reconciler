@@ -530,11 +530,16 @@
 
             <div style="margin-top:14px"><label data-i18n="crm_users_l">Username, Password — প্রতি লাইনে একজন</label>
               <textarea id="crmUsers" class="paste" data-ph="crm_users_ph" style="min-height:120px"></textarea></div>
-            <div class="row-actions" style="margin-top:8px;align-items:center">
-              <label class="btn g impbtn" for="crmFile" style="cursor:pointer" data-i18n="crm_import">⬆ Excel/CSV import</label>
+            <div class="row-actions" style="margin-top:8px">
+              <label class="btn g impbtn" for="crmFile" style="cursor:pointer" data-i18n="crm_import">⬆ Import Excel</label>
               <input type="file" id="crmFile" accept=".csv,.txt,.xlsx" style="display:none">
+              <input id="crmLink" data-ph="crm_link_ph" placeholder="…অথবা Google Sheet লিংক" style="flex:1;min-width:160px">
+              <button class="btn g impbtn" id="crmLinkBtn" data-i18n="crm_link_btn">↧ Sheet Link</button>
+            </div>
+            <div class="row-actions" style="margin-top:8px;align-items:center">
               <span class="badge mut" id="crmPairs">০ জন</span>
               <button class="btn g" id="crmDl" disabled data-i18n="crm_dl">⬇ users.txt</button>
+              <span class="note" id="crmNote" style="display:none;margin:0;padding:6px 10px;text-align:left;flex:1;min-width:0"></span>
             </div>
 
             <div style="margin-top:16px"><label data-i18n="crm_cmd_l">এই কমান্ডটা crm-loadtest ফোল্ডারে চালাও</label>
