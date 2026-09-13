@@ -102,7 +102,9 @@ check("the narrow-screen rule covers .runbtns", /\.runbtns\{/.test(mq), mq || "n
 check("…and releases the column there", /\.runbtns\{[^}]*grid-column:\s*auto/.test(mq), mq);
 check("…and drops the label-alignment nudge too", /\.runbtns\{[^}]*margin-top:\s*0/.test(mq), mq);
 check("the same query collapses the grid to one column",
-  /\.g3,\.g4\{grid-template-columns:1fr\}/.test(mq), mq);
+  /\.g3,\.g4[^{]*\{grid-template-columns:1fr\}/.test(mq), mq);
+check("…the CRM base+mode row collapses there too",
+  /\.crmtop[^{]*\{grid-template-columns:1fr\}/.test(mq), mq);
 
 /* ---- the tiles mean different things in the two modes, so they cannot keep one set of colours ----
    Grey is the colour of "nothing to do here" — CW Empty, Zero Pay. In two-server mode the same two
