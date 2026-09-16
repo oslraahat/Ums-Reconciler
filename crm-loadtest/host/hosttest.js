@@ -23,6 +23,7 @@ const check = (name, ok, extra) => {
 /* ---- a compact fake UMS: login form + antiforgery + session cookie + dashboard ---- */
 const USERS = { alice: "pw-a", bob: "pw-b" };
 const sess = {};
+let logins = 0;               // how many successful login POSTs the server saw
 const TOKEN = "tok";
 function form(err) {
   return '<!doctype html><meta charset="utf-8"><body>' + (err ? '<div class="text-danger">' + err + "</div>" : "") +
@@ -39,6 +40,7 @@ const srv = http.createServer(function (req, res) {
       const f = {}; b.split("&").forEach(function (kv) { const [k, v] = kv.split("="); f[decodeURIComponent(k)] = decodeURIComponent((v || "").replace(/\+/g, " ")); });
       if (f.__RequestVerificationToken !== TOKEN) { res.writeHead(400); return res.end("no token"); }
       if (USERS[f.Username] === f.Password) {
+        logins++;
         const sid = "s" + Math.random().toString(36).slice(2); sess[sid] = f.Username;
         res.writeHead(302, { "Set-Cookie": "ums=" + sid + "; Path=/", "Location": "/Student/CrmConversation/Dashboard" });
         return res.end();
@@ -81,6 +83,11 @@ srv.listen(0, "127.0.0.1", function () {
           host.stdin.write(frame({ action: "visit", base: base, headed: false, keepOpen: true,
             count: 1, users: [{ user: "bob", pass: "pw-b" }] }));
         } else if (dones === 2) {
+          /* one user, three parallel visits: this is the batch the extension builds for "×5" —
+             the same account repeated. It must log in once and open the Dashboard three times. */
+          host.stdin.write(frame({ action: "visit", base: base, headed: false, keepOpen: true,
+            count: 3, users: [{ user: "alice", pass: "pw-a" }, { user: "alice", pass: "pw-a" }, { user: "alice", pass: "pw-a" }] }));
+        } else if (dones === 3) {
           host.stdin.end();                 // page gone → host should close the browser and exit
         }
       }
@@ -98,10 +105,17 @@ srv.listen(0, "127.0.0.1", function () {
     const text = msgs.filter(function (m) { return m.type === "out"; }).map(function (m) { return m.text; }).join("\n");
     check("the first press announced a start", msgs.some(function (m) { return m.type === "start"; }), "");
     check("…logged alice in and timed her", /✓ alice · server/.test(text), firstLine(text, /alice/));
-    check("two visits completed (the host stayed open between them)", dones === 2, "dones " + dones);
+    check("three visits completed (the host stayed open across them)", dones === 3, "dones " + dones);
     check("…the second was a different user", /✓ bob · server/.test(text), firstLine(text, /bob/));
-    check("both server times came back as numbers", (text.match(/server \d+ms|server \d+\.\d+s/g) || []).length >= 2,
+    check("server times came back as numbers", (text.match(/server \d+ms|server \d+\.\d+s/g) || []).length >= 5,
       (text.match(/server[^\n]*/g) || []).join(" | "));
+    /* the ×3 press: one account, three parallel Dashboard opens */
+    check("one repeated user is announced once, with its count", (text.match(/→ alice ×3/g) || []).length === 1,
+      firstLine(text, /×3/));
+    check("…and it opened the Dashboard three times", (text.match(/✓ alice #\d · server/g) || []).length === 3,
+      (text.match(/alice #\d[^\n]*/g) || []).join(" | "));
+    check("…on a single login, not three", logins === 3,     // alice, bob, then alice-once for the ×3
+      "logins " + logins);
     check("ending the pipe closed the browser and exited", true, "");
     console.log(fail ? "\n" + fail + " FAILED\n" : "\nall good\n");
     process.exit(fail ? 1 : 0);
