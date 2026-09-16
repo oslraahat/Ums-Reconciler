@@ -2907,7 +2907,13 @@
     if (crmMode === "sequential") {
       if (crmCursor >= users.length) { crmCursor = 0; crmOutLine(t("crm_next_wrap")); }
       batch = [users[crmCursor]]; count = 1; crmCursor++;
-    } else { batch = users.slice(0, crmCount()); count = batch.length; }   // visit exactly this many, all at once
+    } else {
+      /* "how many at once" = exactly this many parallel visits. If the list is shorter it is
+         cycled, so one user with a count of 5 means that same user visits five times at once. */
+      const n = crmCount();
+      batch = Array.from({ length: n }, function (_, i) { return users[i % users.length]; });
+      count = batch.length;
+    }
     crmInFlight = true; crmBusy(true);
     if ($("crmStop")) $("crmStop").disabled = false;
     crmPort.postMessage({ base: base, count: count, headed: $("crmHeaded").checked,
