@@ -45,7 +45,8 @@ const DEFAULTS = {
   navTimeout: 60000,      // per navigation, ms
   out: "",                // write a CSV here as well
   warmup: true,           // one lone user first, as the "not busy" baseline
-  keepOpen: false         // leave the browser open at the end instead of closing it
+  keepOpen: false,        // leave the browser open at the end instead of closing it
+  maximize: false         // open the window maximized to the display (with --headed)
 };
 
 function parseArgs(argv) {
@@ -68,6 +69,7 @@ function parseArgs(argv) {
     else if (a === "--out") o.out = next();
     else if (a === "--no-warmup") o.warmup = false;
     else if (a === "--keep-open") o.keepOpen = true;
+    else if (a === "--maximize") o.maximize = true;
     else { console.error("unknown option: " + a); o.help = true; }
   }
   return o;
@@ -93,6 +95,7 @@ CRM Dashboard load test — N isolated logins in parallel, timed.
   --out <file.csv>      also write the per-user numbers to a CSV
   --no-warmup           skip the single lone-user baseline
   --keep-open           leave the browser open at the end (for a look)
+  --maximize            open the window maximized to the display (with --headed)
 `;
 
 /* ---------------- users file ---------------- */
@@ -272,12 +275,13 @@ async function main() {
   console.log("  at once  " + opts.count + (opts.headed ? "   · headed (browser visible)" : "   · headless"));
   console.log("");
 
-  const browser = await chromium.launch({ channel: "chrome", headless: !opts.headed });
+  const browser = await chromium.launch({ channel: "chrome", headless: !opts.headed,
+    args: (opts.maximize && opts.headed) ? ["--start-maximized"] : [] });
 
   /* ---- phase 1: log everyone in, each in an isolated context ---- */
   process.stdout.write("  logging in… ");
   const sessions = await pool(users, opts.count, async function (u) {
-    const context = await browser.newContext();
+    const context = await browser.newContext((opts.maximize && opts.headed) ? { viewport: null } : {});
     const o = Object.assign({}, opts, { __user: u.user, __pass: u.pass });
     let res;
     try { res = await login(context, opts.base, o); }

@@ -148,6 +148,12 @@ addEventListener("load", function () {
     out.cmdClosed = document.getElementById("crmCmd").textContent;
     close.checked = false; fire(close, "change");
 
+    /* maximize: adds --maximize (only sits between --headed and --keep-open) */
+    var mx = document.getElementById("crmMax");
+    mx.checked = true; fire(mx, "change");
+    out.cmdMax = document.getElementById("crmCmd").textContent;
+    mx.checked = false; fire(mx, "change");
+
     /* the mode control: sequential is --count 1 and hides the count; back to parallel restores it */
     document.getElementById("crmSeq").click();
     out.cmdSeq = document.getElementById("crmCmd").textContent;
@@ -223,6 +229,7 @@ srv.listen(0, "127.0.0.1", () => {
       console.log("");
       check("with close-after-visit off the browser is kept open (--keep-open)", / --keep-open$/.test(o.cmdKeepOpen), o.cmdKeepOpen);
       check("…and ticking it drops --keep-open", !/--keep-open/.test(o.cmdClosed), o.cmdClosed);
+      check("Maximize adds --maximize, between headed and keep-open", / --headed --maximize --keep-open$/.test(o.cmdMax), o.cmdMax);
 
       console.log("");
       check("parallel is the default, and it carries the typed count", /--count 40/.test(o.cmd), o.cmd);

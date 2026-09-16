@@ -162,6 +162,7 @@
     crm_host_missing: { bn: "সহায়ক প্রোগ্রামটা ইনস্টল করা নেই। একবার crm-loadtest/host ফোল্ডারে টার্মিনাল খুলে চালাও:  node install.js  — তারপর এক্সটেনশন reload করো। (অথবা নিচের কমান্ডটা নিজে চালাও।)",
       en: "The helper is not installed. Open a terminal in crm-loadtest/host once and run:  node install.js  — then reload the extension. (Or run the command below yourself.)" },
     crm_close: { bn: "ভিজিটের পর বন্ধ করো", en: "Close after each visit" },
+    crm_max: { bn: "স্ক্রিনজুড়ে বড় করো", en: "Maximize to screen" },
     crm_stop: { bn: "✕ ব্রাউজার বন্ধ", en: "✕ Close Browser" },
     crm_closed: { bn: "— ব্রাউজার বন্ধ, আবার প্রথম থেকে —", en: "— browser closed, back to the start —" },
     crm_next: { bn: "পরের: {u}  ({n}/{m})", en: "next: {u}  ({n}/{m})" },
@@ -2762,7 +2763,8 @@
     const base = ($("crmBase").value || "").trim() || "<base-url>";
     const headed = $("crmHeaded").checked ? " --headed" : "";
     const keep = ($("crmClose") && $("crmClose").checked) ? "" : " --keep-open";
-    return "node loadtest.js --base " + base + " --users users.txt --count " + crmCount() + headed + keep;
+    const max = ($("crmMax") && $("crmMax").checked) ? " --maximize" : "";
+    return "node loadtest.js --base " + base + " --users users.txt --count " + crmCount() + headed + max + keep;
   }
   function crmRender() {
     if (!$("crmUsers")) return;
@@ -2917,7 +2919,7 @@
     crmInFlight = true; crmBusy(true);
     if ($("crmStop")) $("crmStop").disabled = false;
     crmPort.postMessage({ base: base, count: count, headed: $("crmHeaded").checked,
-      keepOpen: keepOpen, users: batch });
+      maximize: !!($("crmMax") && $("crmMax").checked), keepOpen: keepOpen, users: batch });
     crmNextLabel();
   }
   function crmStop() {
@@ -3013,6 +3015,7 @@
     if ($("crmUsers")) $("crmUsers").addEventListener("input", crmNextLabel);
     if ($("crmHeaded")) $("crmHeaded").addEventListener("change", crmRender);
     if ($("crmClose")) $("crmClose").addEventListener("change", crmRender);
+    if ($("crmMax")) $("crmMax").addEventListener("change", crmRender);
     if ($("crmFile")) $("crmFile").addEventListener("change", function (ev) { const f = ev.target.files && ev.target.files[0]; if (f) crmImportFile(f); ev.target.value = ""; });
     if ($("crmLinkBtn")) $("crmLinkBtn").addEventListener("click", crmImportSheet);
     if ($("crmLink")) $("crmLink").addEventListener("keydown", function (e) { if (e.key === "Enter") crmImportSheet(); });
