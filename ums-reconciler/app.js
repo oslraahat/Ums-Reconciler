@@ -354,6 +354,9 @@
        there is nothing to translate it back from, so switching language clears it. The count it
        carried is still on the card's badge, which updateCount() repaints below. */
     const imp = $("impNote"); if (imp) imp.innerHTML = "";
+    /* the reachability pills are written by JS (no data-i18n), so repaint them in the new language */
+    if (typeof crmSetConn === "function") crmSetConn(crmConnState);
+    if (typeof admSetConn === "function") admSetConn(admConnState);
     const pv = $("preview"); if (pv) pv.removeAttribute("data-col"); // force head rebuild in the new language
     /* Everything whose words are written by JS rather than by a data-i18n node has to be
        repainted here too, or it keeps the language it was first drawn in. paintSaveRow() runs
@@ -2764,7 +2767,7 @@
      StudentRegistration → DuePayment. These AJAX POSTs need only the session cookie (no antiforgery
      token). The name is auto; the mobile and the counts come from the user. It measures how fast N
      admissions complete. ⚠ creates REAL records — a test/demo server only. */
-  let admBusyFlag = false, admStopFlag = false, admConnSeq = 0, admConnTimer = null;
+  let admBusyFlag = false, admStopFlag = false, admConnSeq = 0, admConnTimer = null, admConnState = null;
   const ADM_PATH = "/Student/Admission/NewStudentAdmission";
   function admBusy(on) {
     admBusyFlag = on;
@@ -2776,6 +2779,7 @@
   function admPool() { return Math.max(1, Math.min(20, parseInt($("admPool").value, 10) || 1)); }
   function admBaseUrl() { return (($("admBase") && $("admBase").value) || "").trim().replace(/\/+$/, ""); }
   function admSetConn(state) {
+    admConnState = state || null;
     const el = $("admConn"); if (!el) return;
     el.className = "crmconn" + (state ? " " + state : "");
     el.textContent = state === "busy" ? t("checking")
@@ -3295,8 +3299,9 @@
      after a reload). All that matters before pressing Run is that the address answers: fetch the
      Dashboard and, if the server responds at all (the page, or a redirect to its login), the address
      is good; only a network/DNS/permission failure — nothing came back — means it is wrong. */
-  let crmConnSeq = 0, crmConnTimer = null;
+  let crmConnSeq = 0, crmConnTimer = null, crmConnState = null;
   function crmSetConn(state) {
+    crmConnState = state || null;
     const el = $("crmConn"); if (!el) return;
     el.className = "crmconn" + (state ? " " + state : "");
     el.textContent = state === "busy" ? t("checking")
