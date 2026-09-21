@@ -132,7 +132,7 @@
     nav_adm: { bn: "New Admission", en: "New Admission" },
     adm_sub: { bn: "নতুন Admission — যত খুশি, নিজের সেশনে", en: "New Admission — as many as you like, on your session" },
     adm_h: { bn: "New Admission", en: "New Admission" },
-    adm_load: { bn: "⟳ UMS থেকে ডেটা আনো", en: "⟳ Fetch from UMS" },
+    adm_load: { bn: "⟳ তথ্য আনো", en: "⟳ Fetch data" },
     adm_loading: { bn: "⏳ আনছে…", en: "⏳ loading…" },
     adm_defaults: { bn: "▸ Institute · Approver", en: "▸ Institute · Approver" },
     adm_gender_l: { bn: "Gender", en: "Gender" },
@@ -2888,11 +2888,18 @@
       admClassId = classOpt.value;
       admVersion = (admDocOpts(page, "#VersionOfStudy option", ["Bangla"]) || {}).value || "";
       const pr = await admPost("/Student/Admission/GetProgramByClass", { classId: admClassId });
-      admCourseView = pr.CourseView || "";
-      /* show every program the server offers (a dev server may only have Demo ones) — just default
-         the selection to a non-demo Medical when there is one */
-      const progs = admOpts(pr.returnProgramList);
-      if (!progs.length) { admOutLine("⚠ " + t("adm_no_program")); return; }
+      admCourseView = pr.CourseView || pr.courseView || pr.CourseList || "";
+      /* the page names this returnProgramList; be tolerant of casing and fall back to any HTML-ish
+         field, then to a raw dump so a mismatch is visible instead of silently empty */
+      const listHtml = pr.returnProgramList || pr.ReturnProgramList || pr.programList || pr.ProgramList ||
+        pr.returnProgram || pr.Programs || (typeof pr === "string" ? pr : "");
+      const progs = admOpts(listHtml);
+      if (!progs.length) {
+        admOutLine("⚠ " + t("adm_no_program") + " (classId=" + admClassId + ")");
+        admOutLine("keys: " + (pr && typeof pr === "object" ? Object.keys(pr).join(", ") : typeof pr));
+        admOutLine("resp: " + String(typeof pr === "string" ? pr : JSON.stringify(pr)).slice(0, 400));
+        return;
+      }
       const nonDemo = progs.filter(function (o) { return o.text.toLowerCase().indexOf("demo") < 0; });
       admFill("admProgram", progs, ["medical admission", "medical"], "— Program —");
       if (nonDemo.length) { const md = admPick(nonDemo, ["medical admission", "medical"]); if (md) $("admProgram").value = md.value; }
