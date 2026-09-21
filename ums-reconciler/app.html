@@ -157,7 +157,8 @@
   .admcrow input[type=number]{width:80px}
   /* two equal columns for the New Admission fields (crmtop is deliberately lopsided) */
   .admgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
-  @media (max-width:820px){ .admgrid{grid-template-columns:1fr} }
+  .admgrid.three{grid-template-columns:1fr 1fr 1fr}
+  @media (max-width:820px){ .admgrid,.admgrid.three{grid-template-columns:1fr} }
   .btn.g{background:#20263c;color:var(--text);border:1px solid var(--line)}
   .btn.g:hover{background:#28304a}
   body.light .btn.g{background:#f3f4fb}
@@ -620,11 +621,18 @@
           <div class="ch"><h2 data-i18n="adm_h">New Admission</h2><span class="crmconn" id="admConn" style="margin-left:auto"></span></div>
           <p class="hint" data-i18n="adm_intro" style="margin:0 0 14px"></p>
 
-          <div class="admgrid" style="grid-template-columns:1fr auto;align-items:end">
-            <div><label data-i18n="adm_base_l">UMS ঠিকানা</label>
+          <div class="row-actions" style="align-items:end;gap:10px;flex-wrap:wrap">
+            <div style="flex:0 1 240px;min-width:160px"><label data-i18n="adm_base_l">UMS ঠিকানা</label>
               <input id="admBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
-            <div style="display:flex;flex-direction:column;justify-content:flex-end">
-              <button class="btn g" id="admLoad" data-i18n="adm_load" style="height:var(--ctl-h)">⟳ ফর্ম আনো</button></div>
+            <button class="btn g" id="admLoad" data-i18n="adm_load" style="height:var(--ctl-h)">⟳ Fetch Data</button>
+            <div class="seg" style="height:var(--ctl-h)">
+              <button type="button" id="admSeq" class="on" data-i18n="adm_seq">একজন একজন</button>
+              <button type="button" id="admPar" data-i18n="adm_par">একসাথে</button>
+            </div>
+            <span id="admPoolWrap" style="display:none;align-items:center;gap:6px">
+              <span class="hint" style="margin:0" data-i18n="adm_pool_l">একসাথে</span>
+              <input id="admPool" type="number" min="1" max="20" value="3" style="width:110px;height:var(--ctl-h)">
+            </span>
           </div>
 
           <div class="admgrid" style="margin-top:14px">
@@ -662,28 +670,13 @@
             </div>
           </details>
 
-          <div class="admgrid" style="margin-top:14px">
+          <div class="admgrid three" style="margin-top:14px">
             <div><label data-i18n="adm_mobile_l">Mobile Number</label>
               <input id="admMobile" spellcheck="false" data-ph="adm_mobile_ph"></div>
             <div><label data-i18n="adm_amount_l">Amount (৳) — ঐচ্ছিক</label>
               <input id="admAmount" type="number" min="0" data-ph="adm_amount_ph"></div>
-          </div>
-
-          <div class="admgrid" style="margin-top:14px">
             <div><label data-i18n="adm_count_l">Count</label>
               <input id="admCount" type="number" min="1" max="10000" value="1"></div>
-            <div><label data-i18n="adm_mode_l">কীভাবে চালাবে</label>
-              <div class="row-actions" style="align-items:center;gap:10px;margin-top:0">
-                <div class="seg">
-                  <button type="button" id="admSeq" class="on" data-i18n="adm_seq">একজন একজন</button>
-                  <button type="button" id="admPar" data-i18n="adm_par">একসাথে</button>
-                </div>
-                <span id="admPoolWrap" style="display:none;align-items:center;gap:6px">
-                  <span class="hint" style="margin:0" data-i18n="adm_pool_l">একসাথে</span>
-                  <input id="admPool" type="number" min="1" max="20" value="3" style="width:64px">
-                </span>
-              </div>
-            </div>
           </div>
 
           <div class="row-actions" style="margin-top:16px;align-items:center">

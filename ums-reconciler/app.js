@@ -147,7 +147,6 @@
     adm_courses_l: { bn: "Courses (টিক দাও · ছাড় ৳)", en: "Courses (tick · discount)" },
     adm_courses_hint: { bn: "ফর্ম আনলে কোর্স এখানে আসবে", en: "courses appear here once the form is loaded" },
     adm_no_courses: { bn: "এই প্রোগ্রামে কোর্স নেই", en: "no courses on this program" },
-    adm_mode_l: { bn: "কীভাবে চালাবে", en: "How to run" },
     adm_seq: { bn: "একজন একজন", en: "One at a time" },
     adm_par: { bn: "একসাথে", en: "All at once" },
     adm_intro: { bn: "একসাথে যত খুশি নতুন admission করাও — ১টা থেকে ১০,০০০। Payment History-র মতোই তোমার এখনকার লগইন সেশনে চলে। ⟳ ফর্ম আনো চাপলে Program/Session/Branch/Course UMS থেকে এসে যাবে — বেছে নাও, মোবাইল দাও, সংখ্যা দাও, ▶ চাপো। ⚠ আসল admission তৈরি হয় — শুধু টেস্ট/ডেমো সার্ভারে।",
