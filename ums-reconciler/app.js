@@ -2956,7 +2956,7 @@
       : state === "ok" ? t("conn_ok") : state === "no" ? t("conn_no")
       : state === "fail" ? t("conn_fail") : t("conn_unchecked");
   }
-  async function crmTestConn() {
+  async function crmTestConn(isRetry) {
     const base = (($("crmBase") && $("crmBase").value) || "").trim();
     if (!base) { crmSetConn(null); return; }
     const mine = ++crmConnSeq;
@@ -2970,7 +2970,15 @@
       const onLogin = /type\s*=\s*["']?password/i.test(r.html);
       state = (r.ok && !onLogin) ? "ok" : "no";
     } catch (e) { state = "fail"; }
-    if (mine === crmConnSeq) crmSetConn(state);       // ignore a check the user has already outrun
+    if (mine !== crmConnSeq) return;                  // a newer check has started — this one is stale
+    /* The very first hit after moving here from Payment History can come back signed-out before the
+       session is warm (a reload then reads it right); so a lone non-ok gets one quiet retry rather
+       than flashing "not logged in" at a session that actually is. */
+    if (state !== "ok" && !isRetry) {
+      setTimeout(function () { if (mine === crmConnSeq) crmTestConn(true); }, 900);
+      return;                                         // stay on "checking…" through the retry
+    }
+    crmSetConn(state);
   }
   function crmConnDebounced() {
     if (crmConnTimer) clearTimeout(crmConnTimer);
