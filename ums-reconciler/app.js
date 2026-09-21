@@ -2801,6 +2801,28 @@
     if (!/^https?:\/\//i.test(base)) throw new Error("UMS ঠিকানা ঠিক নেই: \"" + base + "\" (https://ums-4.osl.team এর মতো হবে)");
     return base + path;
   }
+  /* UMS denies admission AJAX that does not look like it came from the admission page, so rewrite
+     the Referer (and Origin) of our own requests to that page — fetch cannot set a cross-origin
+     Referer, but declarativeNetRequest can. Scoped to this base's host, which is in host_permissions. */
+  async function admInstallRefererRule() {
+    try {
+      if (!(chrome.declarativeNetRequest && chrome.declarativeNetRequest.updateSessionRules)) return false;
+      const base = admBaseUrl();
+      const host = base.replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+      await chrome.declarativeNetRequest.updateSessionRules({
+        removeRuleIds: [8801],
+        addRules: [{
+          id: 8801, priority: 1,
+          action: { type: "modifyHeaders", requestHeaders: [
+            { header: "referer", operation: "set", value: base + ADM_PATH },
+            { header: "origin", operation: "set", value: base }
+          ] },
+          condition: { requestDomains: [host], resourceTypes: ["xmlhttprequest"] }
+        }]
+      });
+      return true;
+    } catch (e) { admOutLine("⚠ Referer rule: " + ((e && e.message) || e)); return false; }
+  }
   async function admPost(path, data) {
     const body = new URLSearchParams();
     Object.keys(data).forEach(function (k) {
@@ -2883,6 +2905,7 @@
     const base = admBaseUrl(); if (!base) { admOutLine(t("adm_need_base")); return; }
     if ($("admLoad")) { $("admLoad").disabled = true; $("admLoad").textContent = t("adm_loading"); }
     try {
+      await admInstallRefererRule();   // make our AJAX look like it came from the admission page
       const page = await admGetDoc(ADM_PATH);
       /* the antiforgery token every POST must carry — take the LAST one on the page (the admission
          form's, not the logout form's) as some UMS setups tie the token to its own form */

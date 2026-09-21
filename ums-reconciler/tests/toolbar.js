@@ -66,11 +66,13 @@ check("…and opening the Batch page", /chrome\.runtime\.getURL\(PAGE\)/.test(BG
     /chrome\.runtime\.getContexts/.test(CODE) && !/chrome\.tabs\.query/.test(CODE), "background.js");
   check("…so \"tabs\" is not in the permissions",
     (M.permissions || []).indexOf("tabs") < 0, (M.permissions || []).join(", "));
-  /* nativeMessaging is a deliberate third: the CRM · Dashboard Run button reaches a local host
-     that runs the load test, since the extension itself cannot. It carries no browsing-data
-     prompt. The guard stays — the set is exactly these three and nothing has crept in beside them. */
-  check("…and the permission list is exactly the three it should be",
-    JSON.stringify(M.permissions) === JSON.stringify(["storage", "downloads", "nativeMessaging"]),
+  /* nativeMessaging: the CRM · Dashboard Run button reaches a local host that runs the load test.
+     declarativeNetRequestWithHostAccess: New Admission rewrites the Referer/Origin of its own AJAX
+     to the admission page (UMS denies admission actions that don't look like they came from it),
+     and it can only touch the osl.team hosts already in host_permissions. Neither carries a
+     browsing-data prompt. The guard stays — the set is exactly these and nothing has crept in. */
+  check("…and the permission list is exactly the four it should be",
+    JSON.stringify(M.permissions) === JSON.stringify(["storage", "downloads", "nativeMessaging", "declarativeNetRequestWithHostAccess"]),
     JSON.stringify(M.permissions));
   /* an older Chrome has no getContexts; the click must still open the page */
   check("…and where getContexts is missing, the click still works",
