@@ -2992,10 +2992,15 @@
   async function admResolveInstitute() {
     const q = (($("admInst") && $("admInst").value) || "").trim();
     if (!q) return { name: "", id: "" };
+    /* the "[108258]" in the display name is the EIIN, not the internal id — GetInstituteList maps a
+       name to its real id (Value). Query on the name alone (bracket stripped) for a clean match. */
+    const query = q.replace(/\s*\[[^\]]*\]\s*$/, "").trim() || q;
     try {
-      const r = await admPost("/Administration/CommonAjax/GetInstituteList", { query: q });
+      const r = await admPost("/Administration/CommonAjax/GetInstituteList", { query: query });
       const list = (r && r.returnList) || [];
-      const hit = list.find(function (x) { return (x.Text || "").toLowerCase() === q.toLowerCase(); }) || list[0];
+      const hit = list.find(function (x) { return (x.Text || "").toLowerCase() === q.toLowerCase(); })
+        || list.find(function (x) { return (x.Text || "").toLowerCase().indexOf(query.toLowerCase()) >= 0; })
+        || list[0];
       if (hit) return { name: hit.Text, id: hit.Value };
     } catch (e) {}
     return { name: q, id: "" };
