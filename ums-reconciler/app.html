@@ -149,6 +149,15 @@
   .crmconn.ok{background:rgba(55,209,139,.16);color:var(--ok)}
   .crmconn.no,.crmconn.fail{background:rgba(255,107,125,.16);color:var(--no)}
   .crmconn.busy{background:rgba(91,140,255,.16);color:var(--info)}
+  /* fetched course list for New Admission */
+  .admcourses{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--fld);max-height:210px;overflow:auto;display:flex;flex-direction:column;gap:4px}
+  .admcrow{display:flex;align-items:center;gap:8px}
+  .admcrow label{flex:1;display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;min-width:0}
+  .admcrow label span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .admcrow input[type=number]{width:80px}
+  /* two equal columns for the New Admission fields (crmtop is deliberately lopsided) */
+  .admgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
+  @media (max-width:820px){ .admgrid{grid-template-columns:1fr} }
   .btn.g{background:#20263c;color:var(--text);border:1px solid var(--line)}
   .btn.g:hover{background:#28304a}
   body.light .btn.g{background:#f3f4fb}
@@ -611,58 +620,69 @@
           <div class="ch"><h2 data-i18n="adm_h">New Admission</h2><span class="crmconn" id="admConn" style="margin-left:auto"></span></div>
           <p class="hint" data-i18n="adm_intro" style="margin:0 0 14px"></p>
 
-          <div><label data-i18n="adm_base_l">UMS ঠিকানা</label>
-            <input id="admBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
+          <div class="admgrid" style="grid-template-columns:1fr auto;align-items:end">
+            <div><label data-i18n="adm_base_l">UMS ঠিকানা</label>
+              <input id="admBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
+            <div style="display:flex;flex-direction:column;justify-content:flex-end">
+              <button class="btn g" id="admLoad" data-i18n="adm_load" style="height:var(--ctl-h)">⟳ ফর্ম আনো</button></div>
+          </div>
 
-          <details style="margin-top:14px"><summary class="hint" data-i18n="adm_defaults" style="cursor:pointer">▸ Form defaults (Gender · Religion · Session · Institute · Approver)</summary>
+          <div class="admgrid" style="margin-top:14px">
+            <div><label data-i18n="adm_gender_l">Gender</label>
+              <select id="admGender"><option value="Male" selected>Male</option><option value="Female">Female</option></select></div>
+            <div><label data-i18n="adm_religion_l">Religion</label>
+              <select id="admReligion"><option value="Islam" selected>Islam</option><option value="Hindu">Hindu</option><option value="Christian">Christian</option><option value="Buddhist">Buddhist</option></select></div>
+          </div>
+
+          <div class="admgrid" style="margin-top:14px">
+            <div><label data-i18n="adm_prog_l">Program</label>
+              <select id="admProgram" disabled><option value="" data-i18n="adm_pick_prog">— আগে ফর্ম আনো —</option></select></div>
+            <div><label data-i18n="adm_session_l">Session</label>
+              <select id="admSession" disabled></select></div>
+          </div>
+
+          <div class="admgrid" style="margin-top:14px">
+            <div><label data-i18n="adm_branch_l">Branch</label><select id="admBranch" disabled></select></div>
+            <div><label data-i18n="adm_campus_l">Campus</label><select id="admCampus" disabled></select></div>
+          </div>
+
+          <div style="margin-top:14px"><label data-i18n="adm_courses_l">Courses</label>
+            <div id="admCourseBox" class="admcourses"><span class="hint" data-i18n="adm_courses_hint" style="margin:0"></span></div>
+          </div>
+
+          <details style="margin-top:14px"><summary class="hint" data-i18n="adm_defaults" style="cursor:pointer">▸ Institute · Approver</summary>
             <div style="margin-top:10px">
-              <div class="crmtop">
-                <div><label data-i18n="adm_gender_l">Gender</label>
-                  <select id="admGender"><option value="Male" selected>Male</option><option value="Female">Female</option></select></div>
-                <div><label data-i18n="adm_religion_l">Religion</label>
-                  <select id="admReligion"><option value="Islam" selected>Islam</option><option value="Hindu">Hindu</option><option value="Christian">Christian</option><option value="Buddhist">Buddhist</option></select></div>
-              </div>
-              <div class="crmtop" style="margin-top:12px">
-                <div><label data-i18n="adm_session_l">Session</label><input id="admSession" spellcheck="false" value="2025"></div>
-                <div><label data-i18n="adm_inst_name_l">Institute Name</label><input id="admInstName" spellcheck="false"></div>
-              </div>
-              <div class="crmtop" style="margin-top:12px">
-                <div><label data-i18n="adm_inst_id_l">Institute ID</label><input id="admInstId" spellcheck="false"></div>
+              <div><label data-i18n="adm_inst_l">Institute</label>
+                <input id="admInst" list="admInstDl" spellcheck="false" placeholder="নাম টাইপ করো…" autocomplete="off">
+                <datalist id="admInstDl"></datalist></div>
+              <div class="admgrid" style="margin-top:12px">
+                <div><label data-i18n="adm_appr_name_l">Approver Name</label><input id="admApprName" spellcheck="false"></div>
                 <div><label data-i18n="adm_appr_id_l">Approver ID</label><input id="admApprId" spellcheck="false"></div>
               </div>
-              <div style="margin-top:12px"><label data-i18n="adm_appr_name_l">Approver Name</label><input id="admApprName" spellcheck="false"></div>
             </div>
           </details>
 
-          <div class="crmtop" style="margin-top:14px">
-            <div><label data-i18n="adm_mobile_l">মোবাইল নম্বর</label>
+          <div class="admgrid" style="margin-top:14px">
+            <div><label data-i18n="adm_mobile_l">Mobile Number</label>
               <input id="admMobile" spellcheck="false" placeholder="8801XXXXXXXXX"></div>
-            <div><label data-i18n="adm_prog_l">প্রোগ্রাম</label>
-              <input id="admProg" spellcheck="false" placeholder="Medical (default)"></div>
-          </div>
-
-          <div style="margin-top:14px"><label data-i18n="adm_courses_l">কোর্স (keyword · ছাড় ৳) — ঐচ্ছিক</label>
-            <div id="admCourseList" style="display:flex;flex-direction:column;gap:6px"></div>
-            <button class="btn g" id="admAddCourse" data-i18n="adm_add_course" style="margin-top:6px;height:var(--ctl-h)">+ কোর্স যোগ</button>
-          </div>
-
-          <div class="crmtop" style="margin-top:14px">
-            <div><label data-i18n="adm_amount_l">টাকা (ঐচ্ছিক)</label>
+            <div><label data-i18n="adm_amount_l">Amount (৳) — ঐচ্ছিক</label>
               <input id="admAmount" type="number" min="0" placeholder="min (auto)"></div>
-            <div><label data-i18n="adm_count_l">কতগুলো admission</label>
-              <input id="admCount" type="number" min="1" max="10000" value="1"></div>
           </div>
 
-          <div style="margin-top:14px"><label data-i18n="adm_mode_l">কীভাবে চালাবে</label>
-            <div class="row-actions" style="align-items:center;gap:12px;margin-top:0">
-              <div class="seg">
-                <button type="button" id="admSeq" class="on" data-i18n="adm_seq">একজন একজন (Sequential)</button>
-                <button type="button" id="admPar" data-i18n="adm_par">একসাথে (Parallel)</button>
+          <div class="admgrid" style="margin-top:14px">
+            <div><label data-i18n="adm_count_l">Count</label>
+              <input id="admCount" type="number" min="1" max="10000" value="1"></div>
+            <div><label data-i18n="adm_mode_l">কীভাবে চালাবে</label>
+              <div class="row-actions" style="align-items:center;gap:10px;margin-top:0">
+                <div class="seg">
+                  <button type="button" id="admSeq" class="on" data-i18n="adm_seq">একজন একজন</button>
+                  <button type="button" id="admPar" data-i18n="adm_par">একসাথে</button>
+                </div>
+                <span id="admPoolWrap" style="display:none;align-items:center;gap:6px">
+                  <span class="hint" style="margin:0" data-i18n="adm_pool_l">একসাথে</span>
+                  <input id="admPool" type="number" min="1" max="20" value="3" style="width:64px">
+                </span>
               </div>
-              <span id="admPoolWrap" style="display:none;align-items:center;gap:8px">
-                <span class="hint" style="margin:0" data-i18n="adm_pool_l">একসাথে কতগুলো</span>
-                <input id="admPool" type="number" min="1" max="20" value="3" style="width:80px">
-              </span>
             </div>
           </div>
 

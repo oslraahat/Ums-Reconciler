@@ -132,27 +132,34 @@
     nav_adm: { bn: "New Admission", en: "New Admission" },
     adm_sub: { bn: "নতুন Admission — যত খুশি, নিজের সেশনে", en: "New Admission — as many as you like, on your session" },
     adm_h: { bn: "New Admission", en: "New Admission" },
-    adm_defaults: { bn: "▸ Form defaults (Gender · Religion · Session · Institute · Approver)", en: "▸ Form defaults (Gender · Religion · Session · Institute · Approver)" },
+    adm_load: { bn: "⟳ ফর্ম আনো", en: "⟳ Load form" },
+    adm_loading: { bn: "⏳ আনছে…", en: "⏳ loading…" },
+    adm_defaults: { bn: "▸ Institute · Approver", en: "▸ Institute · Approver" },
     adm_gender_l: { bn: "Gender", en: "Gender" },
     adm_religion_l: { bn: "Religion", en: "Religion" },
     adm_session_l: { bn: "Session", en: "Session" },
-    adm_inst_name_l: { bn: "Institute Name", en: "Institute Name" },
-    adm_inst_id_l: { bn: "Institute ID", en: "Institute ID" },
+    adm_branch_l: { bn: "Branch", en: "Branch" },
+    adm_campus_l: { bn: "Campus", en: "Campus" },
+    adm_inst_l: { bn: "Institute", en: "Institute" },
     adm_appr_id_l: { bn: "Approver ID", en: "Approver ID" },
     adm_appr_name_l: { bn: "Approver Name", en: "Approver Name" },
-    adm_courses_l: { bn: "কোর্স (keyword · ছাড় ৳) — ঐচ্ছিক", en: "Courses (keyword · discount) — optional" },
-    adm_add_course: { bn: "+ কোর্স যোগ", en: "+ Add Course" },
+    adm_pick_prog: { bn: "— আগে ফর্ম আনো —", en: "— load the form first —" },
+    adm_courses_l: { bn: "Courses (টিক দাও · ছাড় ৳)", en: "Courses (tick · discount)" },
+    adm_courses_hint: { bn: "ফর্ম আনলে কোর্স এখানে আসবে", en: "courses appear here once the form is loaded" },
+    adm_no_courses: { bn: "এই প্রোগ্রামে কোর্স নেই", en: "no courses on this program" },
     adm_mode_l: { bn: "কীভাবে চালাবে", en: "How to run" },
-    adm_seq: { bn: "একজন একজন (Sequential)", en: "One at a time (Sequential)" },
-    adm_par: { bn: "একসাথে (Parallel)", en: "All at once (Parallel)" },
-    adm_intro: { bn: "একসাথে যত খুশি নতুন admission করাও — ১টা থেকে ১০,০০০। Payment History-র মতোই তোমার এখনকার লগইন সেশনে চলে, ফর্ম নিজেই পূরণ করে (নাম অটো, dropdown নিজে নেয়)। মোবাইল দাও, সংখ্যা দাও, একজন-একজন না একসাথে বাছো, ▶ চাপো। ⚠ আসল admission তৈরি হয় — শুধু টেস্ট/ডেমো সার্ভারে।",
-      en: "Create as many new admissions as you like — 1 to 10,000. Like Payment History it runs on your current login session and fills the form itself (auto name, dropdowns read off the page). Give the mobile and the count, pick one-at-a-time or all-at-once, press ▶. ⚠ Creates REAL admissions — a test/demo server only." },
+    adm_seq: { bn: "একজন একজন", en: "One at a time" },
+    adm_par: { bn: "একসাথে", en: "All at once" },
+    adm_intro: { bn: "একসাথে যত খুশি নতুন admission করাও — ১টা থেকে ১০,০০০। Payment History-র মতোই তোমার এখনকার লগইন সেশনে চলে। ⟳ ফর্ম আনো চাপলে Program/Session/Branch/Course UMS থেকে এসে যাবে — বেছে নাও, মোবাইল দাও, সংখ্যা দাও, ▶ চাপো। ⚠ আসল admission তৈরি হয় — শুধু টেস্ট/ডেমো সার্ভারে।",
+      en: "Create as many new admissions as you like — 1 to 10,000. Like Payment History it runs on your current login session. Press ⟳ Load form and the Program/Session/Branch/Course dropdowns are fetched from UMS — pick them, give the mobile and count, press ▶. ⚠ Creates REAL admissions — a test/demo server only." },
     adm_base_l: { bn: "UMS ঠিকানা", en: "UMS address" },
-    adm_mobile_l: { bn: "মোবাইল নম্বর", en: "Mobile number" },
-    adm_prog_l: { bn: "প্রোগ্রাম (ঐচ্ছিক)", en: "Program (optional)" },
-    adm_amount_l: { bn: "টাকা (ঐচ্ছিক)", en: "Amount (optional)" },
-    adm_count_l: { bn: "মোট কতগুলো admission", en: "How many admissions" },
-    adm_pool_l: { bn: "একসাথে কতগুলো", en: "How many at once" },
+    adm_mobile_l: { bn: "Mobile Number", en: "Mobile Number" },
+    adm_prog_l: { bn: "Program", en: "Program" },
+    adm_amount_l: { bn: "Amount (৳) — ঐচ্ছিক", en: "Amount — optional" },
+    adm_count_l: { bn: "Count", en: "Count" },
+    adm_pool_l: { bn: "একসাথে", en: "at once" },
+    adm_need_load: { bn: "আগে ⟳ ফর্ম আনো চাপো", en: "press ⟳ Load form first" },
+    adm_need_course: { bn: "অন্তত একটা কোর্স টিক দাও", en: "tick at least one course" },
     adm_run: { bn: "▶ Run Admission", en: "▶ Run Admission" },
     adm_running: { bn: "⏳ চলছে…", en: "⏳ running…" },
     adm_stop: { bn: "✕ থামাও", en: "✕ Stop" },
@@ -2839,106 +2846,170 @@
   let _admSeq = 0;
   function admName() { const r = function () { return ADM_NAMES[Math.floor(Math.random() * ADM_NAMES.length)]; }; _admSeq++; return r() + r() + (Date.now().toString(36) + _admSeq).slice(-4); }
 
-  /* one full admission over the current session; returns { ok, reg, ms, why } */
-  /* one full admission over the current session; cfg = { mobile, program, amount, gender, religion,
-     session, courses:[{kw,disc}], instituteName, instituteId, approverName, approverId } */
-  async function admOne(cfg) {
-    const t0 = Date.now();
-    const gender = cfg.gender || "Male", religion = cfg.religion || "Islam";
-    const step = function (s) { admOne._at = s; };
-    const intOf = function (v) { return parseInt("0" + v, 10) || 0; };
+  /* ---- interactive form: the dropdowns are fetched from UMS, the user picks ---- */
+  let admLoaded = false, admClassId = "", admVersion = "", admCourseView = "", admBatchOf = {};
+  function admFill(id, opts, prefer, placeholder) {
+    const sel = $(id); if (!sel) return null;
+    let html = placeholder ? '<option value="">' + placeholder + "</option>" : "";
+    opts.forEach(function (o) { html += '<option value="' + String(o.value).replace(/"/g, "&quot;") + '">' + (o.text || "").replace(/</g, "&lt;") + "</option>"; });
+    sel.innerHTML = html; sel.disabled = opts.length === 0;
+    const pick = prefer ? admPick(opts, prefer) : (opts[0] || null);
+    if (pick) sel.value = pick.value;
+    return pick;
+  }
+  async function admLoadForm() {
+    const base = admBaseUrl(); if (!base) { admOutLine(t("adm_need_base")); return; }
+    if ($("admLoad")) { $("admLoad").disabled = true; $("admLoad").textContent = t("adm_loading"); }
     try {
-      step("open form");
       const page = await admGetDoc(ADM_PATH);
       const classOpt = admDocOpts(page, "#StudentClass option", ["Admission"]);
-      if (!classOpt) throw new Error("no Student Class option");
-      const versionVal = (admDocOpts(page, "#VersionOfStudy option", ["Bangla"]) || {}).value || "";
+      if (!classOpt) throw new Error("no Student Class");
+      admClassId = classOpt.value;
+      admVersion = (admDocOpts(page, "#VersionOfStudy option", ["Bangla"]) || {}).value || "";
+      const pr = await admPost("/Student/Admission/GetProgramByClass", { classId: admClassId });
+      admCourseView = pr.CourseView || "";
+      const progs = admOpts(pr.returnProgramList).filter(function (o) { const s = o.text.toLowerCase(); return s.indexOf("demo") < 0 && s.indexOf("migration") < 0; });
+      admFill("admProgram", progs, ["medical"], "— Program —");
+      admLoaded = true;
+      await admOnProgram();
+      admSetConn("ok");
+    } catch (e) { admOutLine("⚠ " + ((e && e.message) || e)); }
+    finally { if ($("admLoad")) { $("admLoad").disabled = false; $("admLoad").textContent = t("adm_load"); } }
+  }
+  async function admOnProgram() {
+    if (!admLoaded || !$("admProgram").value) return;
+    const se = await admPost("/Student/Admission/GetSessionByProgram", { programId: $("admProgram").value, sessionId: "" });
+    if (se.CourseView) admCourseView = se.CourseView;
+    admFill("admSession", admOpts(se.SessionOptions), ["2025"], null);
+    await admOnSession();
+  }
+  async function admOnSession() {
+    if (!admLoaded) return;
+    const br = await admPost("/Student/Admission/GetBranchByProgramSession", { programId: $("admProgram").value, sessionId: $("admSession").value, studentId: 0, isOffice: true, versionStudy: admVersion, gender: $("admGender").value, isOnlyBranch: true });
+    admFill("admBranch", admOpts(br.BrunchOptions), ["Farmgate", "Rajshahi"], null);
+    admRenderCourses();
+    await admOnBranch();
+  }
+  async function admOnBranch() {
+    if (!admLoaded) return;
+    const ca = await admPost("/Student/Admission/GetCampusByProgramSessionAndBranch", { branchId: $("admBranch").value, campusId: 0, programId: $("admProgram").value, sessionId: $("admSession").value, versionStudy: admVersion, gender: $("admGender").value });
+    admFill("admCampus", admOpts(ca.CampusOptions), null, null);
+  }
+  function admRenderCourses() {
+    const box = $("admCourseBox"); if (!box) return;
+    admBatchOf = {};
+    const courses = admCourses(admCourseView);
+    if (!courses.length) { box.innerHTML = '<span class="hint" style="margin:0">' + t("adm_no_courses") + "</span>"; return; }
+    box.innerHTML = "";
+    courses.forEach(function (c, i) {
+      const row = document.createElement("div"); row.className = "admcrow";
+      row.innerHTML = '<label><input type="checkbox" class="admc-cb" data-cid="' + c.id + '"><span>' + (c.name || c.id).replace(/</g, "&lt;") + '</span></label>' +
+        '<span class="pay-sym" style="align-self:center">৳</span><input type="number" class="admc-disc" min="0" value="0" title="discount">';
+      const cb = row.querySelector(".admc-cb"); cb.__course = c;
+      cb.addEventListener("change", function () { admCourseCheck(cb); });
+      box.appendChild(row);
+      if (i === 0) { cb.checked = true; admCourseCheck(cb); }        // first course on by default
+    });
+  }
+  async function admCourseCheck(cb) {
+    const c = cb.__course;
+    if (!cb.checked) { delete admBatchOf[c.id]; return; }
+    const p = { programId: $("admProgram").value, sessionId: $("admSession").value, branchId: $("admBranch").value, campusId: $("admCampus").value, versionStudy: admVersion, gender: $("admGender").value };
+    try {
+      const bd = await admPost("/Student/Admission/GetBatchDayByProgramSessionBranchAndCampus", Object.assign({}, p, { courseIds: [c.id] }));
+      const batchDay = admFirstVal(bd);
+      const bt = await admPost("/Student/Admission/GetBatchTimeByProgramSessionBranchCampusAndBatchDay", Object.assign({}, p, { batchDay: batchDay, courseId: c.id }));
+      const batchTime = admFirstVal(bt);
+      const bb = await admPost("/Student/Admission/GetBatchByProgramSessionBranchCampusAndBatchDayTime", Object.assign({}, p, { batchDay: batchDay, batchTime: batchTime, courseId: c.id }));
+      const batchId = admFirstVal(bb);
+      if (!batchId) throw new Error("no batch");
+      admBatchOf[c.id] = { batchId: batchId, course: c };
+    } catch (e) { cb.checked = false; delete admBatchOf[c.id]; admOutLine("  ⚠ " + (c.name || c.id) + ": এই শাখায় batch নেই"); }
+  }
+  async function admResolveInstitute() {
+    const q = (($("admInst") && $("admInst").value) || "").trim();
+    if (!q) return { name: "", id: "" };
+    try {
+      const r = await admPost("/Administration/CommonAjax/GetInstituteList", { query: q });
+      const list = (r && r.returnList) || [];
+      const hit = list.find(function (x) { return (x.Text || "").toLowerCase() === q.toLowerCase(); }) || list[0];
+      if (hit) return { name: hit.Text, id: hit.Value };
+    } catch (e) {}
+    return { name: q, id: "" };
+  }
+  function admBuildStudent(sel, name) {
+    const courseVMs = Object.keys(admBatchOf).map(function (cid) {
+      const b = admBatchOf[cid], c = b.course;
+      return { Name: c.name, ProgramId: c.programId || sel.program, SessionId: c.sessionId || sel.session,
+        Id: c.id, IsTaken: true, OfficeMinSub: c.officeMinSub, maxSubject: c.maxSubject,
+        IsOfficeCompulsary: c.isOfficeCompulsary, BatchId: b.batchId, BranchId: parseInt(sel.branch, 10) || 0,
+        CampusId: parseInt(sel.campus, 10) || 0, AttachedPhysicalBranchId: 0, IsFromShowOnOtherProgram: c.isFromOther, SubjectViewModels: [] };
+    });
+    return { Name: name, MobNumber: sel.mobile, Program: sel.program, Session: sel.session, Branch: sel.branch,
+      AttachedPhysicalBranch: "", Campus: sel.campus, VersionOfStudy: admVersion, Gender: sel.gender, Religion: sel.religion,
+      Email: "", LastInstituteName: sel.instName, LastInstituteId: sel.instId, CourseViewModels: courseVMs,
+      MbbsBdsStatus: null, AcademicGroup: null };
+  }
+  async function admRun() {
+    if (admBusyFlag) return;
+    if (!admLoaded) { admOutLine(t("adm_need_load")); return; }
+    const mobile = ($("admMobile").value || "").trim();
+    if (!mobile) { admOutLine(t("adm_need_mobile")); return; }
+    if (!Object.keys(admBatchOf).length) { admOutLine(t("adm_need_course")); return; }
+    admStopFlag = false; admBusy(true);
+    const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; }
+    try {
+      const inst = await admResolveInstitute();
+      const discOf = {};
+      Array.prototype.forEach.call(document.querySelectorAll("#admCourseBox .admcrow"), function (r) {
+        const cb = r.querySelector(".admc-cb"); if (cb.checked) discOf[cb.getAttribute("data-cid")] = parseInt(r.querySelector(".admc-disc").value, 10) || 0;
+      });
+      const sel = { program: $("admProgram").value, session: $("admSession").value, branch: $("admBranch").value,
+        campus: $("admCampus").value, gender: $("admGender").value, religion: $("admReligion").value,
+        mobile: mobile, instName: inst.name, instId: inst.id, approverId: ($("admApprId").value || "").trim() };
+      const amount = ($("admAmount").value || "").trim();
+      const intOf = function (v) { return parseInt("0" + v, 10) || 0; };
 
-      step("program"); const pr = await admPost("/Student/Admission/GetProgramByClass", { classId: classOpt.value });
-      const program = admPick(admOpts(pr.returnProgramList), cfg.program ? [cfg.program] : ["medical"]);
-      if (!program) throw new Error("no program");
-      let courseView = pr.CourseView;
-
-      step("session"); const se = await admPost("/Student/Admission/GetSessionByProgram", { programId: program.value, sessionId: "" });
-      const session = admPick(admOpts(se.SessionOptions), [cfg.session || "2025"]);
-      if (!session) throw new Error("no session");
-      if (se.CourseView) courseView = se.CourseView;
-
-      step("branch"); const br = await admPost("/Student/Admission/GetBranchByProgramSession", { programId: program.value, sessionId: session.value, studentId: 0, isOffice: true, versionStudy: versionVal, gender: gender, isOnlyBranch: true });
-      const branch = admPick(admOpts(br.BrunchOptions), ["Farmgate", "Rajshahi"]);
-      if (!branch) throw new Error("no branch");
-
-      step("campus"); const ca = await admPost("/Student/Admission/GetCampusByProgramSessionAndBranch", { branchId: branch.value, campusId: 0, programId: program.value, sessionId: session.value, versionStudy: versionVal, gender: gender });
-      const campusVal = (admPick(admOpts(ca.CampusOptions), null) || {}).value || "";
-
-      const allCourses = admCourses(courseView);
-      if (!allCourses.length) throw new Error("no courses on this program");
-      /* keyword-picked courses (each with its discount) — else the first available */
-      const wanted = (cfg.courses || []).filter(function (c) { return c && c.kw; });
-      let chosen = [];
-      if (wanted.length) {
-        wanted.forEach(function (w) {
-          const c = allCourses.find(function (c) { return (c.name || "").toLowerCase().indexOf(w.kw.toLowerCase()) >= 0 && !chosen.find(function (x) { return x.course.id === c.id; }); });
-          if (c) chosen.push({ course: c, disc: parseInt(w.disc, 10) || 0 });
-        });
-      }
-      if (!chosen.length) chosen = [{ course: allCourses[0], disc: (wanted[0] && parseInt(wanted[0].disc, 10)) || 0 }];
-
-      const p = { programId: program.value, sessionId: session.value, branchId: branch.value, campusId: campusVal, versionStudy: versionVal, gender: gender };
-      const courseVMs = [];
-      for (let ci = 0; ci < chosen.length; ci++) {
-        const course = chosen[ci].course;
-        step("batch-day"); const bd = await admPost("/Student/Admission/GetBatchDayByProgramSessionBranchAndCampus", Object.assign({}, p, { courseIds: [course.id] }));
-        const batchDay = admFirstVal(bd);
-        step("batch-time"); const bt = await admPost("/Student/Admission/GetBatchTimeByProgramSessionBranchCampusAndBatchDay", Object.assign({}, p, { batchDay: batchDay, courseId: course.id }));
-        const batchTime = admFirstVal(bt);
-        step("batch"); const bb = await admPost("/Student/Admission/GetBatchByProgramSessionBranchCampusAndBatchDayTime", Object.assign({}, p, { batchDay: batchDay, batchTime: batchTime, courseId: course.id }));
-        courseVMs.push({ Name: course.name, ProgramId: course.programId || program.value, SessionId: course.sessionId || session.value,
-          Id: course.id, IsTaken: true, OfficeMinSub: course.officeMinSub, maxSubject: course.maxSubject,
-          IsOfficeCompulsary: course.isOfficeCompulsary, BatchId: admFirstVal(bb), BranchId: parseInt(branch.value, 10) || 0,
-          CampusId: parseInt(campusVal, 10) || 0, AttachedPhysicalBranchId: 0, IsFromShowOnOtherProgram: course.isFromOther, SubjectViewModels: [] });
-      }
-
-      const name = admName();
-      const studentVM = { Name: name, MobNumber: cfg.mobile, Program: program.value, Session: session.value,
-        Branch: branch.value, AttachedPhysicalBranch: "", Campus: campusVal, VersionOfStudy: versionVal,
-        Gender: gender, Religion: religion, Email: "", LastInstituteName: cfg.instituteName || "", LastInstituteId: cfg.instituteId || "",
-        CourseViewModels: courseVMs, MbbsBdsStatus: null, AcademicGroup: null };
-
-      step("calculate fee"); const fee = await admPost("/Student/Admission/CalculateCourseFee", { format: "json", studentViewModelJson: JSON.stringify(studentVM), previousStudentId: 0, bookingId: 0 });
-      if (fee && fee.IsSuccess === false) throw new Error("fee: " + (Array.isArray(fee.Message) ? (fee.Message[0] && fee.Message[0].ErrorMessage) : fee.Message));
+      const feeVM = admBuildStudent(sel, admName());
+      const totalSpDiscount = Object.keys(discOf).reduce(function (s, k) { return s + (discOf[k] || 0); }, 0);
+      const fee = await admPost("/Student/Admission/CalculateCourseFee", { format: "json", studentViewModelJson: JSON.stringify(feeVM), previousStudentId: 0, bookingId: 0 });
+      if (fee && fee.IsSuccess === false) throw new Error("[fee] " + (Array.isArray(fee.Message) ? (fee.Message[0] && fee.Message[0].ErrorMessage) : fee.Message));
       const net = intOf(fee && fee.NetReceivableAmount), totalFee = intOf(fee && fee.TotalCourseFee), receivable = intOf(fee && fee.ReceivableAmount);
-
-      const totalSpDiscount = chosen.reduce(function (s, c) { return s + (parseInt(c.disc, 10) || 0); }, 0);
-      const specialDiscounts = courseVMs.map(function (cv, i) { return { CourseId: cv.Id, DiscountAmount: parseInt(chosen[i].disc, 10) || 0 }; }).filter(function (x) { return x.DiscountAmount > 0; });
       const netAfter = Math.max(0, net - totalSpDiscount);
-      let received = (cfg.amount != null && cfg.amount !== "") ? Math.min(parseInt(cfg.amount, 10) || 0, netAfter) : netAfter;
-      if (received < 0) received = 0;
-
+      let received = (amount !== "") ? Math.min(parseInt(amount, 10) || 0, netAfter) : netAfter; if (received < 0) received = 0;
+      const specialDiscounts = Object.keys(discOf).filter(function (k) { return discOf[k] > 0; }).map(function (k) { return { CourseId: k, DiscountAmount: discOf[k] }; });
       const d = new Date(); d.setDate(d.getDate() + 2);
       const nextDate = String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
-      studentVM.StudentPayment = { CourseFee: totalFee, OfferedDiscount: intOf(fee && fee.OfferedDiscount),
-        OfferedDiscountViewModels: [], PreviousStudentDiscountAmount: intOf(fee && fee.PreviousStudentDiscount),
-        PreviousStudentDiscountViewModels: [], SpDiscountAmount: totalSpDiscount, SpecialDiscountViewModels: specialDiscounts,
-        ReceivableAmount: receivable, BookingDiscountAmount: intOf(fee && fee.BookingDiscount),
-        NetReceivable: netAfter, ReceivedAmount: received, DueAmount: netAfter - received, ReferrerId: 50,
-        ReferrerNameId: "", Remarks: "Top Student", DiscountApprovedBy: (totalSpDiscount > 0 ? (cfg.approverId || "") : ""),
-        SpReferenceNote: "Top Student", PaymentMethod: 0, NextReceivedDate: nextDate };
+      const payment = { CourseFee: totalFee, OfferedDiscount: intOf(fee && fee.OfferedDiscount), OfferedDiscountViewModels: [],
+        PreviousStudentDiscountAmount: intOf(fee && fee.PreviousStudentDiscount), PreviousStudentDiscountViewModels: [],
+        SpDiscountAmount: totalSpDiscount, SpecialDiscountViewModels: specialDiscounts, ReceivableAmount: receivable,
+        BookingDiscountAmount: intOf(fee && fee.BookingDiscount), NetReceivable: netAfter, ReceivedAmount: received,
+        DueAmount: netAfter - received, ReferrerId: 50, ReferrerNameId: "", Remarks: "Top Student",
+        DiscountApprovedBy: (totalSpDiscount > 0 ? sel.approverId : ""), SpReferenceNote: "Top Student", PaymentMethod: 0, NextReceivedDate: nextDate };
 
-      step("register"); const reg = await admPost("/Student/Admission/StudentRegistration", { studentObj: JSON.stringify(studentVM) });
-      if (!reg || reg.IsSuccess !== true) throw new Error("register: " + (reg && reg.Message || "no success"));
-      const stdProgramId = reg.Message;
-
-      step("receipt"); const due = await admPost("/Student/Payment/DuePayment", { stdProgramId: stdProgramId });
-      const dueHtml = typeof due === "string" ? due : JSON.stringify(due);
-      const m = dueHtml.match(/Registration\s*(?:Number|No\.?)\s*[:\-]?\s*(\d{5,})/i) || dueHtml.match(/\b(\d{7,})\b/);
-      return { ok: true, reg: m ? m[1] : String(stdProgramId), name: name, paid: received, ms: Date.now() - t0 };
-    } catch (e) {
-      return { ok: false, why: (admOne._at ? "[" + admOne._at + "] " : "") + ((e && e.message) || String(e)), ms: Date.now() - t0 };
-    }
+      const count = admCount(), pool = admMode === "parallel" ? admPool() : 1;
+      admOutLine("→ " + count + " admission · " + (admMode === "parallel" ? pool + " একসাথে" : "একজন একজন") + " · net ৳" + netAfter + " · paying ৳" + received);
+      const t0 = Date.now(); let next = 0, ok = 0, fail = 0;
+      async function worker() {
+        while (!admStopFlag) {
+          const i = next++; if (i >= count) break; const n = i + 1;
+          try {
+            const vm = admBuildStudent(sel, admName()); vm.StudentPayment = payment;
+            const reg = await admPost("/Student/Admission/StudentRegistration", { studentObj: JSON.stringify(vm) });
+            if (!reg || reg.IsSuccess !== true) throw new Error(reg && reg.Message || "no success");
+            const due = await admPost("/Student/Payment/DuePayment", { stdProgramId: reg.Message });
+            const html = typeof due === "string" ? due : JSON.stringify(due);
+            const mm = html.match(/Registration\s*(?:Number|No\.?)\s*[:\-]?\s*(\d{5,})/i) || html.match(/\b(\d{7,})\b/);
+            ok++; admOutLine("  ✓ #" + n + "/" + count + " · reg " + (mm ? mm[1] : reg.Message));
+          } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
+        }
+      }
+      await Promise.all(Array.from({ length: Math.min(pool, count) }, function () { return worker(); }));
+      const secs = (Date.now() - t0) / 1000;
+      admOutLine("── " + ok + " ok · " + fail + " failed of " + (ok + fail) + " · " + secs.toFixed(1) + "s" + (admStopFlag ? " (stopped)" : ""));
+    } catch (e) { admOutLine("⚠ " + ((e && e.message) || e)); }
+    admBusy(false);
   }
-
-  /* ---- Sequential / Parallel ---- */
   let admMode = "sequential";
   function admSetMode(m) {
     admMode = m === "parallel" ? "parallel" : "sequential";
@@ -2947,64 +3018,15 @@
     if ($("admSeq")) $("admSeq").classList.toggle("on", !par);
     if ($("admPoolWrap")) $("admPoolWrap").style.display = par ? "inline-flex" : "none";
   }
-  /* ---- course rows ---- */
-  function admAddCourseRow(kw, disc) {
-    const list = $("admCourseList"); if (!list) return;
-    const row = document.createElement("div"); row.className = "row-actions admcrow"; row.style.margin = "0"; row.style.gap = "6px";
-    row.innerHTML = '<input type="text" class="admc-kw" placeholder="keyword" spellcheck="false" style="flex:1;min-width:120px">' +
-      '<span class="pay-sym" style="align-self:center">৳</span>' +
-      '<input type="number" class="admc-disc" min="0" value="' + (parseInt(disc, 10) || 0) + '" style="width:90px">' +
-      '<button type="button" class="btn g admc-rm" title="remove" style="width:38px;padding:0">✕</button>';
-    row.querySelector(".admc-kw").value = kw || "";
-    row.querySelector(".admc-rm").addEventListener("click", function () { row.remove(); });
-    list.appendChild(row);
-  }
-  function admGetCourses() {
-    return Array.prototype.map.call(document.querySelectorAll("#admCourseList .admcrow"), function (r) {
-      return { kw: (r.querySelector(".admc-kw").value || "").trim(), disc: parseInt(r.querySelector(".admc-disc").value, 10) || 0 };
-    }).filter(function (c) { return c.kw; });
-  }
-
-  async function admRun() {
-    if (admBusyFlag) return;
-    const base = admBaseUrl();
-    if (!base) { admOutLine(t("adm_need_base")); return; }
-    const mobile = ($("admMobile").value || "").trim();
-    if (!mobile) { admOutLine(t("adm_need_mobile")); return; }
-    const cfg = {
-      mobile: mobile,
-      program: ($("admProg").value || "").trim(),
-      amount: ($("admAmount").value || "").trim(),
-      gender: ($("admGender") && $("admGender").value) || "Male",
-      religion: ($("admReligion") && $("admReligion").value) || "Islam",
-      session: (($("admSession") && $("admSession").value) || "2025").trim(),
-      courses: admGetCourses(),
-      instituteName: (($("admInstName") && $("admInstName").value) || "").trim(),
-      instituteId: (($("admInstId") && $("admInstId").value) || "").trim(),
-      approverName: (($("admApprName") && $("admApprName").value) || "").trim(),
-      approverId: (($("admApprId") && $("admApprId").value) || "").trim()
-    };
-    const count = admCount(), pool = admMode === "parallel" ? admPool() : 1;
-    const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; }
-    admStopFlag = false; admBusy(true);
-    admOutLine("→ " + count + " admission · " + (admMode === "parallel" ? pool + " একসাথে" : "একজন একজন") + " · " + base.replace(/^https?:\/\//, ""));
-    const t0 = Date.now();
-    let next = 0, ok = 0, fail = 0;
-    async function worker() {
-      while (!admStopFlag) {
-        const i = next++; if (i >= count) break;
-        const n = i + 1;
-        const r = await admOne(cfg);
-        if (r.ok) { ok++; admOutLine("  ✓ #" + n + "/" + count + " · reg " + r.reg + " · " + (r.ms / 1000).toFixed(1) + "s"); }
-        else { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + r.why); }
-      }
-    }
-    await Promise.all(Array.from({ length: Math.min(pool, count) }, function () { return worker(); }));
-    const secs = (Date.now() - t0) / 1000;
-    admOutLine("── " + ok + " ok · " + fail + " failed of " + (ok + fail) + " · " + secs.toFixed(1) + "s · ~" + (secs > 0 ? Math.round(ok / secs * 60) : 0) + "/min" + (admStopFlag ? " (stopped)" : ""));
-    admBusy(false);
-  }
   function admStop() { admStopFlag = true; admOutLine("⏹ থামানো হচ্ছে…"); }
+  let admInstTimer = null;
+  async function admInstSearch() {
+    const q = (($("admInst") && $("admInst").value) || "").trim(); if (q.length < 2) return;
+    try {
+      const r = await admPost("/Administration/CommonAjax/GetInstituteList", { query: q });
+      const dl = $("admInstDl"); if (dl) dl.innerHTML = ((r && r.returnList) || []).slice(0, 20).map(function (x) { return '<option value="' + (x.Text || "").replace(/"/g, "&quot;") + '">'; }).join("");
+    } catch (e) {}
+  }
   function admOnShow() {
     const b = $("admBase"); if (b && !b.value) b.value = "https://ums-4.osl.team";
     admTestConn();
@@ -3349,7 +3371,12 @@
     if ($("admStop")) $("admStop").addEventListener("click", admStop);
     if ($("admSeq")) $("admSeq").addEventListener("click", function () { admSetMode("sequential"); });
     if ($("admPar")) $("admPar").addEventListener("click", function () { admSetMode("parallel"); });
-    if ($("admAddCourse")) $("admAddCourse").addEventListener("click", function () { admAddCourseRow("", 0); });
+    if ($("admLoad")) $("admLoad").addEventListener("click", admLoadForm);
+    if ($("admProgram")) $("admProgram").addEventListener("change", admOnProgram);
+    if ($("admSession")) $("admSession").addEventListener("change", admOnSession);
+    if ($("admBranch")) $("admBranch").addEventListener("change", admOnBranch);
+    if ($("admGender")) $("admGender").addEventListener("change", function () { if (admLoaded) admOnSession(); });   // branch depends on gender
+    if ($("admInst")) $("admInst").addEventListener("input", function () { if (admInstTimer) clearTimeout(admInstTimer); admInstTimer = setTimeout(admInstSearch, 350); });
     admSetMode("sequential");
     if ($("admBase")) $("admBase").addEventListener("input", function () { try { chrome.storage.local.set({ admBase: this.value }); } catch (e) {} admConnDebounced(); });
     ["crmBase", "crmCount", "crmUsers"].forEach(function (id) { const e = $(id); if (e) e.addEventListener("input", crmRender); });
