@@ -537,18 +537,18 @@
              than a rearrangement. -->
         <div class="page on" id="crmDash">
           <div class="card">
-            <div class="ch"><h2 data-i18n="crm_dash_h">CRM · Dashboard</h2></div>
+            <div class="ch"><h2 data-i18n="crm_dash_h">CRM · Dashboard</h2><span class="badge" id="crmPairs" style="margin-left:auto">০ জন</span></div>
             <p class="hint" data-i18n="crm_lt_intro" style="margin:0 0 14px"></p>
 
             <div class="crmtop">
-              <div><label data-i18n="crm_base_l">UMS ঠিকানা (Base URL)</label>
+              <div><label data-i18n="crm_base_l">UMS ঠিকানা</label>
                 <input id="crmBase" spellcheck="false" placeholder="https://ums-41.osl.team"></div>
               <div><label data-i18n="crm_mode_l">কীভাবে ভিজিট করবে</label>
                 <div class="moderows">
                   <div class="row-actions" style="align-items:center;gap:12px">
                     <div class="seg">
-                      <button type="button" id="crmPar" class="on" data-i18n="crm_parallel">একসাথে (Parallel)</button>
-                      <button type="button" id="crmSeq" data-i18n="crm_sequential">একজন একজন (Sequential)</button>
+                      <button type="button" id="crmPar" class="on" data-i18n="crm_parallel">একসাথে</button>
+                      <button type="button" id="crmSeq" data-i18n="crm_sequential">একজন একজন</button>
                     </div>
                     <span id="crmCountWrap" style="display:inline-flex;align-items:center;gap:8px">
                       <span class="hint" style="margin:0" data-i18n="crm_count_l">একসাথে কতজন</span>
@@ -564,21 +564,16 @@
               </div>
             </div>
 
-            <div style="margin-top:14px"><label data-i18n="crm_users_l">Username, Password — প্রতি লাইনে একজন</label>
-              <div class="row-actions" style="align-items:stretch;margin-top:0">
-                <textarea id="crmUsers" class="paste" data-ph="crm_users_ph" style="min-height:120px"></textarea>
-                <div class="pstack">
-                  <label class="btn g impbtn" for="crmFile" style="cursor:pointer" data-i18n="crm_import">⬆ Import Excel</label>
-                  <input type="file" id="crmFile" accept=".csv,.txt,.xlsx" style="display:none">
-                  <button class="btn g impbtn" id="crmLinkBtn" data-i18n="crm_link_btn">↧ Sheet Link</button>
-                  <button class="btn g impbtn" id="crmClear" data-i18n="crm_clear">✕ Clear</button>
-                </div>
-              </div></div>
-            <div class="row-actions" style="margin-top:8px;align-items:flex-start">
+            <div class="row-actions" style="margin-top:14px">
+              <label class="btn g impbtn" for="crmFile" style="cursor:pointer" data-i18n="crm_import">⬆ Import Excel</label>
+              <input type="file" id="crmFile" accept=".csv,.txt,.xlsx" style="display:none">
               <input id="crmLink" data-ph="crm_link_ph" placeholder="…অথবা Google Sheet লিংক" style="flex:1;min-width:160px">
+              <button class="btn g impbtn" id="crmLinkBtn" data-i18n="crm_link_btn">↧ Sheet Link</button>
+            </div>
+            <div class="row-actions" style="margin-top:8px;align-items:stretch">
+              <textarea id="crmUsers" class="paste" data-ph="crm_users_ph" style="min-height:120px"></textarea>
               <div class="pstack">
-                <span class="badge mut" id="crmPairs" style="text-align:center;padding:4px 0">০ জন</span>
-                <button class="btn g" id="crmDl" disabled data-i18n="crm_dl">⬇ users.txt</button>
+                <button class="btn g impbtn" id="crmClear" data-i18n="crm_clear">✕ Clear</button>
               </div>
             </div>
             <div class="row-actions" style="margin-top:8px">
@@ -594,8 +589,11 @@
             <pre class="crmout" id="crmOut" style="display:none"></pre>
 
             <details style="margin-top:16px"><summary class="hint" data-i18n="crm_manual_sum" style="cursor:pointer"></summary>
-              <div style="margin-top:8px"><label data-i18n="crm_cmd_l">এই কমান্ডটা crm-loadtest ফোল্ডারে চালাও</label>
+              <div style="margin-top:8px"><label data-i18n="crm_cmd_l">crm-loadtest ফোল্ডারে চালাও</label>
                 <div class="cmdbox"><code id="crmCmd"></code><button class="btn g" id="crmCopy" data-i18n="crm_copy">⧉ Copy</button></div></div>
+              <div class="row-actions" style="margin-top:8px">
+                <button class="btn g" id="crmDl" disabled data-i18n="crm_dl">⬇ users.txt</button>
+              </div>
               <p class="hint" data-i18n="crm_steps" style="white-space:pre-line"></p>
             </details>
           </div>
