@@ -143,7 +143,7 @@
     adm_inst_l: { bn: "Institute", en: "Institute" },
     adm_appr_id_l: { bn: "Approver ID", en: "Approver ID" },
     adm_appr_name_l: { bn: "Approver Name", en: "Approver Name" },
-    adm_pick_prog: { bn: "— আগে ফর্ম আনো —", en: "— load the form first —" },
+    adm_pick_prog: { bn: "— আগে Fetch Data চাপো —", en: "— press Fetch Data first —" },
     adm_courses_l: { bn: "Courses (টিক দাও · ছাড় ৳)", en: "Courses (tick · discount)" },
     adm_courses_hint: { bn: "ফর্ম আনলে কোর্স এখানে আসবে", en: "courses appear here once the form is loaded" },
     adm_no_courses: { bn: "এই প্রোগ্রামে কোর্স নেই", en: "no courses on this program" },
