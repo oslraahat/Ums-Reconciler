@@ -2949,14 +2949,18 @@
   async function admOnSession() {
     if (!admLoaded) return;
     const br = await admPost("/Student/Admission/GetBranchByProgramSession", { programId: $("admProgram").value, sessionId: $("admSession").value, studentId: 0, isOffice: true, versionStudy: admVersion, gender: $("admGender").value, isOnlyBranch: true });
-    admFill("admBranch", admOpts(br.BrunchOptions), ["Farmgate", "Rajshahi"], null);
+    const opts = admOpts((br && (br.BrunchOptions || br.BranchOptions || br.brunchOptions || br.branchOptions)) || (typeof br === "string" ? br : ""));
+    admFill("admBranch", opts, ["Farmgate", "Rajshahi"], null);   // single option auto-selects (admFill picks opts[0])
+    if (!opts.length) admOutLine("⚠ Branch খালি — resp: " + String(typeof br === "string" ? br : JSON.stringify(br)).slice(0, 300));
     admRenderCourses();
     await admOnBranch();
   }
   async function admOnBranch() {
-    if (!admLoaded) return;
+    if (!admLoaded || !$("admBranch").value) return;
     const ca = await admPost("/Student/Admission/GetCampusByProgramSessionAndBranch", { branchId: $("admBranch").value, campusId: 0, programId: $("admProgram").value, sessionId: $("admSession").value, versionStudy: admVersion, gender: $("admGender").value });
-    admFill("admCampus", admOpts(ca.CampusOptions), null, null);
+    const opts = admOpts((ca && (ca.CampusOptions || ca.campusOptions)) || (typeof ca === "string" ? ca : ""));
+    admFill("admCampus", opts, null, null);
+    if (!opts.length) admOutLine("⚠ Campus খালি — resp: " + String(typeof ca === "string" ? ca : JSON.stringify(ca)).slice(0, 200));
   }
   function admRenderCourses() {
     const box = $("admCourseBox"); if (!box) return;
