@@ -2882,7 +2882,10 @@
       if (m.type === "out") crmOutLine(m.text);
       else if (m.type === "error") crmOutLine("⚠ " + m.text);
       else if (m.type === "done") { crmInFlight = false; crmBusy(false);
-        if ($("crmStop")) $("crmStop").disabled = false; crmNextLabel(); crmOutLine(""); }
+        const kept = m.keepOpen;                 // closed after the visit? then there's nothing to stop
+        if ($("crmStop")) $("crmStop").disabled = !kept;
+        if (!kept) crmCursor = 0;                // browser gone — next Sequential press starts over
+        crmNextLabel(); crmOutLine(""); }
     });
     crmPort.onDisconnect.addListener(function () {
       const err = chrome.runtime.lastError, missing = !crmSawMsg;
