@@ -162,6 +162,8 @@
       en: "The helper isn't installed. Open a terminal in crm-loadtest/host and run:  node install.js  — then reload the extension." },
     crm_close: { bn: "ভিজিটের পর বন্ধ করো", en: "Close after each visit" },
     crm_max: { bn: "স্ক্রিনজুড়ে বড় করো", en: "Maximize to screen" },
+    crm_reach_ok: { bn: "✓ সার্ভার পাওয়া গেছে", en: "✓ Server reachable" },
+    crm_reach_no: { bn: "✗ পৌঁছানো যায়নি — ঠিকানা দেখো", en: "✗ Can't reach — check the address" },
     crm_stop: { bn: "✕ ব্রাউজার বন্ধ", en: "✕ Close Browser" },
     crm_closed: { bn: "— ব্রাউজার বন্ধ, আবার প্রথম থেকে —", en: "— browser closed, back to the start —" },
     crm_next: { bn: "পরের: {u}  ({n}/{m})", en: "next: {u}  ({n}/{m})" },
@@ -2944,41 +2946,31 @@
     crmTestConn();
   }
 
-  /* A login/connection check for the CRM base, the same idea as the Payment History badge: fetch the
-     Dashboard with the browser's own session — if it is not bounced to the login page, we are logged
-     in on that server. (The run itself logs in with the given username/password through the host;
-     this is a quick "is this address right, am I signed in here" glance before pressing Run.) */
+  /* A reachability check for the CRM base — not a login check. The run logs in with the given
+     username/password through the host, so whether *this browser* happens to hold a CRM session is
+     both irrelevant and unreliable to read (it came back signed-out on a first visit yet signed-in
+     after a reload). All that matters before pressing Run is that the address answers: fetch the
+     Dashboard and, if the server responds at all (the page, or a redirect to its login), the address
+     is good; only a network/DNS/permission failure — nothing came back — means it is wrong. */
   let crmConnSeq = 0, crmConnTimer = null;
   function crmSetConn(state) {
     const el = $("crmConn"); if (!el) return;
     el.className = "crmconn" + (state ? " " + state : "");
     el.textContent = state === "busy" ? t("checking")
-      : state === "ok" ? t("conn_ok") : state === "no" ? t("conn_no")
-      : state === "fail" ? t("conn_fail") : t("conn_unchecked");
+      : state === "ok" ? t("crm_reach_ok") : state === "no" ? t("crm_reach_no")
+      : t("conn_unchecked");
   }
-  async function crmTestConn(isRetry) {
+  async function crmTestConn() {
     const base = (($("crmBase") && $("crmBase").value) || "").trim();
     if (!base) { crmSetConn(null); return; }
     const mine = ++crmConnSeq;
     crmSetConn("busy");
-    let state;
+    let ok = false;
     try {
       const r = await fetchHtml(base.replace(/\/+$/, "") + "/Student/CrmConversation/Dashboard");
-      /* A real login page carries a password box; the Dashboard does not. That — not a stray
-         "Account/Login" link that can sit in a signed-in page's nav — is what separates signed-out
-         from signed-in, the same test the host uses when it logs in. */
-      const onLogin = /type\s*=\s*["']?password/i.test(r.html);
-      state = (r.ok && !onLogin) ? "ok" : "no";
-    } catch (e) { state = "fail"; }
-    if (mine !== crmConnSeq) return;                  // a newer check has started — this one is stale
-    /* The very first hit after moving here from Payment History can come back signed-out before the
-       session is warm (a reload then reads it right); so a lone non-ok gets one quiet retry rather
-       than flashing "not logged in" at a session that actually is. */
-    if (state !== "ok" && !isRetry) {
-      setTimeout(function () { if (mine === crmConnSeq) crmTestConn(true); }, 900);
-      return;                                         // stay on "checking…" through the retry
-    }
-    crmSetConn(state);
+      ok = !!(r && r.status);                          // any HTTP answer means the server is there
+    } catch (e) { ok = false; }
+    if (mine === crmConnSeq) crmSetConn(ok ? "ok" : "no");   // ignore a check the user has outrun
   }
   function crmConnDebounced() {
     if (crmConnTimer) clearTimeout(crmConnTimer);
