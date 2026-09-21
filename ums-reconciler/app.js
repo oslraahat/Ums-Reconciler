@@ -2867,8 +2867,14 @@
   }
   function admCourses(courseViewHtml) {
     const doc = new DOMParser().parseFromString(String(courseViewHtml || ""), "text/html");
-    return Array.prototype.map.call(doc.querySelectorAll(".course-name-check"), function (cb) {
-      return { id: cb.getAttribute("data-course-id"), name: cb.getAttribute("data-course-name") || "",
+    let cbs = doc.querySelectorAll(".course-name-check");
+    if (!cbs.length) cbs = doc.querySelectorAll('input[data-course-id], input[type=checkbox][class*="course-"]');
+    return Array.prototype.map.call(cbs, function (cb) {
+      let id = cb.getAttribute("data-course-id") || cb.getAttribute("data-courseid");
+      if (!id) { const m = (cb.className || "").match(/course-(\d+)/); if (m) id = m[1]; }
+      let name = cb.getAttribute("data-course-name") || "";
+      if (!name) { const row = cb.closest("tr,label,li,div"); name = row ? (row.textContent || "").replace(/\s+/g, " ").trim().slice(0, 60) : id; }
+      return { id: id, name: name,
         programId: cb.getAttribute("data-program-id"), sessionId: cb.getAttribute("data-session-id"),
         officeMinSub: cb.getAttribute("data-officeminsub"), maxSubject: cb.getAttribute("data-maximumsubject"),
         isOfficeCompulsary: cb.getAttribute("data-isofficecompulsary"),
@@ -2966,7 +2972,11 @@
     const box = $("admCourseBox"); if (!box) return;
     admBatchOf = {};
     const courses = admCourses(admCourseView);
-    if (!courses.length) { box.innerHTML = '<span class="hint" style="margin:0">' + t("adm_no_courses") + "</span>"; return; }
+    if (!courses.length) {
+      box.innerHTML = '<span class="hint" style="margin:0">' + t("adm_no_courses") + "</span>";
+      admOutLine("⚠ courses খালি — view(" + String(admCourseView || "").length + "): " + String(admCourseView || "(empty)").replace(/[<>]/g, function (c) { return c === "<" ? "‹" : "›"; }).slice(0, 400));
+      return;
+    }
     box.innerHTML = "";
     courses.forEach(function (c, i) {
       const row = document.createElement("div"); row.className = "admcrow";
