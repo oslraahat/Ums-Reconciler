@@ -2808,6 +2808,7 @@
       if (Array.isArray(v)) v.forEach(function (x) { body.append(k, x); });
       else body.append(k, v == null ? "" : v);
     });
+    if (admToken) body.append("__RequestVerificationToken", admToken);   // also as a form field, the standard antiforgery spot
     const url = admUrl(path);
     const headers = { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" };
     if (admToken) headers["RequestVerificationToken"] = admToken;   // UMS validates the antiforgery token on POST
@@ -2883,9 +2884,10 @@
     if ($("admLoad")) { $("admLoad").disabled = true; $("admLoad").textContent = t("adm_loading"); }
     try {
       const page = await admGetDoc(ADM_PATH);
-      /* the antiforgery token every POST must carry (UMS rejects tokenless POSTs as PermissionDenied) */
-      const tokEl = page.querySelector('input[name="__RequestVerificationToken"]');
-      admToken = tokEl ? (tokEl.getAttribute("value") || tokEl.value || "") : "";
+      /* the antiforgery token every POST must carry — take the LAST one on the page (the admission
+         form's, not the logout form's) as some UMS setups tie the token to its own form */
+      const toks = page.querySelectorAll('input[name="__RequestVerificationToken"]');
+      admToken = toks.length ? (toks[toks.length - 1].getAttribute("value") || toks[toks.length - 1].value || "") : "";
       if (!admToken) throw new Error("antiforgery token পেলাম না — ঠিক পেজ এসেছে তো?");
       const classOpt = admDocOpts(page, "#StudentClass option", ["Admission"]);
       if (!classOpt) throw new Error("no Student Class");
