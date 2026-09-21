@@ -2938,6 +2938,36 @@
     /* a convenience only — the Payment History address is usually the one under test too */
     const cb = $("crmBase"); if (cb && !cb.value && baseUrl) { cb.value = baseUrl; }
     crmRender();
+    crmTestConn();
+  }
+
+  /* A login/connection check for the CRM base, the same idea as the Payment History badge: fetch the
+     Dashboard with the browser's own session — if it is not bounced to the login page, we are logged
+     in on that server. (The run itself logs in with the given username/password through the host;
+     this is a quick "is this address right, am I signed in here" glance before pressing Run.) */
+  let crmConnSeq = 0, crmConnTimer = null;
+  function crmSetConn(state) {
+    const el = $("crmConn"); if (!el) return;
+    el.className = "crmconn" + (state ? " " + state : "");
+    el.textContent = state === "busy" ? t("checking")
+      : state === "ok" ? t("conn_ok") : state === "no" ? t("conn_no")
+      : state === "fail" ? t("conn_fail") : t("conn_unchecked");
+  }
+  async function crmTestConn() {
+    const base = (($("crmBase") && $("crmBase").value) || "").trim();
+    if (!base) { crmSetConn(null); return; }
+    const mine = ++crmConnSeq;
+    crmSetConn("busy");
+    let state;
+    try {
+      const r = await fetchHtml(base.replace(/\/+$/, "") + "/Student/CrmConversation/Dashboard");
+      state = (r.ok && !/Account\/Login/i.test(r.html)) ? "ok" : "no";
+    } catch (e) { state = "fail"; }
+    if (mine === crmConnSeq) crmSetConn(state);       // ignore a check the user has already outrun
+  }
+  function crmConnDebounced() {
+    if (crmConnTimer) clearTimeout(crmConnTimer);
+    crmConnTimer = setTimeout(crmTestConn, 700);
   }
 
   /* …and the menu says whether the other section is busy, since leaving it running is the whole
@@ -3010,7 +3040,7 @@
     $("navCrm").addEventListener("click", function () { showPage("crm"); });
     $("navCrmDash").addEventListener("click", function () { showPage("crm"); showCrm("dash"); });
     ["crmBase", "crmCount", "crmUsers"].forEach(function (id) { const e = $(id); if (e) e.addEventListener("input", crmRender); });
-    if ($("crmBase")) $("crmBase").addEventListener("input", function () { try { chrome.storage.local.set({ crmBase: this.value }); } catch (e) {} });
+    if ($("crmBase")) $("crmBase").addEventListener("input", function () { try { chrome.storage.local.set({ crmBase: this.value }); } catch (e) {} crmConnDebounced(); });
     if ($("crmUsers")) $("crmUsers").addEventListener("input", crmNextLabel);
     if ($("crmHeaded")) $("crmHeaded").addEventListener("change", crmRender);
     if ($("crmClose")) $("crmClose").addEventListener("change", crmRender);
@@ -3147,6 +3177,7 @@
     saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
     showPage(o.page === "crm" ? "crm" : "pay");
     if (o.crmBase && $("crmBase")) $("crmBase").value = o.crmBase;
+    crmSetConn(null);
     /* The handle comes back from IndexedDB, but the permission on it may not have — dirUsable()
        decides that at the end of the run, when it matters. */
     idb(function (st) { return st.get("dir"); }).then(function (h) { if (h) dirHandle = h; paintSaveRow(); }).catch(function () { paintSaveRow(); }); if (o.baseUrl) baseUrl = o.baseUrl; if (o.baseUrl2) baseUrl2 = o.baseUrl2; srvMode = o.srvMode === true; if (o.appConc) conc = o.appConc;
