@@ -132,24 +132,21 @@
     nav_adm: { bn: "New Admission", en: "New Admission" },
     adm_sub: { bn: "New Admission — লোড টেস্ট", en: "New Admission — load test" },
     adm_h: { bn: "New Admission · লোড টেস্ট", en: "New Admission · Load test" },
-    adm_intro: { bn: "১টা বা ১০০০টা নতুন admission কত দ্রুত সম্পন্ন হয় মেপে দেখো। baseUrl-এর অ্যাকাউন্টে লগইন করে, ফর্মটা নিজে পূরণ করে (নাম অটো, dropdown নিজে নেয়) — তুমি শুধু মোবাইল ও সংখ্যা দাও, ▶ Run চাপো। ⚠ এটা আসল admission তৈরি করে — শুধু টেস্ট/ডেমো সার্ভারে চালাও।",
-      en: "See how fast 1 — or 1000 — new admissions complete. It logs into the account on baseUrl, fills the form itself (auto name, dropdowns read off the page) — you give only the mobile and the count, then press ▶ Run. ⚠ This creates REAL admissions — run it on a test/demo server only." },
+    adm_intro: { bn: "১টা বা ১০০০টা নতুন admission কত দ্রুত সম্পন্ন হয় মেপে দেখো। Payment History-র মতোই এটা তোমার এখনকার লগইন সেশন দিয়ে চলে — ফর্মটা নিজেই পূরণ করে (নাম অটো, dropdown নিজে নেয়)। তুমি শুধু মোবাইল ও সংখ্যা দাও, ▶ Run চাপো। ⚠ এটা আসল admission তৈরি করে — শুধু টেস্ট/ডেমো সার্ভারে চালাও।",
+      en: "See how fast 1 — or 1000 — new admissions complete. Like Payment History, it runs on your current login session and fills the form itself (auto name, dropdowns read off the page). Give only the mobile and the count, then press ▶ Run. ⚠ This creates REAL admissions — run it on a test/demo server only." },
     adm_base_l: { bn: "UMS ঠিকানা", en: "UMS address" },
-    adm_login_l: { bn: "লগইন (এই সার্ভারের অ্যাকাউন্ট)", en: "Login (account on this server)" },
     adm_mobile_l: { bn: "মোবাইল নম্বর", en: "Mobile number" },
     adm_prog_l: { bn: "প্রোগ্রাম (ঐচ্ছিক)", en: "Program (optional)" },
+    adm_amount_l: { bn: "টাকা (ঐচ্ছিক)", en: "Amount (optional)" },
     adm_count_l: { bn: "মোট কতগুলো admission", en: "How many admissions" },
     adm_pool_l: { bn: "একসাথে কতগুলো", en: "How many at once" },
     adm_run: { bn: "▶ Run", en: "▶ Run" },
     adm_running: { bn: "⏳ চলছে…", en: "⏳ running…" },
-    adm_run_hint: { bn: "লগইন করে মোট admission-গুলো একসাথে-কতগুলো করে চালায়, প্রতিটার সময় ও Reg No দেখায়, শেষে “কতগুলো, কত সেকেন্ডে, কয়টা সফল”। খোলা ব্রাউজার থাকলে ✕ দিয়ে বন্ধ।",
-      en: "Logs in and runs the admissions in batches of “how many at once”, showing each one's time and Reg No, then “how many, in how many seconds, how many passed”. ✕ closes the open browser." },
+    adm_stop: { bn: "✕ থামাও", en: "✕ Stop" },
+    adm_run_hint: { bn: "তোমার লগইন সেশন দিয়ে admission-গুলো একসাথে-কতগুলো করে চালায়, প্রতিটার সময় ও Reg No দেখায়, শেষে “কতগুলো, কত সেকেন্ডে, কয়টা সফল”। ✕ দিয়ে থামানো যায়।",
+      en: "Runs the admissions on your login session in batches of “how many at once”, showing each one's time and Reg No, then “how many, in how many seconds, how many passed”. ✕ stops it." },
     adm_need_base: { bn: "আগে UMS ঠিকানা দাও", en: "fill in the UMS address first" },
     adm_need_mobile: { bn: "মোবাইল নম্বর দাও", en: "enter a mobile number" },
-    adm_need_login: { bn: "লগইন email/password দাও", en: "enter the login email/password" },
-    adm_cmd_l: { bn: "crm-loadtest ফোল্ডারে চালাও", en: "Run in the crm-loadtest folder" },
-    adm_steps: { bn: "প্রথমবার crm-loadtest/host ফোল্ডারে  node install.js  চালিয়ে সহায়ক ইনস্টল করো, তারপর এক্সটেনশন reload করো। ছোট সংখ্যায় (১-২) শুরু করো — এটা সার্ভারে সত্যিকারের admission তৈরি করে।",
-      en: "Install the helper once with  node install.js  in crm-loadtest/host, then reload the extension. Start small (1–2) — this creates real admissions on the server." },
     crm_sub: { bn: "CRM — আলাদা নিয়মে কাজ", en: "CRM — a different set of rules" },
     crm_dash: { bn: "Dashboard", en: "Dashboard" },
     crm_dash_h: { bn: "CRM · Dashboard", en: "CRM · Dashboard" },
@@ -2734,25 +2731,25 @@
      a run in Payment History keeps its workers, its answers and its list, because none of that
      survives a page that is left. */
   let page = "pay";
-  /* ── New Admission load test ──────────────────────────────────────────────────
-     Same native host as CRM, a different message: it logs in once with the given account and runs
-     `count` real admissions through a pool of `pool` tabs, streaming each result and a final rate.
-     Only the mobile and the counts are typed; the name is auto, the dropdowns are read off the page
-     by the host (see crm-loadtest/admission.js). This creates real records — test servers only. */
-  let admPort = null, admInFlight = false, admSawMsg = false, admConnSeq = 0, admConnTimer = null;
-  function admBusy(on) { const b = $("admRun"); if (b) { b.disabled = on; b.textContent = t(on ? "adm_running" : "adm_run"); } }
+  /* ── New Admission load test — session-based, no helper, no credentials ───────────
+     Like Payment History, this runs on the browser's own UMS login. It drives the real
+     NewStudentAdmission flow with fetch() against the same endpoints the page's own JS calls
+     (/Scripts/Student/NewAdmission.js): GetProgramByClass → GetSessionByProgram →
+     GetBranchByProgramSession → GetCampus… → GetBatch(Day/Time) cascade → CalculateCourseFee →
+     StudentRegistration → DuePayment. These AJAX POSTs need only the session cookie (no antiforgery
+     token). The name is auto; the mobile and the counts come from the user. It measures how fast N
+     admissions complete. ⚠ creates REAL records — a test/demo server only. */
+  let admBusyFlag = false, admStopFlag = false, admConnSeq = 0, admConnTimer = null;
+  const ADM_PATH = "/Student/Admission/NewStudentAdmission";
+  function admBusy(on) {
+    admBusyFlag = on;
+    const b = $("admRun"); if (b) { b.disabled = on; b.textContent = t(on ? "adm_running" : "adm_run"); }
+    if ($("admStop")) $("admStop").disabled = !on;
+  }
   function admOutLine(s) { const o = $("admOut"); if (!o) return; o.style.display = ""; o.textContent += (o.textContent ? "\n" : "") + s; o.scrollTop = o.scrollHeight; }
   function admCount() { return Math.max(1, Math.min(1000, parseInt($("admCount").value, 10) || 1)); }
-  function admPool() { return Math.max(1, Math.min(30, parseInt($("admPool").value, 10) || 1)); }
-  function admCommand() {
-    const base = ($("admBase").value || "").trim() || "<base-url>";
-    const prog = ($("admProg").value || "").trim();
-    const headed = $("admHeaded").checked ? " --headed" : "";
-    return "node admission.js --base " + base + " --email <email> --password <pass> --mobile " +
-      (($("admMobile").value || "").trim() || "<mobile>") + " --count " + admCount() + " --pool " + admPool() +
-      (prog ? " --program " + prog : "") + headed;
-  }
-  function admRender() { if ($("admCmd")) $("admCmd").textContent = admCommand(); }
+  function admPool() { return Math.max(1, Math.min(20, parseInt($("admPool").value, 10) || 1)); }
+  function admBaseUrl() { return (($("admBase") && $("admBase").value) || "").trim().replace(/\/+$/, ""); }
   function admSetConn(state) {
     const el = $("admConn"); if (!el) return;
     el.className = "crmconn" + (state ? " " + state : "");
@@ -2760,63 +2757,191 @@
       : state === "ok" ? t("crm_reach_ok") : state === "no" ? t("crm_reach_no") : t("conn_unchecked");
   }
   async function admTestConn() {
-    const base = (($("admBase") && $("admBase").value) || "").trim();
+    const base = admBaseUrl();
     if (!base) { admSetConn(null); return; }
     const mine = ++admConnSeq; admSetConn("busy");
     let ok = false;
-    try { const r = await fetchHtml(base.replace(/\/+$/, "") + "/Student/Admission/NewStudentAdmission"); ok = !!(r && r.status); }
+    try { const r = await fetchHtml(base + ADM_PATH); ok = !!(r && r.status); }
     catch (e) { ok = false; }
     if (mine === admConnSeq) admSetConn(ok ? "ok" : "no");
   }
   function admConnDebounced() { if (admConnTimer) clearTimeout(admConnTimer); admConnTimer = setTimeout(admTestConn, 700); }
-  function admConnect() {
-    admSawMsg = false;
-    try { admPort = chrome.runtime.connectNative(CRM_HOST); } catch (e) { admPort = null; return false; }
-    admPort.onMessage.addListener(function (m) {
-      admSawMsg = true;
-      if (m.type === "out") admOutLine(m.text);
-      else if (m.type === "error") admOutLine("⚠ " + m.text);
-      else if (m.type === "done") { admInFlight = false; admBusy(false);
-        if ($("admStop")) $("admStop").disabled = !m.keepOpen; admOutLine(""); }
+
+  /* ---- session fetch helpers ---- */
+  async function admPost(path, data) {
+    const body = new URLSearchParams();
+    Object.keys(data).forEach(function (k) {
+      const v = data[k];
+      if (Array.isArray(v)) v.forEach(function (x) { body.append(k, x); });
+      else body.append(k, v == null ? "" : v);
     });
-    admPort.onDisconnect.addListener(function () {
-      const err = chrome.runtime.lastError, missing = !admSawMsg;
-      admPort = null; admInFlight = false; admBusy(false);
-      if ($("admStop")) $("admStop").disabled = true;
-      if (missing) { admOutLine(t("crm_host_missing")); if (err && err.message) admOutLine("(" + err.message + ")"); }
-    });
-    return true;
+    const r = await fetch(admBaseUrl() + path, { method: "POST", credentials: "include",
+      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" },
+      body: body.toString() });
+    const txt = await r.text();
+    if (/Account\/Login/i.test(r.url || "") || /name=["']?Password["']?/i.test(txt.slice(0, 4000))) throw new Error("not logged in");
+    try { return JSON.parse(txt); } catch (e) { return txt; }
   }
-  function admRun() {
-    if (admInFlight) return;
-    const base = ($("admBase").value || "").trim();
+  async function admGetDoc(path) {
+    const r = await fetch(admBaseUrl() + path, { credentials: "include" });
+    const txt = await r.text();
+    if (/Account\/Login/i.test(r.url || "")) throw new Error("not logged in");
+    return new DOMParser().parseFromString(txt, "text/html");
+  }
+  function admOpts(html) {
+    const doc = new DOMParser().parseFromString("<select>" + String(html || "") + "</select>", "text/html");
+    return Array.prototype.map.call(doc.querySelectorAll("option"), function (o) { return { value: o.getAttribute("value") || o.value, text: (o.textContent || "").trim() }; })
+      .filter(function (o) { return o.value && String(o.value).trim(); });
+  }
+  function admPick(opts, prefer) {
+    if (!opts || !opts.length) return null;
+    if (prefer) for (let i = 0; i < prefer.length; i++) { const f = opts.find(function (o) { return o.text.toLowerCase().indexOf(prefer[i].toLowerCase()) >= 0; }); if (f) return f; }
+    return opts[0];
+  }
+  function admDocOpts(doc, sel, prefer) {
+    return admPick(Array.prototype.map.call(doc.querySelectorAll(sel), function (o) { return { value: o.getAttribute("value") || o.value, text: (o.textContent || "").trim() }; }).filter(function (o) { return o.value && String(o.value).trim(); }), prefer);
+  }
+  function admCourses(courseViewHtml) {
+    const doc = new DOMParser().parseFromString(String(courseViewHtml || ""), "text/html");
+    return Array.prototype.map.call(doc.querySelectorAll(".course-name-check"), function (cb) {
+      return { id: cb.getAttribute("data-course-id"), name: cb.getAttribute("data-course-name") || "",
+        programId: cb.getAttribute("data-program-id"), sessionId: cb.getAttribute("data-session-id"),
+        officeMinSub: cb.getAttribute("data-officeminsub"), maxSubject: cb.getAttribute("data-maximumsubject"),
+        isOfficeCompulsary: cb.getAttribute("data-isofficecompulsary"),
+        isFromOther: String(cb.getAttribute("data-isfromshowonotherprogram")).toLowerCase() === "true" };
+    }).filter(function (c) { return c.id; });
+  }
+  /* batch endpoints return arrays whose item may be a string or {Value/Text} — take the first usable */
+  function admFirstVal(arr) {
+    if (!arr) return "";
+    const a = Array.isArray(arr) ? arr : (arr.BatchDays || arr.BatchTime || arr.Batch || []);
+    for (let i = 0; i < a.length; i++) {
+      const it = a[i];
+      const v = (it && typeof it === "object") ? (it.Value != null ? it.Value : (it.value != null ? it.value : it.Id)) : it;
+      if (v != null && String(v).trim()) return v;
+    }
+    return "";
+  }
+  const ADM_NAMES = "Rahim Karim Faruk Hasan Mahmud Jahid Rakib Arif Monir Sumon Milon Rubel Shakil Tanvir".split(" ");
+  let _admSeq = 0;
+  function admName() { const r = function () { return ADM_NAMES[Math.floor(Math.random() * ADM_NAMES.length)]; }; _admSeq++; return r() + r() + (Date.now().toString(36) + _admSeq).slice(-4); }
+
+  /* one full admission over the current session; returns { ok, reg, ms, why } */
+  async function admOne(mobile, programKw, amount) {
+    const t0 = Date.now();
+    const gender = "Male", religion = "Islam";
+    const step = function (s) { admOne._at = s; };
+    try {
+      step("open form");
+      const page = await admGetDoc(ADM_PATH);
+      const classOpt = admDocOpts(page, "#StudentClass option", ["Admission"]);
+      if (!classOpt) throw new Error("no Student Class option");
+      const vOpt = admDocOpts(page, "#VersionOfStudy option", ["Bangla"]);
+      const versionVal = vOpt ? vOpt.value : "";
+
+      step("program"); const pr = await admPost("/Student/Admission/GetProgramByClass", { classId: classOpt.value });
+      const program = admPick(admOpts(pr.returnProgramList), programKw ? [programKw] : ["medical"]);
+      if (!program) throw new Error("no program");
+      let courseView = pr.CourseView;
+
+      step("session"); const se = await admPost("/Student/Admission/GetSessionByProgram", { programId: program.value, sessionId: "" });
+      const session = admPick(admOpts(se.SessionOptions), ["2025"]);
+      if (!session) throw new Error("no session");
+      if (se.CourseView) courseView = se.CourseView;
+
+      step("branch"); const br = await admPost("/Student/Admission/GetBranchByProgramSession", { programId: program.value, sessionId: session.value, studentId: 0, isOffice: true, versionStudy: versionVal, gender: gender, isOnlyBranch: true });
+      const branch = admPick(admOpts(br.BrunchOptions), ["Farmgate", "Rajshahi"]);
+      if (!branch) throw new Error("no branch");
+
+      step("campus"); const ca = await admPost("/Student/Admission/GetCampusByProgramSessionAndBranch", { branchId: branch.value, campusId: 0, programId: program.value, sessionId: session.value, versionStudy: versionVal, gender: gender });
+      const campus = admPick(admOpts(ca.CampusOptions), null);
+      const campusVal = campus ? campus.value : "";
+
+      const courses = admCourses(courseView);
+      if (!courses.length) throw new Error("no courses on this program");
+      const course = courses[0];
+
+      step("batch-day"); const bd = await admPost("/Student/Admission/GetBatchDayByProgramSessionBranchAndCampus", { programId: program.value, sessionId: session.value, branchId: branch.value, campusId: campusVal, versionStudy: versionVal, gender: gender, courseIds: [course.id] });
+      const batchDay = admFirstVal(bd);
+      step("batch-time"); const bt = await admPost("/Student/Admission/GetBatchTimeByProgramSessionBranchCampusAndBatchDay", { programId: program.value, sessionId: session.value, branchId: branch.value, campusId: campusVal, batchDay: batchDay, versionStudy: versionVal, gender: gender, courseId: course.id });
+      const batchTime = admFirstVal(bt);
+      step("batch"); const bb = await admPost("/Student/Admission/GetBatchByProgramSessionBranchCampusAndBatchDayTime", { programId: program.value, sessionId: session.value, branchId: branch.value, campusId: campusVal, batchDay: batchDay, batchTime: batchTime, versionStudy: versionVal, gender: gender, courseId: course.id });
+      const batchId = admFirstVal(bb);
+
+      const courseVM = { Name: course.name, ProgramId: course.programId || program.value, SessionId: course.sessionId || session.value,
+        Id: course.id, IsTaken: true, OfficeMinSub: course.officeMinSub, maxSubject: course.maxSubject,
+        IsOfficeCompulsary: course.isOfficeCompulsary, BatchId: batchId, BranchId: parseInt(branch.value, 10) || 0,
+        CampusId: parseInt(campusVal, 10) || 0, AttachedPhysicalBranchId: 0, IsFromShowOnOtherProgram: course.isFromOther, SubjectViewModels: [] };
+      const name = admName();
+      const studentVM = { Name: name, MobNumber: mobile, Program: program.value, Session: session.value,
+        Branch: branch.value, AttachedPhysicalBranch: "", Campus: campusVal, VersionOfStudy: versionVal,
+        Gender: gender, Religion: religion, Email: "", LastInstituteName: "", LastInstituteId: "",
+        CourseViewModels: [courseVM], MbbsBdsStatus: null, AcademicGroup: null };
+
+      step("calculate fee"); const fee = await admPost("/Student/Admission/CalculateCourseFee", { format: "json", studentViewModelJson: JSON.stringify(studentVM), previousStudentId: 0, bookingId: 0 });
+      if (fee && fee.IsSuccess === false) throw new Error("fee: " + (Array.isArray(fee.Message) ? (fee.Message[0] && fee.Message[0].ErrorMessage) : fee.Message));
+      const net = parseInt("0" + (fee && fee.NetReceivableAmount), 10) || 0;
+      const totalFee = parseInt("0" + (fee && fee.TotalCourseFee), 10) || 0;
+      const receivable = parseInt("0" + (fee && fee.ReceivableAmount), 10) || 0;
+      let received = (amount != null && amount !== "") ? Math.min(parseInt(amount, 10) || 0, net) : net;
+      if (received < 0) received = 0;
+
+      const d = new Date(); d.setDate(d.getDate() + 2);
+      const nextDate = String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
+      studentVM.StudentPayment = { CourseFee: totalFee, OfferedDiscount: parseInt("0" + (fee && fee.OfferedDiscount), 10) || 0,
+        OfferedDiscountViewModels: [], PreviousStudentDiscountAmount: parseInt("0" + (fee && fee.PreviousStudentDiscount), 10) || 0,
+        PreviousStudentDiscountViewModels: [], SpDiscountAmount: 0, SpecialDiscountViewModels: [],
+        ReceivableAmount: receivable, BookingDiscountAmount: parseInt("0" + (fee && fee.BookingDiscount), 10) || 0,
+        NetReceivable: net, ReceivedAmount: received, DueAmount: net - received, ReferrerId: 50,
+        ReferrerNameId: "", Remarks: "Top Student", DiscountApprovedBy: "", SpReferenceNote: "Top Student",
+        PaymentMethod: 0, NextReceivedDate: nextDate };
+
+      step("register"); const reg = await admPost("/Student/Admission/StudentRegistration", { studentObj: JSON.stringify(studentVM) });
+      if (!reg || reg.IsSuccess !== true) throw new Error("register: " + (reg && reg.Message || "no success"));
+      const stdProgramId = reg.Message;
+
+      step("receipt"); const due = await admPost("/Student/Payment/DuePayment", { stdProgramId: stdProgramId });
+      const dueHtml = typeof due === "string" ? due : JSON.stringify(due);
+      const m = dueHtml.match(/Registration\s*(?:Number|No\.?)\s*[:\-]?\s*(\d{5,})/i) || dueHtml.match(/\b(\d{7,})\b/);
+      const regNo = m ? m[1] : String(stdProgramId);
+      return { ok: true, reg: regNo, name: name, paid: received, ms: Date.now() - t0 };
+    } catch (e) {
+      return { ok: false, why: (admOne._at ? "[" + admOne._at + "] " : "") + ((e && e.message) || String(e)), ms: Date.now() - t0 };
+    }
+  }
+
+  async function admRun() {
+    if (admBusyFlag) return;
+    const base = admBaseUrl();
     if (!base) { admOutLine(t("adm_need_base")); return; }
-    const email = ($("admEmail").value || "").trim(), pass = $("admPass").value || "";
-    if (!email || !pass) { admOutLine(t("adm_need_login")); return; }
     const mobile = ($("admMobile").value || "").trim();
     if (!mobile) { admOutLine(t("adm_need_mobile")); return; }
-    const fresh = !admPort;
-    if (fresh) { const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; } }
-    if (!admPort && !admConnect()) { admOutLine(t("crm_host_missing")); return; }
-    const keepOpen = !($("admClose") && $("admClose").checked);
-    admInFlight = true; admBusy(true);
-    if ($("admStop")) $("admStop").disabled = false;
-    admPort.postMessage({ action: "admit", base: base, users: [{ user: email, pass: pass }],
-      mobile: mobile, count: admCount(), pool: admPool(),
-      program: ($("admProg").value || "").trim(), headed: $("admHeaded").checked,
-      maximize: !!($("admMax") && $("admMax").checked), keepOpen: keepOpen });
+    const programKw = ($("admProg").value || "").trim();
+    const amount = ($("admAmount").value || "").trim();
+    const count = admCount(), pool = admPool();
+    const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; }
+    admStopFlag = false; admBusy(true);
+    admOutLine("→ " + count + " admission(s), " + pool + " at once · " + base.replace(/^https?:\/\//, ""));
+    const t0 = Date.now();
+    let next = 0, ok = 0, fail = 0;
+    async function worker() {
+      while (!admStopFlag) {
+        const i = next++; if (i >= count) break;
+        const n = i + 1;
+        const r = await admOne(mobile, programKw, amount);
+        if (r.ok) { ok++; admOutLine("  ✓ #" + n + "/" + count + " · reg " + r.reg + " · " + (r.ms / 1000).toFixed(1) + "s"); }
+        else { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + r.why); }
+      }
+    }
+    await Promise.all(Array.from({ length: Math.min(pool, count) }, function () { return worker(); }));
+    const secs = (Date.now() - t0) / 1000;
+    admOutLine("── " + ok + " ok · " + fail + " failed of " + (ok + fail) + " · " + secs.toFixed(1) + "s · ~" + (secs > 0 ? Math.round(ok / secs * 60) : 0) + "/min" + (admStopFlag ? " (stopped)" : ""));
+    admBusy(false);
   }
-  function admStop() {
-    if (!admPort) return;
-    try { admPort.postMessage({ action: "close" }); } catch (e) {}
-    try { admPort.disconnect(); } catch (e) {}
-    admPort = null; admInFlight = false; admBusy(false);
-    if ($("admStop")) $("admStop").disabled = true;
-    admOutLine("\n" + t("crm_closed"));
-  }
+  function admStop() { admStopFlag = true; admOutLine("⏹ থামানো হচ্ছে…"); }
   function admOnShow() {
     const b = $("admBase"); if (b && !b.value) b.value = "https://ums-4.osl.team";
-    admRender(); admTestConn();
+    admTestConn();
   }
 
   function showPage(p) {
@@ -3156,9 +3281,6 @@
     if ($("navAdm")) $("navAdm").addEventListener("click", function () { showPage("adm"); });
     if ($("admRun")) $("admRun").addEventListener("click", admRun);
     if ($("admStop")) $("admStop").addEventListener("click", admStop);
-    if ($("admCopy")) $("admCopy").addEventListener("click", function () { try { navigator.clipboard.writeText(admCommand()); } catch (e) {} });
-    ["admBase", "admMobile", "admProg", "admCount", "admPool"].forEach(function (id) { const e = $(id); if (e) e.addEventListener("input", admRender); });
-    if ($("admHeaded")) $("admHeaded").addEventListener("change", admRender);
     if ($("admBase")) $("admBase").addEventListener("input", function () { try { chrome.storage.local.set({ admBase: this.value }); } catch (e) {} admConnDebounced(); });
     ["crmBase", "crmCount", "crmUsers"].forEach(function (id) { const e = $(id); if (e) e.addEventListener("input", crmRender); });
     if ($("crmBase")) $("crmBase").addEventListener("input", function () { try { chrome.storage.local.set({ crmBase: this.value }); } catch (e) {} crmConnDebounced(); });
@@ -3299,7 +3421,7 @@
     showPage(o.page === "crm" ? "crm" : "pay");
     if (o.crmBase && $("crmBase")) $("crmBase").value = o.crmBase;
     if ($("admBase")) $("admBase").value = o.admBase || "https://ums-4.osl.team";
-    admSetConn(null); admRender();
+    admSetConn(null);
     crmSetConn(null);
     /* The handle comes back from IndexedDB, but the permission on it may not have — dirUsable()
        decides that at the end of the run, when it matters. */

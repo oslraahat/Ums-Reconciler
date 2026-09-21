@@ -614,48 +614,30 @@
           <div class="crmtop">
             <div><label data-i18n="adm_base_l">UMS ঠিকানা</label>
               <input id="admBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
-            <div><label data-i18n="adm_login_l">লগইন (এই সার্ভারের অ্যাকাউন্ট)</label>
-              <div class="row-actions" style="margin-top:0;gap:8px">
-                <input id="admEmail" spellcheck="false" placeholder="email" style="flex:1;min-width:120px" autocomplete="off">
-                <input id="admPass" type="password" placeholder="password" style="flex:1;min-width:110px" autocomplete="off">
-              </div>
-            </div>
+            <div><label data-i18n="adm_mobile_l">মোবাইল নম্বর</label>
+              <input id="admMobile" spellcheck="false" placeholder="8801XXXXXXXXX"></div>
           </div>
 
           <div class="crmtop" style="margin-top:14px">
-            <div><label data-i18n="adm_mobile_l">মোবাইল নম্বর</label>
-              <input id="admMobile" spellcheck="false" placeholder="8801XXXXXXXXX"></div>
             <div><label data-i18n="adm_prog_l">প্রোগ্রাম (ঐচ্ছিক)</label>
               <input id="admProg" spellcheck="false" placeholder="Medical (default)"></div>
+            <div><label data-i18n="adm_amount_l">টাকা (ঐচ্ছিক)</label>
+              <input id="admAmount" type="number" min="0" placeholder="min (auto)"></div>
           </div>
 
           <div class="crmtop" style="margin-top:14px">
             <div><label data-i18n="adm_count_l">মোট কতগুলো admission</label>
               <input id="admCount" type="number" min="1" max="1000" value="1"></div>
             <div><label data-i18n="adm_pool_l">একসাথে কতগুলো</label>
-              <input id="admPool" type="number" min="1" max="30" value="1"></div>
+              <input id="admPool" type="number" min="1" max="20" value="1"></div>
           </div>
 
-          <div style="margin-top:14px"><label data-i18n="crm_mode_l">অপশন</label>
-            <div class="row-actions" style="align-items:center;gap:12px;margin-top:0">
-              <label class="srvsw"><input type="checkbox" id="admHeaded"><i class="tg"></i><span data-i18n="crm_headed">ব্রাউজার দেখাও</span></label>
-              <label class="srvsw"><input type="checkbox" id="admClose"><i class="tg"></i><span data-i18n="crm_close">শেষে বন্ধ করো</span></label>
-              <label class="srvsw"><input type="checkbox" id="admMax"><i class="tg"></i><span data-i18n="crm_max">স্ক্রিনজুড়ে বড় করো</span></label>
-            </div>
-          </div>
-
-          <div class="row-actions" style="margin-top:14px;align-items:center">
+          <div class="row-actions" style="margin-top:16px;align-items:center">
             <button class="btn ok" id="admRun" data-i18n="adm_run">▶ Run</button>
-            <button class="btn g" id="admStop" disabled data-i18n="crm_stop">✕ ব্রাউজার বন্ধ</button>
+            <button class="btn g" id="admStop" disabled data-i18n="adm_stop">✕ থামাও</button>
           </div>
           <span class="hint" data-i18n="adm_run_hint" style="display:block;margin:6px 0 0"></span>
           <pre class="crmout" id="admOut" style="display:none"></pre>
-
-          <details style="margin-top:16px"><summary class="hint" data-i18n="crm_manual_sum" style="cursor:pointer"></summary>
-            <div style="margin-top:8px"><label data-i18n="adm_cmd_l">crm-loadtest ফোল্ডারে চালাও</label>
-              <div class="cmdbox"><code id="admCmd"></code><button class="btn g" id="admCopy" data-i18n="crm_copy">⧉ Copy</button></div></div>
-            <p class="hint" data-i18n="adm_steps" style="white-space:pre-line"></p>
-          </details>
         </div>
       </div>
     </section>
