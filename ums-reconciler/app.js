@@ -2767,7 +2767,7 @@
      StudentRegistration → DuePayment. These AJAX POSTs need only the session cookie (no antiforgery
      token). The name is auto; the mobile and the counts come from the user. It measures how fast N
      admissions complete. ⚠ creates REAL records — a test/demo server only. */
-  let admBusyFlag = false, admStopFlag = false, admConnSeq = 0, admConnTimer = null, admConnState = null;
+  let admBusyFlag = false, admStopFlag = false, admConnSeq = 0, admConnTimer = null, admConnState = null, admToken = "";
   const ADM_PATH = "/Student/Admission/NewStudentAdmission";
   function admBusy(on) {
     admBusyFlag = on;
@@ -2810,14 +2810,15 @@
       else body.append(k, v == null ? "" : v);
     });
     const url = admUrl(path);
+    const headers = { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" };
+    if (admToken) headers["RequestVerificationToken"] = admToken;   // UMS validates the antiforgery token on POST
     let r;
     try {
-      r = await fetch(url, { method: "POST", credentials: "include",
-        headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" },
-        body: body.toString() });
+      r = await fetch(url, { method: "POST", credentials: "include", headers: headers, body: body.toString() });
     } catch (e) { throw new Error("fetch ব্যর্থ (" + ((e && e.message) || e) + ") → " + url); }
     const txt = await r.text();
     if (/Account\/Login/i.test(r.url || "") || /name=["']?Password["']?/i.test(txt.slice(0, 4000))) throw new Error("not logged in (" + path.split("/").pop() + ")");
+    if (/PermissionDenied|Permission Denied/i.test(txt.slice(0, 2000))) throw new Error("PermissionDenied — " + path.split("/").pop() + " (token/অনুমতি)");
     try { return JSON.parse(txt); } catch (e) { return txt; }
   }
   async function admGetDoc(path) {
@@ -2883,6 +2884,10 @@
     if ($("admLoad")) { $("admLoad").disabled = true; $("admLoad").textContent = t("adm_loading"); }
     try {
       const page = await admGetDoc(ADM_PATH);
+      /* the antiforgery token every POST must carry (UMS rejects tokenless POSTs as PermissionDenied) */
+      const tokEl = page.querySelector('input[name="__RequestVerificationToken"]');
+      admToken = tokEl ? (tokEl.getAttribute("value") || tokEl.value || "") : "";
+      if (!admToken) throw new Error("antiforgery token পেলাম না — ঠিক পেজ এসেছে তো?");
       const classOpt = admDocOpts(page, "#StudentClass option", ["Admission"]);
       if (!classOpt) throw new Error("no Student Class");
       admClassId = classOpt.value;
