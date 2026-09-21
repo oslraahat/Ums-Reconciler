@@ -142,6 +142,8 @@
     vertical-align:middle;font-family:inherit}
   .btn.p{background:linear-gradient(90deg,#6d5cf0,#8b7bf5);color:#fff}
   .btn.p:disabled{opacity:.5;cursor:default}
+  .btn.ok{background:linear-gradient(90deg,#2bb673,#37d18b);color:#04220f}
+  .btn.ok:disabled{opacity:.5;cursor:default}
   .btn.g{background:#20263c;color:var(--text);border:1px solid var(--line)}
   .btn.g:hover{background:#28304a}
   body.light .btn.g{background:#f3f4fb}
@@ -572,17 +574,19 @@
                   <button class="btn g impbtn" id="crmClear" data-i18n="crm_clear">✕ Clear</button>
                 </div>
               </div></div>
-            <div class="row-actions" style="margin-top:8px">
+            <div class="row-actions" style="margin-top:8px;align-items:flex-start">
               <input id="crmLink" data-ph="crm_link_ph" placeholder="…অথবা Google Sheet লিংক" style="flex:1;min-width:160px">
+              <div class="pstack">
+                <span class="badge mut" id="crmPairs" style="text-align:center;padding:4px 0">০ জন</span>
+                <button class="btn g" id="crmDl" disabled data-i18n="crm_dl">⬇ users.txt</button>
+              </div>
             </div>
-            <div class="row-actions" style="margin-top:8px;align-items:center">
-              <span class="badge mut" id="crmPairs">০ জন</span>
-              <button class="btn g" id="crmDl" disabled data-i18n="crm_dl">⬇ users.txt</button>
+            <div class="row-actions" style="margin-top:8px">
               <span class="note" id="crmNote" style="display:none;margin:0;padding:6px 10px;text-align:left;flex:1;min-width:0"></span>
             </div>
 
             <div class="row-actions" style="margin-top:14px;align-items:center">
-              <button class="btn p" id="crmRun" data-i18n="crm_run">▶ Run</button>
+              <button class="btn ok" id="crmRun" data-i18n="crm_run">▶ Run</button>
               <button class="btn g" id="crmStop" disabled data-i18n="crm_stop">✕ ব্রাউজার বন্ধ</button>
               <span class="hint" id="crmNext" style="margin:0"></span>
             </div>
