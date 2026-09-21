@@ -2878,6 +2878,7 @@
         programId: cb.getAttribute("data-program-id"), sessionId: cb.getAttribute("data-session-id"),
         officeMinSub: cb.getAttribute("data-officeminsub"), maxSubject: cb.getAttribute("data-maximumsubject"),
         isOfficeCompulsary: cb.getAttribute("data-isofficecompulsary"),
+        minPay: parseFloat(cb.getAttribute("data-officeminpayment") || cb.getAttribute("data-publicminpayment") || cb.getAttribute("data-officeminpay") || "0") || 0,
         isFromOther: String(cb.getAttribute("data-isfromshowonotherprogram")).toLowerCase() === "true" };
     }).filter(function (c) { return c.id; });
   }
@@ -2988,9 +2989,18 @@
       if (i === 0) { cb.checked = true; admCourseCheck(cb); }        // first course on by default
     });
   }
+  /* the Amount box shows the sum of the ticked courses' minimum payment (data-officeminpayment) */
+  function admUpdateAmount() {
+    if (!$("admAmount")) return;
+    let sum = 0;
+    Array.prototype.forEach.call(document.querySelectorAll("#admCourseBox .admc-cb"), function (cb) {
+      if (cb.checked && cb.__course) sum += (cb.__course.minPay || 0);
+    });
+    $("admAmount").value = sum > 0 ? sum : "";
+  }
   async function admCourseCheck(cb) {
     const c = cb.__course;
-    if (!cb.checked) { delete admBatchOf[c.id]; return; }
+    if (!cb.checked) { delete admBatchOf[c.id]; admUpdateAmount(); return; }
     const p = { programId: $("admProgram").value, sessionId: $("admSession").value, branchId: $("admBranch").value, campusId: $("admCampus").value, versionStudy: admVersion, gender: $("admGender").value };
     try {
       const bd = await admPost("/Student/Admission/GetBatchDayByProgramSessionBranchAndCampus", Object.assign({}, p, { courseIds: [c.id] }));
@@ -3002,6 +3012,7 @@
       if (!batchId) throw new Error("no batch");
       admBatchOf[c.id] = { batchId: batchId, course: c };
     } catch (e) { cb.checked = false; delete admBatchOf[c.id]; admOutLine("  ⚠ " + (c.name || c.id) + ": এই শাখায় batch নেই"); }
+    admUpdateAmount();
   }
   async function admResolveInstitute() {
     const q = (($("admInst") && $("admInst").value) || "").trim();
