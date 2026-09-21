@@ -132,7 +132,7 @@
     nav_adm: { bn: "New Admission", en: "New Admission" },
     adm_sub: { bn: "নতুন Admission — যত খুশি, নিজের সেশনে", en: "New Admission — as many as you like, on your session" },
     adm_h: { bn: "New Admission", en: "New Admission" },
-    adm_load: { bn: "⟳ তথ্য আনো", en: "⟳ Fetch data" },
+    adm_load: { bn: "⟳ তথ্য আনো", en: "⟳ Fetch Data" },
     adm_loading: { bn: "⏳ আনছে…", en: "⏳ loading…" },
     adm_defaults: { bn: "▸ Institute · Approver", en: "▸ Institute · Approver" },
     adm_gender_l: { bn: "Gender", en: "Gender" },
