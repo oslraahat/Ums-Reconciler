@@ -132,7 +132,7 @@
     nav_adm: { bn: "New Admission", en: "New Admission" },
     adm_sub: { bn: "নতুন Admission — যত খুশি, নিজের সেশনে", en: "New Admission — as many as you like, on your session" },
     adm_h: { bn: "New Admission", en: "New Admission" },
-    adm_load: { bn: "⟳ ফর্ম আনো", en: "⟳ Load form" },
+    adm_load: { bn: "⟳ UMS থেকে ডেটা আনো", en: "⟳ Fetch from UMS" },
     adm_loading: { bn: "⏳ আনছে…", en: "⏳ loading…" },
     adm_defaults: { bn: "▸ Institute · Approver", en: "▸ Institute · Approver" },
     adm_gender_l: { bn: "Gender", en: "Gender" },
@@ -2793,6 +2793,11 @@
   function admConnDebounced() { if (admConnTimer) clearTimeout(admConnTimer); admConnTimer = setTimeout(admTestConn, 700); }
 
   /* ---- session fetch helpers ---- */
+  function admUrl(path) {
+    const base = admBaseUrl();
+    if (!/^https?:\/\//i.test(base)) throw new Error("UMS ঠিকানা ঠিক নেই: \"" + base + "\" (https://ums-4.osl.team এর মতো হবে)");
+    return base + path;
+  }
   async function admPost(path, data) {
     const body = new URLSearchParams();
     Object.keys(data).forEach(function (k) {
@@ -2800,17 +2805,24 @@
       if (Array.isArray(v)) v.forEach(function (x) { body.append(k, x); });
       else body.append(k, v == null ? "" : v);
     });
-    const r = await fetch(admBaseUrl() + path, { method: "POST", credentials: "include",
-      headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" },
-      body: body.toString() });
+    const url = admUrl(path);
+    let r;
+    try {
+      r = await fetch(url, { method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/x-www-form-urlencoded; charset=UTF-8", "X-Requested-With": "XMLHttpRequest" },
+        body: body.toString() });
+    } catch (e) { throw new Error("fetch ব্যর্থ (" + ((e && e.message) || e) + ") → " + url); }
     const txt = await r.text();
-    if (/Account\/Login/i.test(r.url || "") || /name=["']?Password["']?/i.test(txt.slice(0, 4000))) throw new Error("not logged in");
+    if (/Account\/Login/i.test(r.url || "") || /name=["']?Password["']?/i.test(txt.slice(0, 4000))) throw new Error("not logged in (" + path.split("/").pop() + ")");
     try { return JSON.parse(txt); } catch (e) { return txt; }
   }
   async function admGetDoc(path) {
-    const r = await fetch(admBaseUrl() + path, { credentials: "include" });
+    const url = admUrl(path);
+    let r;
+    try { r = await fetch(url, { credentials: "include" }); }
+    catch (e) { throw new Error("fetch ব্যর্থ (" + ((e && e.message) || e) + ") → " + url); }
     const txt = await r.text();
-    if (/Account\/Login/i.test(r.url || "")) throw new Error("not logged in");
+    if (/Account\/Login/i.test(r.url || "")) throw new Error("not logged in — আগে ব্রাউজারে ওই সার্ভারে লগইন করো");
     return new DOMParser().parseFromString(txt, "text/html");
   }
   function admOpts(html) {
