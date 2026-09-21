@@ -160,6 +160,11 @@
     adm_pool_l: { bn: "একসাথে", en: "at once" },
     adm_need_load: { bn: "আগে ⟳ ফর্ম আনো চাপো", en: "press ⟳ Load form first" },
     adm_need_course: { bn: "অন্তত একটা কোর্স টিক দাও", en: "tick at least one course" },
+    adm_inst_ph: { bn: "নাম টাইপ করো…", en: "type a name…" },
+    adm_mobile_ph: { bn: "8801XXXXXXXXX", en: "8801XXXXXXXXX" },
+    adm_amount_ph: { bn: "min (অটো)", en: "min (auto)" },
+    adm_loaded: { bn: "✓ {n}টা program এলো", en: "✓ {n} programs loaded" },
+    adm_no_program: { bn: "কোনো program পাওয়া গেল না", en: "no programs found" },
     adm_run: { bn: "▶ Run Admission", en: "▶ Run Admission" },
     adm_running: { bn: "⏳ চলছে…", en: "⏳ running…" },
     adm_stop: { bn: "✕ থামাও", en: "✕ Stop" },
@@ -2868,9 +2873,15 @@
       admVersion = (admDocOpts(page, "#VersionOfStudy option", ["Bangla"]) || {}).value || "";
       const pr = await admPost("/Student/Admission/GetProgramByClass", { classId: admClassId });
       admCourseView = pr.CourseView || "";
-      const progs = admOpts(pr.returnProgramList).filter(function (o) { const s = o.text.toLowerCase(); return s.indexOf("demo") < 0 && s.indexOf("migration") < 0; });
-      admFill("admProgram", progs, ["medical"], "— Program —");
+      /* show every program the server offers (a dev server may only have Demo ones) — just default
+         the selection to a non-demo Medical when there is one */
+      const progs = admOpts(pr.returnProgramList);
+      if (!progs.length) { admOutLine("⚠ " + t("adm_no_program")); return; }
+      const nonDemo = progs.filter(function (o) { return o.text.toLowerCase().indexOf("demo") < 0; });
+      admFill("admProgram", progs, ["medical admission", "medical"], "— Program —");
+      if (nonDemo.length) { const md = admPick(nonDemo, ["medical admission", "medical"]); if (md) $("admProgram").value = md.value; }
       admLoaded = true;
+      admOutLine(t("adm_loaded").replace("{n}", progs.length));
       await admOnProgram();
       admSetConn("ok");
     } catch (e) { admOutLine("⚠ " + ((e && e.message) || e)); }
