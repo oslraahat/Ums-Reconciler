@@ -2964,7 +2964,11 @@
     let state;
     try {
       const r = await fetchHtml(base.replace(/\/+$/, "") + "/Student/CrmConversation/Dashboard");
-      state = (r.ok && !/Account\/Login/i.test(r.html)) ? "ok" : "no";
+      /* A real login page carries a password box; the Dashboard does not. That — not a stray
+         "Account/Login" link that can sit in a signed-in page's nav — is what separates signed-out
+         from signed-in, the same test the host uses when it logs in. */
+      const onLogin = /type\s*=\s*["']?password/i.test(r.html);
+      state = (r.ok && !onLogin) ? "ok" : "no";
     } catch (e) { state = "fail"; }
     if (mine === crmConnSeq) crmSetConn(state);       // ignore a check the user has already outrun
   }
