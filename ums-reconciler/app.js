@@ -3418,7 +3418,7 @@
 
   try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page", "crmBase", "admBase"], function (o) { if (o.manualOk) manualOk = o.manualOk;
     saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
-    showPage(o.page === "crm" ? "crm" : "pay");
+    showPage((o.page === "crm" || o.page === "adm") ? o.page : "pay");
     if (o.crmBase && $("crmBase")) $("crmBase").value = o.crmBase;
     if ($("admBase")) $("admBase").value = o.admBase || "https://ums-4.osl.team";
     admSetConn(null);
