@@ -2955,10 +2955,13 @@
   }
   async function admOnSession() {
     if (!admLoaded) return;
-    const br = await admPost("/Student/Admission/GetBranchByProgramSession", { programId: $("admProgram").value, sessionId: $("admSession").value, studentId: 0, isOffice: true, versionStudy: admVersion, gender: $("admGender").value, isOnlyBranch: true });
+    /* isOnlyBranch:false is what makes GetBranchByProgramSession also return CourseView (the course
+       list for this program+session) — with true it returns only the branch options and no courses */
+    const br = await admPost("/Student/Admission/GetBranchByProgramSession", { programId: $("admProgram").value, sessionId: $("admSession").value, studentId: 0, isOffice: true, versionStudy: admVersion, gender: $("admGender").value, isOnlyBranch: false, selectedCourseId: 0 });
     const opts = admOpts((br && (br.BrunchOptions || br.BranchOptions || br.brunchOptions || br.branchOptions)) || (typeof br === "string" ? br : ""));
     admFill("admBranch", opts, ["Farmgate", "Rajshahi"], null);   // single option auto-selects (admFill picks opts[0])
     if (!opts.length) admOutLine("⚠ Branch খালি — resp: " + String(typeof br === "string" ? br : JSON.stringify(br)).slice(0, 300));
+    if (br && br.CourseView) admCourseView = br.CourseView;        // the real courses arrive here
     admRenderCourses();
     await admOnBranch();
   }
