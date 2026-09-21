@@ -129,6 +129,27 @@
     nav_head: { bn: "বিভাগ", en: "Sections" },
     nav_pay: { bn: "Payment History", en: "Payment History" },
     nav_crm: { bn: "CRM", en: "CRM" },
+    nav_adm: { bn: "New Admission", en: "New Admission" },
+    adm_sub: { bn: "New Admission — লোড টেস্ট", en: "New Admission — load test" },
+    adm_h: { bn: "New Admission · লোড টেস্ট", en: "New Admission · Load test" },
+    adm_intro: { bn: "১টা বা ১০০০টা নতুন admission কত দ্রুত সম্পন্ন হয় মেপে দেখো। baseUrl-এর অ্যাকাউন্টে লগইন করে, ফর্মটা নিজে পূরণ করে (নাম অটো, dropdown নিজে নেয়) — তুমি শুধু মোবাইল ও সংখ্যা দাও, ▶ Run চাপো। ⚠ এটা আসল admission তৈরি করে — শুধু টেস্ট/ডেমো সার্ভারে চালাও।",
+      en: "See how fast 1 — or 1000 — new admissions complete. It logs into the account on baseUrl, fills the form itself (auto name, dropdowns read off the page) — you give only the mobile and the count, then press ▶ Run. ⚠ This creates REAL admissions — run it on a test/demo server only." },
+    adm_base_l: { bn: "UMS ঠিকানা", en: "UMS address" },
+    adm_login_l: { bn: "লগইন (এই সার্ভারের অ্যাকাউন্ট)", en: "Login (account on this server)" },
+    adm_mobile_l: { bn: "মোবাইল নম্বর", en: "Mobile number" },
+    adm_prog_l: { bn: "প্রোগ্রাম (ঐচ্ছিক)", en: "Program (optional)" },
+    adm_count_l: { bn: "মোট কতগুলো admission", en: "How many admissions" },
+    adm_pool_l: { bn: "একসাথে কতগুলো", en: "How many at once" },
+    adm_run: { bn: "▶ Run", en: "▶ Run" },
+    adm_running: { bn: "⏳ চলছে…", en: "⏳ running…" },
+    adm_run_hint: { bn: "লগইন করে মোট admission-গুলো একসাথে-কতগুলো করে চালায়, প্রতিটার সময় ও Reg No দেখায়, শেষে “কতগুলো, কত সেকেন্ডে, কয়টা সফল”। খোলা ব্রাউজার থাকলে ✕ দিয়ে বন্ধ।",
+      en: "Logs in and runs the admissions in batches of “how many at once”, showing each one's time and Reg No, then “how many, in how many seconds, how many passed”. ✕ closes the open browser." },
+    adm_need_base: { bn: "আগে UMS ঠিকানা দাও", en: "fill in the UMS address first" },
+    adm_need_mobile: { bn: "মোবাইল নম্বর দাও", en: "enter a mobile number" },
+    adm_need_login: { bn: "লগইন email/password দাও", en: "enter the login email/password" },
+    adm_cmd_l: { bn: "crm-loadtest ফোল্ডারে চালাও", en: "Run in the crm-loadtest folder" },
+    adm_steps: { bn: "প্রথমবার crm-loadtest/host ফোল্ডারে  node install.js  চালিয়ে সহায়ক ইনস্টল করো, তারপর এক্সটেনশন reload করো। ছোট সংখ্যায় (১-২) শুরু করো — এটা সার্ভারে সত্যিকারের admission তৈরি করে।",
+      en: "Install the helper once with  node install.js  in crm-loadtest/host, then reload the extension. Start small (1–2) — this creates real admissions on the server." },
     crm_sub: { bn: "CRM — আলাদা নিয়মে কাজ", en: "CRM — a different set of rules" },
     crm_dash: { bn: "Dashboard", en: "Dashboard" },
     crm_dash_h: { bn: "CRM · Dashboard", en: "CRM · Dashboard" },
@@ -2713,19 +2734,105 @@
      a run in Payment History keeps its workers, its answers and its list, because none of that
      survives a page that is left. */
   let page = "pay";
+  /* ── New Admission load test ──────────────────────────────────────────────────
+     Same native host as CRM, a different message: it logs in once with the given account and runs
+     `count` real admissions through a pool of `pool` tabs, streaming each result and a final rate.
+     Only the mobile and the counts are typed; the name is auto, the dropdowns are read off the page
+     by the host (see crm-loadtest/admission.js). This creates real records — test servers only. */
+  let admPort = null, admInFlight = false, admSawMsg = false, admConnSeq = 0, admConnTimer = null;
+  function admBusy(on) { const b = $("admRun"); if (b) { b.disabled = on; b.textContent = t(on ? "adm_running" : "adm_run"); } }
+  function admOutLine(s) { const o = $("admOut"); if (!o) return; o.style.display = ""; o.textContent += (o.textContent ? "\n" : "") + s; o.scrollTop = o.scrollHeight; }
+  function admCount() { return Math.max(1, Math.min(1000, parseInt($("admCount").value, 10) || 1)); }
+  function admPool() { return Math.max(1, Math.min(30, parseInt($("admPool").value, 10) || 1)); }
+  function admCommand() {
+    const base = ($("admBase").value || "").trim() || "<base-url>";
+    const prog = ($("admProg").value || "").trim();
+    const headed = $("admHeaded").checked ? " --headed" : "";
+    return "node admission.js --base " + base + " --email <email> --password <pass> --mobile " +
+      (($("admMobile").value || "").trim() || "<mobile>") + " --count " + admCount() + " --pool " + admPool() +
+      (prog ? " --program " + prog : "") + headed;
+  }
+  function admRender() { if ($("admCmd")) $("admCmd").textContent = admCommand(); }
+  function admSetConn(state) {
+    const el = $("admConn"); if (!el) return;
+    el.className = "crmconn" + (state ? " " + state : "");
+    el.textContent = state === "busy" ? t("checking")
+      : state === "ok" ? t("crm_reach_ok") : state === "no" ? t("crm_reach_no") : t("conn_unchecked");
+  }
+  async function admTestConn() {
+    const base = (($("admBase") && $("admBase").value) || "").trim();
+    if (!base) { admSetConn(null); return; }
+    const mine = ++admConnSeq; admSetConn("busy");
+    let ok = false;
+    try { const r = await fetchHtml(base.replace(/\/+$/, "") + "/Student/Admission/NewStudentAdmission"); ok = !!(r && r.status); }
+    catch (e) { ok = false; }
+    if (mine === admConnSeq) admSetConn(ok ? "ok" : "no");
+  }
+  function admConnDebounced() { if (admConnTimer) clearTimeout(admConnTimer); admConnTimer = setTimeout(admTestConn, 700); }
+  function admConnect() {
+    admSawMsg = false;
+    try { admPort = chrome.runtime.connectNative(CRM_HOST); } catch (e) { admPort = null; return false; }
+    admPort.onMessage.addListener(function (m) {
+      admSawMsg = true;
+      if (m.type === "out") admOutLine(m.text);
+      else if (m.type === "error") admOutLine("⚠ " + m.text);
+      else if (m.type === "done") { admInFlight = false; admBusy(false);
+        if ($("admStop")) $("admStop").disabled = !m.keepOpen; admOutLine(""); }
+    });
+    admPort.onDisconnect.addListener(function () {
+      const err = chrome.runtime.lastError, missing = !admSawMsg;
+      admPort = null; admInFlight = false; admBusy(false);
+      if ($("admStop")) $("admStop").disabled = true;
+      if (missing) { admOutLine(t("crm_host_missing")); if (err && err.message) admOutLine("(" + err.message + ")"); }
+    });
+    return true;
+  }
+  function admRun() {
+    if (admInFlight) return;
+    const base = ($("admBase").value || "").trim();
+    if (!base) { admOutLine(t("adm_need_base")); return; }
+    const email = ($("admEmail").value || "").trim(), pass = $("admPass").value || "";
+    if (!email || !pass) { admOutLine(t("adm_need_login")); return; }
+    const mobile = ($("admMobile").value || "").trim();
+    if (!mobile) { admOutLine(t("adm_need_mobile")); return; }
+    const fresh = !admPort;
+    if (fresh) { const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; } }
+    if (!admPort && !admConnect()) { admOutLine(t("crm_host_missing")); return; }
+    const keepOpen = !($("admClose") && $("admClose").checked);
+    admInFlight = true; admBusy(true);
+    if ($("admStop")) $("admStop").disabled = false;
+    admPort.postMessage({ action: "admit", base: base, users: [{ user: email, pass: pass }],
+      mobile: mobile, count: admCount(), pool: admPool(),
+      program: ($("admProg").value || "").trim(), headed: $("admHeaded").checked,
+      maximize: !!($("admMax") && $("admMax").checked), keepOpen: keepOpen });
+  }
+  function admStop() {
+    if (!admPort) return;
+    try { admPort.postMessage({ action: "close" }); } catch (e) {}
+    try { admPort.disconnect(); } catch (e) {}
+    admPort = null; admInFlight = false; admBusy(false);
+    if ($("admStop")) $("admStop").disabled = true;
+    admOutLine("\n" + t("crm_closed"));
+  }
+  function admOnShow() {
+    const b = $("admBase"); if (b && !b.value) b.value = "https://ums-4.osl.team";
+    admRender(); admTestConn();
+  }
+
   function showPage(p) {
-    page = p === "crm" ? "crm" : "pay";
-    const on = page === "pay";
+    page = (p === "crm" || p === "adm") ? p : "pay";
     const set = function (id, yes) { const e = $(id); if (e) e.classList.toggle("on", yes); };
-    set("pgPay", on); set("pgCrm", !on);
-    set("navPay", on); set("navCrm", !on);
+    set("pgPay", page === "pay"); set("pgCrm", page === "crm"); set("pgAdm", page === "adm");
+    set("navPay", page === "pay"); set("navCrm", page === "crm"); set("navAdm", page === "adm");
     /* what is inside CRM is listed only while CRM is the open section */
-    set("crmSub", !on);
-    if (!on) showCrm(crmTab);
+    set("crmSub", page === "crm");
+    if (page === "crm") showCrm(crmTab);
+    if (page === "adm") admOnShow();
     /* The subtitle belongs to whichever section is open. Written as a data-i18n key rather than
        as text, so applyLang() keeps it right when the language changes under it. */
+    const key = page === "pay" ? "subtitle" : page === "crm" ? "crm_sub" : "adm_sub";
     const sub = $("sub");
-    if (sub) { sub.setAttribute("data-i18n", on ? "subtitle" : "crm_sub"); sub.textContent = t(on ? "subtitle" : "crm_sub"); }
+    if (sub) { sub.setAttribute("data-i18n", key); sub.textContent = t(key); }
     try { chrome.storage.local.set({ page: page }); } catch (e) {}
     measureTop();      // the subtitle changed, and on a narrow screen that changes the height
   }
@@ -3046,6 +3153,13 @@
     $("navPay").addEventListener("click", function () { showPage("pay"); });
     $("navCrm").addEventListener("click", function () { showPage("crm"); });
     $("navCrmDash").addEventListener("click", function () { showPage("crm"); showCrm("dash"); });
+    if ($("navAdm")) $("navAdm").addEventListener("click", function () { showPage("adm"); });
+    if ($("admRun")) $("admRun").addEventListener("click", admRun);
+    if ($("admStop")) $("admStop").addEventListener("click", admStop);
+    if ($("admCopy")) $("admCopy").addEventListener("click", function () { try { navigator.clipboard.writeText(admCommand()); } catch (e) {} });
+    ["admBase", "admMobile", "admProg", "admCount", "admPool"].forEach(function (id) { const e = $(id); if (e) e.addEventListener("input", admRender); });
+    if ($("admHeaded")) $("admHeaded").addEventListener("change", admRender);
+    if ($("admBase")) $("admBase").addEventListener("input", function () { try { chrome.storage.local.set({ admBase: this.value }); } catch (e) {} admConnDebounced(); });
     ["crmBase", "crmCount", "crmUsers"].forEach(function (id) { const e = $(id); if (e) e.addEventListener("input", crmRender); });
     if ($("crmBase")) $("crmBase").addEventListener("input", function () { try { chrome.storage.local.set({ crmBase: this.value }); } catch (e) {} crmConnDebounced(); });
     if ($("crmUsers")) $("crmUsers").addEventListener("input", crmNextLabel);
@@ -3180,10 +3294,12 @@
     });
   }
 
-  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page", "crmBase"], function (o) { if (o.manualOk) manualOk = o.manualOk;
+  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page", "crmBase", "admBase"], function (o) { if (o.manualOk) manualOk = o.manualOk;
     saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
     showPage(o.page === "crm" ? "crm" : "pay");
     if (o.crmBase && $("crmBase")) $("crmBase").value = o.crmBase;
+    if ($("admBase")) $("admBase").value = o.admBase || "https://ums-4.osl.team";
+    admSetConn(null); admRender();
     crmSetConn(null);
     /* The handle comes back from IndexedDB, but the permission on it may not have — dirUsable()
        decides that at the end of the run, when it matters. */
