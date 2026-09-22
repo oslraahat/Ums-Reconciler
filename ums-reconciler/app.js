@@ -3317,7 +3317,7 @@
       instName: inst.name, instId: inst.id, courseIds: courseIds, mobile: mobile,
       received: ($("admAmount").value || "").trim(), show: admRunModeVal !== "headless" };
     const count = admCount();
-    admOutLine("→ " + count + " admission · " + (admRunModeVal === "headless" ? "🙈 headless" : "🪟 ব্রাউজারে") + " · একজন একজন");
+    admOutLine("→ " + count + " admission · " + (admRunModeVal === "headless" ? "🙈 Headless" : "🪟 Browser"));
     const t0 = Date.now(); let ok = 0, fail = 0;
     for (let i = 0; i < count && !admStopFlag; i++) {
       await admWaitIfPaused(); if (admStopFlag) break;
@@ -3347,11 +3347,18 @@
     }
     admOutLine("── " + ok + " ok · " + fail + " failed of " + (ok + fail) + " · " + ((Date.now() - t0) / 1000).toFixed(1) + "s" + (admStopFlag ? " (stopped)" : ""));
   }
+  /* flag a field red until it is next focused/typed in, so a validation miss is visible on the field */
+  function admBadField(id) {
+    const el = $(id); if (!el) return;
+    el.classList.add("field-bad"); el.focus();
+    const clear = function () { el.classList.remove("field-bad"); el.removeEventListener("input", clear); el.removeEventListener("focus", clear); };
+    el.addEventListener("input", clear); el.addEventListener("focus", clear);
+  }
   async function admRun() {
     if (admBusyFlag) { admTogglePause(); return; }   // Start button doubles as Pause/Resume while running
     if (!admLoaded) { admOutLine(t("adm_need_load")); return; }
     const mobile = ($("admMobile").value || "").trim();
-    if (!mobile) { admOutLine(t("adm_need_mobile")); return; }
+    if (!mobile) { admOutLine(t("adm_need_mobile")); admBadField("admMobile"); return; }
     if (!admTickedCourseIds().length) { admOutLine(t("adm_need_course")); return; }
     if (admBrowserMode) { admStopFlag = false; admBusy(true); const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; } try { await admRunBrowser(mobile); } catch (e) { admOutLine("⚠ " + ((e && e.message) || e)); } admBusy(false); return; }
     if (!Object.keys(admBatchOf).length) { admOutLine(t("adm_need_course")); return; }
