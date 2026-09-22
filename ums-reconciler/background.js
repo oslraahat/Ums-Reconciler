@@ -49,3 +49,102 @@ chrome.runtime.onInstalled.addListener(function (details) {
   if (details.reason !== "install") return;
   chrome.tabs.create({ url: chrome.runtime.getURL(PAGE) });
 });
+
+/* ───────────────────────── New Admission · Browser mode ─────────────────────────
+   The HTTP mode (in app.js) posts the admission directly. Browser mode instead opens the real
+   admission form in a tab and drives it visibly — the page's own JavaScript does the cascades, fee
+   and validation. We only fill fields, tick the course, pick a batch and click Next → Submit, then
+   read the payment id off the receipt URL the form redirects to. osl.team is already in
+   host_permissions, so opening the tab and reading its URL need no "tabs" permission; injecting the
+   driver needs "scripting". */
+
+function waitTabComplete(tabId, ms) {
+  return new Promise(function (resolve) {
+    let done = false; const t = setTimeout(function () { if (!done) { done = true; chrome.tabs.onUpdated.removeListener(h); resolve(false); } }, ms);
+    function h(id, info) { if (id === tabId && info.status === "complete" && !done) { done = true; clearTimeout(t); chrome.tabs.onUpdated.removeListener(h); resolve(true); } }
+    chrome.tabs.onUpdated.addListener(h);
+    chrome.tabs.get(tabId, function (tab) { if (tab && tab.status === "complete" && !done) { done = true; clearTimeout(t); chrome.tabs.onUpdated.removeListener(h); resolve(true); } });
+  });
+}
+function waitTabUrl(tabId, re, ms) {
+  return new Promise(function (resolve) {
+    let done = false; const t = setTimeout(function () { if (!done) { done = true; chrome.tabs.onUpdated.removeListener(h); resolve(""); } }, ms);
+    function fin(u) { if (!done) { done = true; clearTimeout(t); chrome.tabs.onUpdated.removeListener(h); resolve(u || ""); } }
+    function h(id, info, tab) { if (id !== tabId) return; const u = (info && info.url) || (tab && tab.url) || ""; if (re.test(u)) fin(u); }
+    chrome.tabs.onUpdated.addListener(h);
+    chrome.tabs.get(tabId, function (tab) { if (tab && re.test(tab.url || "")) fin(tab.url); });
+  });
+}
+
+/* runs INSIDE the admission page (MAIN world) — fills and submits the form, returns {ok,message} */
+async function admDriver(p) {
+  const $ = function (s) { return document.querySelector(s); };
+  const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+  const waitFor = async function (fn, ms) { const t0 = Date.now(); while (Date.now() - t0 < (ms || 15000)) { try { if (fn()) return true; } catch (e) {} await sleep(150); } return false; };
+  const noBlock = function () { return waitFor(function () { return !document.querySelector(".blockOverlay,.blockUI"); }, 20000); };
+  const setSel = function (sel, val) { const el = $(sel); if (!el) return false; el.value = val; el.dispatchEvent(new Event("change", { bubbles: true })); return true; };
+  const hasOpts = function (sel) { const s = $(sel); return s && s.options.length > 1; };
+  try {
+    setSel("#StudentClass", "Admission"); await sleep(400); await noBlock();
+    if (!await waitFor(function () { return hasOpts("#Program"); }, 40000)) throw new Error("Program এলো না");
+    setSel("#Program", String(p.program)); await sleep(400); await noBlock();
+    if (!await waitFor(function () { return hasOpts("#Session"); }, 30000)) throw new Error("Session এলো না");
+    setSel("#Session", String(p.session));
+    setSel("#Gender", String(p.gender)); setSel("#Religion", String(p.religion));
+    if ($("#LastInstituteName")) $("#LastInstituteName").value = p.instName || "";
+    if ($("#LastInstituteId")) $("#LastInstituteId").value = p.instId || "";
+    setSel("#VersionOfStudy", String(p.version)); await sleep(600); await noBlock();
+    if (!await waitFor(function () { return hasOpts("#Branch"); }, 40000)) throw new Error("Branch এলো না");
+    setSel("#Branch", String(p.branch)); await sleep(300); await noBlock();
+    await waitFor(function () { return hasOpts("#Campus"); }, 15000); setSel("#Campus", String(p.campus)); await sleep(300); await noBlock();
+    if (hasOpts("#AttachedPhysicalBranch") && p.physBranch) setSel("#AttachedPhysicalBranch", String(p.physBranch));
+    await waitFor(function () { return document.querySelector(".course-name-check"); }, 15000);
+    const ids = (p.courseIds || []).map(String);
+    for (const cid of ids) {
+      const cb = document.querySelector(".course-name-check.course-" + cid) || Array.prototype.find.call(document.querySelectorAll(".course-name-check"), function (c) { const m = (c.className || "").match(/course-(\d+)/); return m && m[1] === cid; });
+      if (cb && !cb.checked) cb.click();
+      await sleep(500); await noBlock();
+      for (const cls of [".batch-day-course-" + cid, ".batch-time-course-" + cid, ".batch-course-" + cid]) {
+        const ok = await waitFor(function () { const s = $(cls); return s && Array.prototype.some.call(s.options, function (o) { return o.value.trim(); }); }, 9000);
+        if (ok) { const s = $(cls); const opt = Array.prototype.find.call(s.options, function (o) { return o.value.trim(); }); s.value = opt.value; s.dispatchEvent(new Event("change", { bubbles: true })); await sleep(600); }
+      }
+    }
+    if ($("#Name")) $("#Name").value = p.name;
+    if ($("#MobNumber")) $("#MobNumber").value = p.mobile;
+    document.querySelectorAll('[id^="examYear"]').forEach(function (el, i) { if (!el.value) el.value = i === 0 ? "2024" : "2023"; });
+    document.querySelectorAll('[id^="boardRoll"]').forEach(function (el) { if (!el.value) el.value = String(Math.floor(Math.random() * 1e6)).padStart(6, "0"); });
+    document.querySelectorAll('[id^="registrationNumber"]').forEach(function (el) { if (!el.value) el.value = String(Math.floor(Math.random() * 1e7)).padStart(7, "0"); });
+    const groups = {};
+    document.querySelectorAll("input[type=radio]").forEach(function (r) { if (!r.offsetParent) return; (groups[r.name] = groups[r.name] || []).push(r); });
+    Object.keys(groups).forEach(function (k) { const rs = groups[k]; if (!rs.some(function (r) { return r.checked; })) { rs[0].checked = true; rs[0].dispatchEvent(new Event("change", { bubbles: true })); } });
+    const next = $("#newAdmissionNextBtn") || $("#nextBtn"); if (!next) throw new Error("Next বাটন নেই"); next.click();
+    await sleep(1500); await noBlock();
+    if (!await waitFor(function () { const el = $("#receivedAmount"); return el && el.offsetParent; }, 20000)) {
+      const err = (document.querySelector("#boardInfoErrorMessage,.text-danger,.alert-danger") || {}).textContent || "";
+      throw new Error("Payment ধাপে গেল না" + (err ? " — " + err.replace(/\s+/g, " ").trim().slice(0, 120) : ""));
+    }
+    if ($("#receivedAmount") && p.received != null && p.received !== "") $("#receivedAmount").value = p.received;
+    const submit = $("#newAdmissionPaymentSubmitBtn") || $("#admissionPaymentSubmitBtn"); if (!submit) throw new Error("Submit বাটন নেই"); submit.click();
+    return { ok: true };
+  } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
+}
+
+async function admBrowserRun(p) {
+  let tab = null;
+  try {
+    tab = await chrome.tabs.create({ url: p.base + "/Student/Admission/NewStudentAdmission", active: p.show !== false });
+    await waitTabComplete(tab.id, 30000);
+    const res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func: admDriver, args: [p] });
+    const r = res && res[0] && res[0].result;
+    if (!r || !r.ok) return { ok: false, message: (r && r.message) || "ফর্ম পূরণ ব্যর্থ" };
+    const url = await waitTabUrl(tab.id, /GenerateMoneyReciept|GenerateCoursewiseMoneyReciept/i, 25000);
+    const m = url && url.match(/[?&](?:id|studentPaymentIdList)=(\d+)/);
+    if (m) return { ok: true, payId: m[1], url: url };
+    return { ok: false, message: "Submit হলো কিন্তু রসিদে পৌঁছাল না (validation আটকে থাকতে পারে)" };
+  } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
+  finally { if (tab && p.close !== false) { try { await chrome.tabs.remove(tab.id); } catch (e) {} } }
+}
+
+chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+  if (msg && msg.type === "admBrowser") { admBrowserRun(msg.params || {}).then(sendResponse); return true; }
+});

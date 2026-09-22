@@ -69,10 +69,12 @@ check("…and opening the Batch page", /chrome\.runtime\.getURL\(PAGE\)/.test(BG
   /* nativeMessaging: the CRM · Dashboard Run button reaches a local host that runs the load test.
      declarativeNetRequestWithHostAccess: New Admission rewrites the Referer/Origin of its own AJAX
      to the admission page (UMS denies admission actions that don't look like they came from it),
-     and it can only touch the osl.team hosts already in host_permissions. Neither carries a
-     browsing-data prompt. The guard stays — the set is exactly these and nothing has crept in. */
-  check("…and the permission list is exactly the four it should be",
-    JSON.stringify(M.permissions) === JSON.stringify(["storage", "downloads", "nativeMessaging", "declarativeNetRequestWithHostAccess"]),
+     and it can only touch the osl.team hosts already in host_permissions. scripting: New Admission's
+     optional Browser mode injects a form-filling driver into the real admission tab (osl.team only,
+     via host_permissions). None of these carries a browsing-data prompt. The guard stays — the set
+     is exactly these and nothing has crept in. */
+  check("…and the permission list is exactly the five it should be",
+    JSON.stringify(M.permissions) === JSON.stringify(["storage", "downloads", "nativeMessaging", "declarativeNetRequestWithHostAccess", "scripting"]),
     JSON.stringify(M.permissions));
   /* an older Chrome has no getContexts; the click must still open the page */
   check("…and where getContexts is missing, the click still works",

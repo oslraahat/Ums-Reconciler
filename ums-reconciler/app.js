@@ -162,6 +162,8 @@
     adm_r_id: { bn: "রসিদ-id", en: "MR id" },
     adm_r_paid: { bn: "দেওয়া", en: "Paid" },
     adm_r_due: { bn: "বাকি", en: "Due" },
+    adm_browser_l: { bn: "🖥 ব্রাউজার", en: "🖥 Browser" },
+    adm_browser_t: { bn: "ব্রাউজারে আসল ফর্ম খুলে দৃশ্যমান করে চালায় (ধীর, একজন একজন)", en: "opens the real form in a tab and runs it visibly (slower, one at a time)" },
     adm_pool_l: { bn: "একসাথে", en: "at once" },
     adm_need_load: { bn: "আগে ⟳ ফর্ম আনো চাপো", en: "press ⟳ Load form first" },
     adm_need_course: { bn: "অন্তত একটা কোর্স টিক দাও", en: "tick at least one course" },
@@ -3278,11 +3280,58 @@
       StudentPayment: admDefaultPayment(), MbbsBdsStatus: "10",
       AcademicGroup: (admShowAcademic || admAnyAcademicTicked()) ? "10" : null };
   }
+  /* the course ids currently ticked in our UI (browser mode lets the form pick each one's batch) */
+  function admTickedCourseIds() {
+    return Array.prototype.filter.call(document.querySelectorAll("#admCourseBox .admc-cb"), function (cb) { return cb.checked; })
+      .map(function (cb) { return cb.__course && cb.__course.id; }).filter(Boolean);
+  }
+  /* Browser mode: drive the real admission form in a tab (background.js does the tab + injection);
+     read each payment id off the receipt URL and reuse the receipt decode for Reg/Roll */
+  async function admRunBrowser(mobile) {
+    const inst = await admResolveInstitute();
+    const courseIds = admTickedCourseIds();
+    const base = { base: admBaseUrl(), program: $("admProgram").value, session: $("admSession").value,
+      gender: $("admGender").value, religion: $("admReligion").value, version: admVersion,
+      branch: $("admBranch").value, campus: $("admCampus").value, physBranch: admPhysBranch,
+      instName: inst.name, instId: inst.id, courseIds: courseIds, mobile: mobile,
+      received: ($("admAmount").value || "").trim() };
+    const count = admCount();
+    admOutLine("→ " + count + " admission · 🖥 ব্রাউজারে · একজন একজন");
+    const t0 = Date.now(); let ok = 0, fail = 0;
+    for (let i = 0; i < count && !admStopFlag; i++) {
+      const n = i + 1;
+      try {
+        const params = Object.assign({}, base, { name: admName() });
+        const r = await new Promise(function (resolve) { chrome.runtime.sendMessage({ type: "admBrowser", params: params }, function (resp) { resolve(resp || { ok: false, message: chrome.runtime.lastError ? chrome.runtime.lastError.message : "সাড়া নেই" }); }); });
+        if (!r || !r.ok) throw new Error((r && r.message) || "ব্যর্থ");
+        let branch = "", mrNo = "", regNo = "", roll = "";
+        try {
+          const rtxt = r.payId ? await admReceiptText(r.payId) : "";
+          const g = function (re) { const m = rtxt.match(re); return m ? m[1].trim() : ""; };
+          regNo = g(/Registration\s*(?:Number|No\.?)?\s*[:\-]?\s*(\d{4,})/i);
+          roll = g(/Roll\s*(?:Number|No\.?)?\s*[:\-]?\s*(\d{4,})/i);
+          branch = g(/Branch\s*[:\-]?\s*([A-Za-z][A-Za-z .]+?)\s*(?:\d|$)/i);
+          mrNo = g(/Money\s*Receipt[^#]*#\s*(\d+)/i);
+        } catch (e) {}
+        ok++;
+        const parts = ["✓ #" + n + "/" + count, params.name];
+        if (regNo) parts.push(t("adm_r_reg") + " " + regNo);
+        if (roll) parts.push(t("adm_r_roll") + " " + roll);
+        if (branch) parts.push(branch);
+        if (mrNo) parts.push(t("adm_r_mr") + " #" + mrNo);
+        if (r.payId) parts.push(t("adm_r_id") + " " + r.payId);
+        admOutLine("  " + parts.join(" · "));
+      } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
+    }
+    admOutLine("── " + ok + " ok · " + fail + " failed of " + (ok + fail) + " · " + ((Date.now() - t0) / 1000).toFixed(1) + "s" + (admStopFlag ? " (stopped)" : ""));
+  }
   async function admRun() {
     if (admBusyFlag) return;
     if (!admLoaded) { admOutLine(t("adm_need_load")); return; }
     const mobile = ($("admMobile").value || "").trim();
     if (!mobile) { admOutLine(t("adm_need_mobile")); return; }
+    if (!admTickedCourseIds().length) { admOutLine(t("adm_need_course")); return; }
+    if (admBrowserMode) { admStopFlag = false; admBusy(true); const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; } try { await admRunBrowser(mobile); } catch (e) { admOutLine("⚠ " + ((e && e.message) || e)); } admBusy(false); return; }
     if (!Object.keys(admBatchOf).length) { admOutLine(t("adm_need_course")); return; }
     admStopFlag = false; admBusy(true);
     const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; }
@@ -3374,6 +3423,7 @@
     admBusy(false);
   }
   let admMode = "sequential";
+  let admBrowserMode = false;
   function admSetMode(m) {
     admMode = m === "parallel" ? "parallel" : "sequential";
     const par = admMode === "parallel";
@@ -3758,6 +3808,7 @@
     if ($("admStop")) $("admStop").addEventListener("click", admStop);
     if ($("admSeq")) $("admSeq").addEventListener("click", function () { admSetMode("sequential"); });
     if ($("admPar")) $("admPar").addEventListener("click", function () { admSetMode("parallel"); });
+    if ($("admBrowser")) $("admBrowser").addEventListener("change", function () { admBrowserMode = this.checked; });
     if ($("admLoad")) $("admLoad").addEventListener("click", admLoadForm);
     if ($("admProgram")) $("admProgram").addEventListener("change", admOnProgram);
     if ($("admSession")) $("admSession").addEventListener("change", admOnSession);
