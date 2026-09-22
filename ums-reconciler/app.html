@@ -152,9 +152,12 @@
   /* fetched course list for New Admission */
   .admcourses{border:1px solid var(--line);border-radius:10px;padding:8px 10px;background:var(--fld);max-height:210px;overflow:auto;display:flex;flex-direction:column;gap:4px}
   .admcrow{display:flex;align-items:center;gap:8px}
-  .admcrow label{flex:1;display:flex;align-items:center;gap:7px;cursor:pointer;font-size:12.5px;min-width:0}
+  /* the global input{width:100%} would blow the checkbox up and shove the name across — pin it */
+  .admcrow input[type=checkbox]{width:16px;height:16px;flex:none;margin:0;accent-color:var(--accent)}
+  .admcrow label{flex:1;min-width:0;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:12.5px}
   .admcrow label span{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .admcrow input[type=number]{width:80px}
+  .admcrow .pay-sym{flex:none}
+  .admcrow input[type=number]{width:74px;flex:none}
   /* two equal columns for the New Admission fields (crmtop is deliberately lopsided) */
   .admgrid{display:grid;grid-template-columns:1fr 1fr;gap:14px;align-items:start}
   .admgrid.three{grid-template-columns:1fr 1fr 1fr}
