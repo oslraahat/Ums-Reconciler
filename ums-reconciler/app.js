@@ -3213,8 +3213,8 @@
         PreviousStudentDiscountAmount: intOf(fee && fee.PreviousStudentDiscount), PreviousStudentDiscountViewModels: [],
         SpDiscountAmount: totalSpDiscount, SpecialDiscountViewModels: specialDiscounts, ReceivableAmount: receivable,
         BookingDiscountAmount: intOf(fee && fee.BookingDiscount), NetReceivable: netAfter, ReceivedAmount: received,
-        DueAmount: netAfter - received, ReferrerId: 50, ReferrerNameId: "", Remarks: "Top Student",
-        DiscountApprovedBy: (totalSpDiscount > 0 ? sel.approverId : ""), SpReferenceNote: "Top Student", PaymentMethod: admPayMethod, NextReceivedDate: nextDate });
+        DueAmount: netAfter - received, ReferrerId: 0, ReferrerNameId: "", Remarks: "",
+        DiscountApprovedBy: (totalSpDiscount > 0 ? sel.approverId : ""), SpReferenceNote: "", PaymentMethod: admPayMethod, NextReceivedDate: nextDate });
 
       const count = admCount(), pool = admMode === "parallel" ? admPool() : 1;
       admOutLine("→ " + count + " admission · " + (admMode === "parallel" ? pool + " একসাথে" : "একজন একজন") + " · net ৳" + netAfter + " · paying ৳" + received);
@@ -3228,7 +3228,10 @@
                {IsSuccess, AdditionalValue:"<paymentId,paymentId>"} and the receipt is fetched from
                GenerateCoursewiseMoneyReciept?studentPaymentIdList=… (boardInfos "[]" = no board rows) */
             const boardInfos = JSON.stringify(admBoardRows || []);
-            if (n === 1) admOutLine("  ▸ boardInfos: " + boardInfos + " · payMethod=" + admPayMethod + " · nextDate=" + nextDate);   // DEBUG
+            if (n === 1) {   // DEBUG
+              admOutLine("  ▸ boardInfos: " + boardInfos);
+              admOutLine("  ▸ payment: " + JSON.stringify(vm.StudentPayment));
+            }
             const reg = await admPost("/Student/Admission/NewStudentAdmission", { studentObj: JSON.stringify(vm), boardInfos: boardInfos });
             if (!reg || reg.IsSuccess !== true) {
               const rm = reg && (Array.isArray(reg.Message)
