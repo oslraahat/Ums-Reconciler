@@ -3142,7 +3142,9 @@
 
       const feeVM = admBuildStudent(sel, admName());
       const totalSpDiscount = Object.keys(discOf).reduce(function (s, k) { return s + (discOf[k] || 0); }, 0);
-      const fee = await admPost("/Student/Admission/CalculateCourseFee", { format: "json", studentViewModelJson: JSON.stringify(feeVM), previousStudentId: 0, bookingId: 0 });
+      const feeJson = JSON.stringify(feeVM);
+      admOutLine("  ▸ payload: " + feeJson);   // DEBUG: copy this and share it
+      const fee = await admPost("/Student/Admission/CalculateCourseFee", { format: "json", studentViewModelJson: feeJson, previousStudentId: 0, bookingId: 0 });
       if (fee && fee.IsSuccess === false) throw new Error("[fee] " + (Array.isArray(fee.Message) ? (fee.Message[0] && fee.Message[0].ErrorMessage) : fee.Message));
       const net = intOf(fee && fee.NetReceivableAmount), totalFee = intOf(fee && fee.TotalCourseFee), receivable = intOf(fee && fee.ReceivableAmount);
       if (!net) admOutLine("  ⚠ fee net=0 — " + (fee && typeof fee === "object" ? "keys: " + Object.keys(fee).join(",") + " · " + JSON.stringify(fee).slice(0, 300) : String(fee).slice(0, 300)));
