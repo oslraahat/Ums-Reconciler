@@ -303,7 +303,9 @@
      they measured 1.6-2.8:1 against white — below the 4.5:1 body text wants, and the tile numbers
      were the worst thing on the page. Same hues, dark enough to read: each clears 4.5:1 against
      the card (#fff), the page behind it (#eef0f8) and a tile (#fafbff). */
-  body.light{ --bg:#eef0f8; --card:#fff; --line:#e4e7f2; --text:#1f2340; --mut:#636987; --accent:#5b4ff0; --fld:#fff;
+  /* off-white surfaces instead of pure #fff — the white glare was hard on the eyes; cards sit softly
+     above a slightly deeper page, fields a touch greyer still, and the text is eased off pure-dark */
+  body.light{ --bg:#e6e8f0; --card:#f5f6fb; --line:#dce0ee; --text:#272b46; --mut:#5f6584; --accent:#5b4ff0; --fld:#edeff6;
     --ok:#0e7c4c; --no:#c41f38; --warn:#8a5400; --info:#2f5fd0;
     color-scheme:light; }
   /* …and the two places that put near-black text ON one of those colours: fine against a colour

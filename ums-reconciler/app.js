@@ -3031,14 +3031,14 @@
       return;
     }
     box.innerHTML = "";
-    courses.forEach(function (c, i) {
+    courses.forEach(function (c) {
       const row = document.createElement("div"); row.className = "admcrow";
       row.innerHTML = '<label><input type="checkbox" class="admc-cb" data-cid="' + c.id + '"><span>' + (c.name || c.id).replace(/</g, "&lt;") + '</span></label>' +
         '<span class="admc-batch"></span>';
       const cb = row.querySelector(".admc-cb"); cb.__course = c;
       cb.addEventListener("change", function () { admCourseCheck(cb); });
       box.appendChild(row);
-      if (i === 0) { cb.checked = true; admCourseCheck(cb); }        // first course on by default
+      // no auto-tick: ticking fetches the batch cascade, so leaving it off keeps Fetch Data fast
     });
   }
   /* the Amount box shows the sum of the ticked courses' minimum payment (data-officeminpayment) */
