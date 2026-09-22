@@ -3256,14 +3256,13 @@
             }
             /* success answers {IsSuccess, PaymentId}; the money receipt at GenerateCoursewiseMoneyReciept
                ?studentPaymentIdList=<PaymentId> carries the student's Reg No and Roll */
-            const payIds = String(reg.PaymentId || reg.AdditionalValue || reg.additionalValue || "").trim();
+            const payId = String(reg.PaymentId || reg.AdditionalValue || reg.additionalValue || "").split(",")[0].trim();
             let regNo = "", roll = "";
             try {
-              const q = payIds.split(",").filter(Boolean).map(function (id) { return "studentPaymentIdList=" + encodeURIComponent(id.trim()); }).join("&");
-              if (q) {
-                const rc = await admGetDoc("/Student/Payment/GenerateCoursewiseMoneyReciept?" + q);
+              if (payId) {
+                const rc = await admGetDoc("/Student/Payment/GenerateMoneyReciept/" + encodeURIComponent(payId));
                 const txt = ((rc && rc.body && rc.body.textContent) || "").replace(/\s+/g, " ").trim();
-                if (n === 1) admOutLine("  ▸ receipt[" + q + "]: title=" + ((rc && rc.title) || "") + " len=" + ((rc && rc.body && rc.body.innerHTML.length) || 0) + " · " + (txt.slice(0, 450) || "(empty)"));   // DEBUG
+                if (n === 1) admOutLine("  ▸ receipt: " + (txt.slice(0, 500) || "(empty)"));   // DEBUG: to wire Reg No / Roll
                 const rm = txt.match(/Reg(?:istration)?\.?\s*(?:No\.?|Number)?\s*[:\-]?\s*([A-Za-z0-9\-\/]{4,})/i);
                 const rl = txt.match(/Roll\s*(?:No\.?|Number)?\s*[:\-]?\s*([A-Za-z0-9\-\/]{3,})/i);
                 if (rm) regNo = rm[1];
@@ -3271,7 +3270,7 @@
               }
             } catch (e) {}
             ok++;
-            admOutLine("  ✓ #" + n + "/" + count + " · " + (regNo ? "reg " + regNo : "pay " + payIds) + (roll ? " · roll " + roll : ""));
+            admOutLine("  ✓ #" + n + "/" + count + " · " + (regNo ? "reg " + regNo : "pay " + payId) + (roll ? " · roll " + roll : ""));
           } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
         }
       }
