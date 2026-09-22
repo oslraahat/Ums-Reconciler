@@ -163,7 +163,7 @@
     adm_r_paid: { bn: "দেওয়া", en: "Paid" },
     adm_r_due: { bn: "বাকি", en: "Due" },
     adm_http_l: { bn: "⚡ HTTP", en: "⚡ HTTP" },
-    adm_browser_l: { bn: "🖥 ব্রাউজার", en: "🖥 Browser" },
+    adm_browser_l: { bn: "🌐 ব্রাউজার", en: "🌐 Browser" },
     adm_browser_t: { bn: "ব্রাউজারে আসল ফর্ম খুলে দৃশ্যমান করে চালায় (ধীর, একজন একজন)", en: "opens the real form in a tab and runs it visibly (slower, one at a time)" },
     adm_pool_l: { bn: "একসাথে", en: "at once" },
     adm_need_load: { bn: "আগে ⟳ ফর্ম আনো চাপো", en: "press ⟳ Load form first" },
