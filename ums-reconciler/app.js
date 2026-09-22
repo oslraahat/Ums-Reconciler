@@ -3260,7 +3260,7 @@
             let regNo = "", roll = "";
             try {
               if (payId) {
-                const rc = await admGetDoc("/Student/Payment/GenerateMoneyReciept/" + encodeURIComponent(payId));
+                const rc = await admGetDoc("/Student/Payment/GenerateMoneyReciept?id=" + encodeURIComponent(payId));
                 const txt = ((rc && rc.body && rc.body.textContent) || "").replace(/\s+/g, " ").trim();
                 if (n === 1) admOutLine("  ▸ receipt: " + (txt.slice(0, 500) || "(empty)"));   // DEBUG: to wire Reg No / Roll
                 const rm = txt.match(/Reg(?:istration)?\.?\s*(?:No\.?|Number)?\s*[:\-]?\s*([A-Za-z0-9\-\/]{4,})/i);
