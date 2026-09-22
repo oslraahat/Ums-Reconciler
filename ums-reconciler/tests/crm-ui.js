@@ -28,7 +28,7 @@ const check = (name, ok, extra) => {
 
 /* ---------- the parser agrees with the tool's own ---------- */
 {
-  const APP = fs.readFileSync(path.join(ROOT, "js", "crm.js"), "utf8");   // crmIsHeader/crmParse moved out of app.js
+  const APP = fs.readFileSync(path.join(ROOT, "menus", "crm", "crm.js"), "utf8");   // crmIsHeader/crmParse moved out of app.js
   function lift(name) {
     const at = APP.indexOf("function " + name + "(");
     let d = 0;
@@ -185,8 +185,8 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "crmui-"));
   const s = APP.replace('<script src="reconcile.js"></script>', STUBS + '<script src="reconcile.js"></script>');
   const at = s.lastIndexOf("</body>");
   fs.writeFileSync(path.join(TMP, "a.html"), s.slice(0, at) + DRIVE);
-  fs.mkdirSync(path.join(TMP, "js"), { recursive: true });
-  ["reconcile.js", "app.js", "js/adm.js", "js/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
+  fs.mkdirSync(path.join(TMP, "menus", "adm"), { recursive: true }); fs.mkdirSync(path.join(TMP, "menus", "crm"), { recursive: true });
+  ["reconcile.js", "app.js", "menus/adm/adm.js", "menus/crm/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
 }
 let waiting = null;
 const srv = http.createServer((q, r) => {

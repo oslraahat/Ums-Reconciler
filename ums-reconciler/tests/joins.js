@@ -42,10 +42,10 @@ const all = (s, re) => {
 const APP = read("app.js"), HTML = read("app.html"), CONTENT = read("content.js");
 const PANEL = read("panel.js"), PANELH = read("panel.html"), BG = read("background.js");
 const REC = read("reconcile.js"), MANIFEST = read("manifest.json");
-/* The New Admission and CRM menus moved to js/adm.js and js/crm.js; their t() calls, key mentions
+/* The New Admission and CRM menus moved to menus/adm/adm.js and menus/crm/crm.js; their t() calls, key mentions
    and {placeholder} fills live there now, so the string usage/unused checks scan the three together.
    DICT itself is still parsed from app.js. */
-const SRC = APP + "\n" + read("js/adm.js") + "\n" + read("js/crm.js");
+const SRC = APP + "\n" + read("menus/adm/adm.js") + "\n" + read("menus/crm/crm.js");
 
 /* ---------- everything parses ---------- */
 {

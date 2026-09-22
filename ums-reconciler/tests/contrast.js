@@ -153,8 +153,8 @@ function page(light) {
 }
 
 const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "umscon-"));
-fs.mkdirSync(path.join(TMP, "js"), { recursive: true });
-["app.js", "reconcile.js", "js/adm.js", "js/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
+fs.mkdirSync(path.join(TMP, "menus", "adm"), { recursive: true }); fs.mkdirSync(path.join(TMP, "menus", "crm"), { recursive: true });
+["app.js", "reconcile.js", "menus/adm/adm.js", "menus/crm/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
 
 function measure(light) {
   const f = path.join(TMP, (light ? "light" : "dark") + ".html");
