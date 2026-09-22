@@ -2998,6 +2998,11 @@
       admOutLine("⚠ courses খালি — view(" + String(admCourseView || "").length + "): " + String(admCourseView || "(empty)").replace(/[<>]/g, function (c) { return c === "<" ? "‹" : "›"; }).slice(0, 400));
       return;
     }
+    try {   // DEBUG: show how subjects are marked up in the CourseView so we can build SubjectViewModels
+      const dbg = new DOMParser().parseFromString(String(admCourseView || ""), "text/html");
+      const sub = dbg.querySelector('[data-course-subject-id], [class*="-subjects"]');
+      admOutLine("  ▸ courseView " + String(admCourseView || "").length + " chars · subject sample: " + (sub ? sub.outerHTML.replace(/\s+/g, " ").slice(0, 500) : "NONE in CourseView"));
+    } catch (e) {}
     box.innerHTML = "";
     courses.forEach(function (c, i) {
       const row = document.createElement("div"); row.className = "admcrow";
@@ -3178,7 +3183,7 @@
             if (!reg || reg.IsSuccess !== true) {
               const rm = reg && (Array.isArray(reg.Message)
                 ? reg.Message.map(function (x) { return x && (x.ErrorMessage || x.Message || x); }).join("; ")
-                : reg.Message);
+                : (reg.ErrorMessage || reg.Message));
               throw new Error(rm || ("no success — " + String(typeof reg === "string" ? reg : JSON.stringify(reg)).slice(0, 300)));
             }
             const payIds = String(reg.AdditionalValue || "").trim();
