@@ -3083,18 +3083,31 @@
     } catch (e) {}
     return { name: q, id: "" };
   }
+  /* every field StudentPaymentModel() carries, defaulted — CalculateCourseFee 500s if StudentPayment
+     is missing or partial, and the fee call in the real form always sends a full (zeroed) one */
+  function admDefaultPayment() {
+    return { OfferedDiscount: 0, NetReceivable: 0, CashBackAmount: 0, ConsiderationAmount: 0,
+      CourseFees: 0, CourseFee: 0, DiscountAmount: 0, DueAmount: 0, NextReceivedDate: "",
+      PayableAmount: 0, PaymentMethod: 0, PaymentType: 0, ReceiptNo: "", ReceivedAmount: 0,
+      ReceivableAmount: 0, ReceivedDate: "", ReferrerId: 0, ReferrerNameId: "", DiscountApprovedBy: "",
+      SpDiscountAmount: 0, Remarks: "", SpReferenceNote: "", PreviousStudentDiscountAmount: 0,
+      BookingDiscountAmount: 0, OfferedDiscountViewModels: [], PreviousStudentDiscountViewModels: [],
+      SpecialDiscountViewModels: [] };
+  }
   function admBuildStudent(sel, name) {
     const courseVMs = Object.keys(admBatchOf).map(function (cid) {
       const b = admBatchOf[cid], c = b.course;
-      return { Name: c.name, ProgramId: c.programId || sel.program, SessionId: c.sessionId || sel.session,
-        Id: c.id, IsTaken: true, OfficeMinSub: c.officeMinSub, maxSubject: c.maxSubject,
-        IsOfficeCompulsary: c.isOfficeCompulsary, BatchId: b.batchId, BranchId: parseInt(sel.branch, 10) || 0,
-        CampusId: parseInt(sel.campus, 10) || 0, AttachedPhysicalBranchId: 0, IsFromShowOnOtherProgram: c.isFromOther, SubjectViewModels: [] };
+      return { Id: c.id, Name: c.name, ProgramId: c.programId || sel.program, SessionId: c.sessionId || sel.session,
+        BranchId: parseInt(sel.branch, 10) || 0, CampusId: parseInt(sel.campus, 10) || 0, AttachedPhysicalBranchId: 0,
+        Batch: 0, BatchId: b.batchId, IsTaken: true, maxSubject: c.maxSubject, OfficeMinSub: c.officeMinSub,
+        PublicMinSubject: 0, OfficeMinPayment: c.minPay || 0, PublicMinPayment: 0,
+        IsOfficeCompulsary: c.isOfficeCompulsary, IsPublicCompulsary: false, IsComplementaryCourse: false,
+        IsFromShowOnOtherProgram: c.isFromOther, SubjectViewModels: [] };
     });
-    return { Name: name, MobNumber: sel.mobile, Program: sel.program, Session: sel.session, Branch: sel.branch,
+    return { Id: 0, Name: name, MobNumber: sel.mobile, Program: sel.program, Session: sel.session, Branch: sel.branch,
       AttachedPhysicalBranch: "", Campus: sel.campus, VersionOfStudy: admVersion, Gender: sel.gender, Religion: sel.religion,
       Email: "", LastInstituteName: sel.instName, LastInstituteId: sel.instId, CourseViewModels: courseVMs,
-      MbbsBdsStatus: null, AcademicGroup: null };
+      StudentPayment: admDefaultPayment(), MbbsBdsStatus: null, AcademicGroup: null };
   }
   async function admRun() {
     if (admBusyFlag) return;
@@ -3124,12 +3137,13 @@
       const specialDiscounts = Object.keys(discOf).filter(function (k) { return discOf[k] > 0; }).map(function (k) { return { CourseId: k, DiscountAmount: discOf[k] }; });
       const d = new Date(); d.setDate(d.getDate() + 2);
       const nextDate = String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
-      const payment = { CourseFee: totalFee, OfferedDiscount: intOf(fee && fee.OfferedDiscount), OfferedDiscountViewModels: [],
+      const payment = Object.assign(admDefaultPayment(), { CourseFee: totalFee, CourseFees: totalFee,
+        OfferedDiscount: intOf(fee && fee.OfferedDiscount), OfferedDiscountViewModels: [],
         PreviousStudentDiscountAmount: intOf(fee && fee.PreviousStudentDiscount), PreviousStudentDiscountViewModels: [],
         SpDiscountAmount: totalSpDiscount, SpecialDiscountViewModels: specialDiscounts, ReceivableAmount: receivable,
         BookingDiscountAmount: intOf(fee && fee.BookingDiscount), NetReceivable: netAfter, ReceivedAmount: received,
         DueAmount: netAfter - received, ReferrerId: 50, ReferrerNameId: "", Remarks: "Top Student",
-        DiscountApprovedBy: (totalSpDiscount > 0 ? sel.approverId : ""), SpReferenceNote: "Top Student", PaymentMethod: 0, NextReceivedDate: nextDate };
+        DiscountApprovedBy: (totalSpDiscount > 0 ? sel.approverId : ""), SpReferenceNote: "Top Student", PaymentMethod: 0, NextReceivedDate: nextDate });
 
       const count = admCount(), pool = admMode === "parallel" ? admPool() : 1;
       admOutLine("→ " + count + " admission · " + (admMode === "parallel" ? pool + " একসাথে" : "একজন একজন") + " · net ৳" + netAfter + " · paying ৳" + received);
