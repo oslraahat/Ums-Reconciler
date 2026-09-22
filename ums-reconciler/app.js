@@ -165,6 +165,7 @@
     adm_r_due: { bn: "বাকি", en: "Due" },
     adm_http_l: { bn: "⚡ HTTP", en: "⚡ HTTP" },
     adm_browser_l: { bn: "🌐 ব্রাউজার", en: "🌐 Browser" },
+    adm_headless_l: { bn: "⚙️ Headless", en: "⚙️ Headless" },
     adm_browser_t: { bn: "ব্রাউজারে আসল ফর্ম খুলে দৃশ্যমান করে চালায় (ধীর, একজন একজন)", en: "opens the real form in a tab and runs it visibly (slower, one at a time)" },
     adm_pool_l: { bn: "একসাথে", en: "at once" },
     adm_pool_n: { bn: "কয়টা", en: "how many" },
@@ -3316,9 +3317,9 @@
       gender: $("admGender").value, religion: $("admReligion").value, version: admVersion,
       branch: $("admBranch").value, campus: $("admCampus").value, physBranch: admPhysBranch,
       instName: inst.name, instId: inst.id, courseIds: courseIds, mobile: mobile,
-      received: ($("admAmount").value || "").trim(), show: true };
+      received: ($("admAmount").value || "").trim(), show: admRunModeVal !== "headless" };
     const count = admCount();
-    admOutLine("→ " + count + " admission · " + t("adm_browser_l"));
+    admOutLine("→ " + count + " admission · " + t(admRunModeVal === "headless" ? "adm_headless_l" : "adm_browser_l"));
     const t0 = Date.now(); let ok = 0, fail = 0;
     for (let i = 0; i < count && !admStopFlag; i++) {
       await admWaitIfPaused(); if (admStopFlag) break;
@@ -3460,12 +3461,13 @@
     admBusy(false);
   }
   let admMode = "sequential";
-  let admBrowserMode = false, admRunModeVal = "http";   // http | browser
+  let admBrowserMode = false, admRunModeVal = "http";   // http | browser | headless
   function admSetRunMode(m) {
-    admRunModeVal = m === "browser" ? "browser" : "http";
-    admBrowserMode = admRunModeVal === "browser";
-    if ($("admHttp")) $("admHttp").classList.toggle("on", !admBrowserMode);
-    if ($("admBrowserBtn")) $("admBrowserBtn").classList.toggle("on", admBrowserMode);
+    admRunModeVal = (m === "browser" || m === "headless") ? m : "http";
+    admBrowserMode = admRunModeVal !== "http";
+    if ($("admHttp")) $("admHttp").classList.toggle("on", admRunModeVal === "http");
+    if ($("admBrowserBtn")) $("admBrowserBtn").classList.toggle("on", admRunModeVal === "browser");
+    if ($("admHeadless")) $("admHeadless").classList.toggle("on", admRunModeVal === "headless");
   }
   function admSetMode(m) {
     admMode = m === "parallel" ? "parallel" : "sequential";
@@ -3853,6 +3855,7 @@
     if ($("admPar")) $("admPar").addEventListener("click", function () { admSetMode("parallel"); });
     if ($("admHttp")) $("admHttp").addEventListener("click", function () { admSetRunMode("http"); });
     if ($("admBrowserBtn")) $("admBrowserBtn").addEventListener("click", function () { admSetRunMode("browser"); });
+    if ($("admHeadless")) $("admHeadless").addEventListener("click", function () { admSetRunMode("headless"); });
     if ($("admLoad")) $("admLoad").addEventListener("click", admLoadForm);
     if ($("admProgram")) $("admProgram").addEventListener("change", admOnProgram);
     if ($("admSession")) $("admSession").addEventListener("change", admOnSession);
