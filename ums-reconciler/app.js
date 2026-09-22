@@ -144,7 +144,7 @@
     adm_appr_id_l: { bn: "Approver ID", en: "Approver ID" },
     adm_appr_name_l: { bn: "Approver Name", en: "Approver Name" },
     adm_pick_prog: { bn: "— আগে Fetch Data চাপো —", en: "— press Fetch Data first —" },
-    adm_courses_l: { bn: "Courses (টিক দাও · পাশে min ৳)", en: "Courses (tick · min shown)" },
+    adm_courses_l: { bn: "Courses (টিক দাও · পাশে batch দেখাবে)", en: "Courses (tick · batch shown)" },
     adm_courses_hint: { bn: "ফর্ম আনলে কোর্স এখানে আসবে", en: "courses appear here once the form is loaded" },
     adm_no_courses: { bn: "এই প্রোগ্রামে কোর্স নেই", en: "no courses on this program" },
     adm_seq: { bn: "একজন একজন", en: "One at a time" },
@@ -2985,7 +2985,7 @@
     courses.forEach(function (c, i) {
       const row = document.createElement("div"); row.className = "admcrow";
       row.innerHTML = '<label><input type="checkbox" class="admc-cb" data-cid="' + c.id + '"><span>' + (c.name || c.id).replace(/</g, "&lt;") + '</span></label>' +
-        (c.minPay ? '<span class="admc-min">৳' + c.minPay + '</span>' : "");
+        '<span class="admc-batch"></span>';
       const cb = row.querySelector(".admc-cb"); cb.__course = c;
       cb.addEventListener("change", function () { admCourseCheck(cb); });
       box.appendChild(row);
@@ -3006,34 +3006,51 @@
      day+time the BatchNames (with BatchId) are already there; otherwise pick a day → GetBatchTime
      (which itself returns Batch[] when the time is single) → GetBatch. Prefer a batch with capacity. */
   function admPickBatch(batches) {
-    if (!batches || !batches.length) return "";
+    if (!batches || !batches.length) return null;
     const withCap = batches.find(function (b) { return (parseInt(b.RemainingCapacity, 10) || 0) > 0; });
-    return String((withCap || batches[0]).BatchId || "");
+    return withCap || batches[0];
   }
+  function admBatchName(b) { return (b && (b.NameWithRemainingCapacity || b.BatchName || b.Name || b.Text)) || ""; }
+  /* resolves the batch for a course and returns {batchId, day, time, name} so the row can show it */
   async function admGetBatchId(p, courseId) {
     const bd = await admPost("/Student/Admission/GetBatchDayByProgramSessionBranchAndCampus", Object.assign({}, p, { courseIds: [courseId] }));
     const days = (bd && bd.BatchDays) || [];
     const entry = days.find(function (v) { return String(v.CourseId) === String(courseId); }) || days[0];
-    if (!entry) return "";
-    if (entry.BatchNames && entry.BatchNames.length) { const id = admPickBatch(entry.BatchNames); if (id) return id; }
+    if (!entry) return null;
     const day = (entry.Days && entry.Days[0]) || "";
-    if (!day) return "";
+    if (entry.BatchNames && entry.BatchNames.length) {
+      const b = admPickBatch(entry.BatchNames);
+      if (b && b.BatchId) return { batchId: String(b.BatchId), day: day, time: (entry.Times && entry.Times[0]) || "", name: admBatchName(b) };
+    }
+    if (!day) return null;
     const bt = await admPost("/Student/Admission/GetBatchTimeByProgramSessionBranchCampusAndBatchDay", Object.assign({}, p, { batchDay: day, courseId: courseId }));
-    if (bt && bt.Batch && bt.Batch.length) { const id = admPickBatch(bt.Batch); if (id) return id; }
     const time = (bt && bt.BatchTime && bt.BatchTime[0]) || (entry.Times && entry.Times[0]) || "";
-    if (!time) return "";
+    if (bt && bt.Batch && bt.Batch.length) {
+      const b = admPickBatch(bt.Batch);
+      if (b && b.BatchId) return { batchId: String(b.BatchId), day: day, time: time, name: admBatchName(b) };
+    }
+    if (!time) return null;
     const bb = await admPost("/Student/Admission/GetBatchByProgramSessionBranchCampusAndBatchDayTime", Object.assign({}, p, { batchDay: day, batchTime: time, courseId: courseId }));
-    return admPickBatch(bb && bb.Batch);
+    const b = admPickBatch(bb && bb.Batch);
+    if (b && b.BatchId) return { batchId: String(b.BatchId), day: day, time: time, name: admBatchName(b) };
+    return null;
+  }
+  function admShowBatch(cb, info) {
+    const row = cb.closest && cb.closest(".admcrow"); if (!row) return;
+    const el = row.querySelector(".admc-batch"); if (!el) return;
+    el.textContent = info ? [info.day, info.time, info.name].filter(Boolean).join(" · ") : "";
   }
   async function admCourseCheck(cb) {
     const c = cb.__course;
-    if (!cb.checked) { delete admBatchOf[c.id]; admUpdateAmount(); return; }
+    if (!cb.checked) { delete admBatchOf[c.id]; admShowBatch(cb, null); admUpdateAmount(); return; }
     const p = { programId: $("admProgram").value, sessionId: $("admSession").value, branchId: $("admBranch").value, campusId: $("admCampus").value, versionStudy: admVersion, gender: $("admGender").value };
+    admShowBatch(cb, { name: "…" });
     try {
-      const batchId = await admGetBatchId(p, c.id);
-      if (!batchId) throw new Error("no batch");
-      admBatchOf[c.id] = { batchId: batchId, course: c };
-    } catch (e) { cb.checked = false; delete admBatchOf[c.id]; admOutLine("  ⚠ " + (c.name || c.id) + ": এই শাখায় batch নেই"); }
+      const info = await admGetBatchId(p, c.id);
+      if (!info || !info.batchId) throw new Error("no batch");
+      admBatchOf[c.id] = { batchId: info.batchId, course: c, day: info.day, time: info.time, name: info.name };
+      admShowBatch(cb, info);
+    } catch (e) { cb.checked = false; delete admBatchOf[c.id]; admShowBatch(cb, null); admOutLine("  ⚠ " + (c.name || c.id) + ": এই শাখায় batch নেই"); }
     admUpdateAmount();
   }
   async function admResolveInstitute() {
@@ -3087,6 +3104,7 @@
       const fee = await admPost("/Student/Admission/CalculateCourseFee", { format: "json", studentViewModelJson: JSON.stringify(feeVM), previousStudentId: 0, bookingId: 0 });
       if (fee && fee.IsSuccess === false) throw new Error("[fee] " + (Array.isArray(fee.Message) ? (fee.Message[0] && fee.Message[0].ErrorMessage) : fee.Message));
       const net = intOf(fee && fee.NetReceivableAmount), totalFee = intOf(fee && fee.TotalCourseFee), receivable = intOf(fee && fee.ReceivableAmount);
+      if (!net) admOutLine("  ⚠ fee net=0 — " + (fee && typeof fee === "object" ? "keys: " + Object.keys(fee).join(",") + " · " + JSON.stringify(fee).slice(0, 300) : String(fee).slice(0, 300)));
       const netAfter = Math.max(0, net - totalSpDiscount);
       let received = (amount !== "") ? Math.min(parseInt(amount, 10) || 0, netAfter) : netAfter; if (received < 0) received = 0;
       const specialDiscounts = Object.keys(discOf).filter(function (k) { return discOf[k] > 0; }).map(function (k) { return { CourseId: k, DiscountAmount: discOf[k] }; });
@@ -3108,7 +3126,12 @@
           try {
             const vm = admBuildStudent(sel, admName()); vm.StudentPayment = payment;
             const reg = await admPost("/Student/Admission/StudentRegistration", { studentObj: JSON.stringify(vm) });
-            if (!reg || reg.IsSuccess !== true) throw new Error(reg && reg.Message || "no success");
+            if (!reg || reg.IsSuccess !== true) {
+              const rm = reg && (Array.isArray(reg.Message)
+                ? reg.Message.map(function (x) { return x && (x.ErrorMessage || x.Message || x); }).join("; ")
+                : reg.Message);
+              throw new Error(rm || ("no success — " + String(typeof reg === "string" ? reg : JSON.stringify(reg)).slice(0, 300)));
+            }
             const due = await admPost("/Student/Payment/DuePayment", { stdProgramId: reg.Message });
             const html = typeof due === "string" ? due : JSON.stringify(due);
             const mm = html.match(/Registration\s*(?:Number|No\.?)\s*[:\-]?\s*(\d{5,})/i) || html.match(/\b(\d{7,})\b/);
