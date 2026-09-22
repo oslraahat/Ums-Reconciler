@@ -156,14 +156,10 @@ let admRunTab = null, admRunWin = null;
 async function admEnsureTab(p, url) {
   if (admRunTab != null && await getTab(admRunTab)) { await chrome.tabs.update(admRunTab, { url: url }); return admRunTab; }
   admRunTab = null; admRunWin = null;
-  if (p.show === false) {   // Headless: minimised, unfocused window (Chrome still shows it briefly on create — it can't be fully hidden)
-    admRunWin = await chrome.windows.create({ url: url, focused: false, state: "minimized" });
-    admRunTab = admRunWin && admRunWin.tabs && admRunWin.tabs[0] && admRunWin.tabs[0].id;
-    try { await chrome.windows.update(admRunWin.id, { state: "minimized", focused: false }); } catch (e) {}
-  } else {
-    const tb = await chrome.tabs.create({ url: url, active: true });
-    admRunTab = tb.id; admRunWin = null;
-  }
+  /* both open a tab in the current window — Browser in front (active), Headless in the background
+     (active:false) so it never opens a separate window or steals focus */
+  const tb = await chrome.tabs.create({ url: url, active: p.show !== false });
+  admRunTab = tb.id; admRunWin = null;
   return admRunTab;
 }
 async function admCloseRun() {
