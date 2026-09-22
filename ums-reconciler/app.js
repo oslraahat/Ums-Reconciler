@@ -3317,7 +3317,7 @@
       instName: inst.name, instId: inst.id, courseIds: courseIds, mobile: mobile,
       received: ($("admAmount").value || "").trim(), show: admRunModeVal !== "headless" };
     const count = admCount();
-    admOutLine("→ " + count + " admission · " + (admRunModeVal === "headless" ? "🙈 Headless" : "👁 Browser"));
+    admOutLine("→ " + count + " admission · " + t(admRunModeVal === "headless" ? "adm_headless_l" : "adm_browser_l"));
     const t0 = Date.now(); let ok = 0, fail = 0;
     for (let i = 0; i < count && !admStopFlag; i++) {
       await admWaitIfPaused(); if (admStopFlag) break;
