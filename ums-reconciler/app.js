@@ -2940,6 +2940,27 @@
 
   /* ---- interactive form: the dropdowns are fetched from UMS, the user picks ---- */
   let admLoaded = false, admClassId = "", admVersion = "", admCourseView = "", admBatchOf = {};
+  let admBoardRows = [], admPayMethod = 0;   // captured from the admission page at load
+  /* a <select>'s chosen value inside a parsed (non-live) page: the option carrying `selected`, else
+     the first real option */
+  function admSelVal(doc, sel) {
+    const el = doc.querySelector(sel); if (!el) return "";
+    const o = el.querySelector("option[selected]") || el.querySelector('option[value]:not([value=""])') || (el.options && el.options[0]);
+    return o ? (o.getAttribute("value") || o.value || "") : "";
+  }
+  /* the Board Exam rows the real form submits (SSC/HSC …) — Year/Roll/Reg may stay blank, but each row
+     carries its StudentExamId and selected BoardId; empty when the program shows no board section */
+  function admBoardInfoFrom(doc) {
+    const hb = doc.querySelector("#hasBoardInfo");
+    if (!hb || String(hb.value || "").toUpperCase() !== "YES") return [];
+    const total = parseInt((doc.querySelector("#totalInfo") || {}).value || "0", 10) || 0;
+    const rows = [];
+    for (let i = 0; i < total; i++) {
+      rows.push({ StudentExamId: (doc.querySelector("#examId_" + i) || {}).value || "",
+        Year: "", BoardId: admSelVal(doc, "#examBoard_" + i) || "0", BoardRoll: "", RegistrationNumber: "" });
+    }
+    return rows;
+  }
   function admFill(id, opts, prefer, placeholder) {
     const sel = $(id); if (!sel) return null;
     let html = placeholder ? '<option value="">' + placeholder + "</option>" : "";
@@ -2960,14 +2981,8 @@
       const toks = page.querySelectorAll('input[name="__RequestVerificationToken"]');
       admToken = toks.length ? (toks[toks.length - 1].getAttribute("value") || toks[toks.length - 1].value || "") : "";
       if (!admToken) throw new Error("antiforgery token পেলাম না — ঠিক পেজ এসেছে তো?");
-      try {   // DEBUG: board-info section shape (registration needs board rows when hasBoardInfo=YES)
-        const hb = page.querySelector("#hasBoardInfo"), ti = page.querySelector("#totalInfo");
-        const eb = page.querySelector('select[id^="examBoard"]'), eid = page.querySelector('[id^="examId"]');
-        const eys = page.querySelectorAll('[id^="examYear"]');
-        admOutLine("  ▸ board: hasBoardInfo=" + (hb ? hb.value : "none") + " total=" + (ti ? ti.value : "none") +
-          " examYears=" + eys.length + " examId=" + (eid ? eid.value : "none"));
-        if (eb) admOutLine("  ▸ examBoard: " + eb.outerHTML.replace(/\s+/g, " ").slice(0, 400));
-      } catch (e) {}
+      admBoardRows = admBoardInfoFrom(page);                 // Board Exam rows the form would submit
+      admPayMethod = parseInt("0" + admSelVal(page, "#PaymentMethods"), 10) || 0;   // e.g. Cash
       const classOpt = admDocOpts(page, "#StudentClass option", ["Admission"]);
       if (!classOpt) throw new Error("no Student Class");
       admClassId = classOpt.value;
@@ -3187,14 +3202,14 @@
       let received = (amount !== "") ? Math.min(parseInt(amount, 10) || 0, netAfter) : netAfter; if (received < 0) received = 0;
       const specialDiscounts = Object.keys(discOf).filter(function (k) { return discOf[k] > 0; }).map(function (k) { return { CourseId: k, DiscountAmount: discOf[k] }; });
       const d = new Date(); d.setDate(d.getDate() + 2);
-      const nextDate = String(d.getDate()).padStart(2, "0") + "/" + String(d.getMonth() + 1).padStart(2, "0") + "/" + d.getFullYear();
+      const nextDate = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");   // YYYY-MM-DD, as the form's date field uses
       const payment = Object.assign(admDefaultPayment(), { CourseFee: totalFee, CourseFees: totalFee,
         OfferedDiscount: intOf(fee && fee.OfferedDiscount), OfferedDiscountViewModels: [],
         PreviousStudentDiscountAmount: intOf(fee && fee.PreviousStudentDiscount), PreviousStudentDiscountViewModels: [],
         SpDiscountAmount: totalSpDiscount, SpecialDiscountViewModels: specialDiscounts, ReceivableAmount: receivable,
         BookingDiscountAmount: intOf(fee && fee.BookingDiscount), NetReceivable: netAfter, ReceivedAmount: received,
         DueAmount: netAfter - received, ReferrerId: 50, ReferrerNameId: "", Remarks: "Top Student",
-        DiscountApprovedBy: (totalSpDiscount > 0 ? sel.approverId : ""), SpReferenceNote: "Top Student", PaymentMethod: 0, NextReceivedDate: nextDate });
+        DiscountApprovedBy: (totalSpDiscount > 0 ? sel.approverId : ""), SpReferenceNote: "Top Student", PaymentMethod: admPayMethod, NextReceivedDate: nextDate });
 
       const count = admCount(), pool = admMode === "parallel" ? admPool() : 1;
       admOutLine("→ " + count + " admission · " + (admMode === "parallel" ? pool + " একসাথে" : "একজন একজন") + " · net ৳" + netAfter + " · paying ৳" + received);
@@ -3207,7 +3222,9 @@
             /* the real "Submit" posts to NewStudentAdmission with {studentObj, boardInfos}; it answers
                {IsSuccess, AdditionalValue:"<paymentId,paymentId>"} and the receipt is fetched from
                GenerateCoursewiseMoneyReciept?studentPaymentIdList=… (boardInfos "[]" = no board rows) */
-            const reg = await admPost("/Student/Admission/NewStudentAdmission", { studentObj: JSON.stringify(vm), boardInfos: "[]" });
+            const boardInfos = JSON.stringify(admBoardRows || []);
+            if (n === 1) admOutLine("  ▸ boardInfos: " + boardInfos + " · payMethod=" + admPayMethod + " · nextDate=" + nextDate);   // DEBUG
+            const reg = await admPost("/Student/Admission/NewStudentAdmission", { studentObj: JSON.stringify(vm), boardInfos: boardInfos });
             if (!reg || reg.IsSuccess !== true) {
               const rm = reg && (Array.isArray(reg.Message)
                 ? reg.Message.map(function (x) { return x && (x.ErrorMessage || x.Message || x); }).join("; ")
