@@ -144,7 +144,7 @@
     adm_appr_id_l: { bn: "Approver ID", en: "Approver ID" },
     adm_appr_name_l: { bn: "Approver Name", en: "Approver Name" },
     adm_pick_prog: { bn: "— আগে Fetch Data চাপো —", en: "— press Fetch Data first —" },
-    adm_courses_l: { bn: "Courses (টিক দাও · ছাড় ৳)", en: "Courses (tick · discount)" },
+    adm_courses_l: { bn: "Courses (টিক দাও · পাশে min ৳)", en: "Courses (tick · min shown)" },
     adm_courses_hint: { bn: "ফর্ম আনলে কোর্স এখানে আসবে", en: "courses appear here once the form is loaded" },
     adm_no_courses: { bn: "এই প্রোগ্রামে কোর্স নেই", en: "no courses on this program" },
     adm_seq: { bn: "একজন একজন", en: "One at a time" },
@@ -2985,7 +2985,7 @@
     courses.forEach(function (c, i) {
       const row = document.createElement("div"); row.className = "admcrow";
       row.innerHTML = '<label><input type="checkbox" class="admc-cb" data-cid="' + c.id + '"><span>' + (c.name || c.id).replace(/</g, "&lt;") + '</span></label>' +
-        '<span class="pay-sym" style="align-self:center">৳</span><input type="number" class="admc-disc" min="0" value="0" title="discount">';
+        (c.minPay ? '<span class="admc-min">৳' + c.minPay + '</span>' : "");
       const cb = row.querySelector(".admc-cb"); cb.__course = c;
       cb.addEventListener("change", function () { admCourseCheck(cb); });
       box.appendChild(row);
@@ -3001,17 +3001,36 @@
     });
     $("admAmount").value = sum > 0 ? sum : "";
   }
+  /* Batch cascade for one course. GetBatchDay returns, per course, { CourseId, Days[], Times[],
+     BatchNames:[{BatchId, RemainingCapacity, NameWithRemainingCapacity}] }. When there is a single
+     day+time the BatchNames (with BatchId) are already there; otherwise pick a day → GetBatchTime
+     (which itself returns Batch[] when the time is single) → GetBatch. Prefer a batch with capacity. */
+  function admPickBatch(batches) {
+    if (!batches || !batches.length) return "";
+    const withCap = batches.find(function (b) { return (parseInt(b.RemainingCapacity, 10) || 0) > 0; });
+    return String((withCap || batches[0]).BatchId || "");
+  }
+  async function admGetBatchId(p, courseId) {
+    const bd = await admPost("/Student/Admission/GetBatchDayByProgramSessionBranchAndCampus", Object.assign({}, p, { courseIds: [courseId] }));
+    const days = (bd && bd.BatchDays) || [];
+    const entry = days.find(function (v) { return String(v.CourseId) === String(courseId); }) || days[0];
+    if (!entry) return "";
+    if (entry.BatchNames && entry.BatchNames.length) { const id = admPickBatch(entry.BatchNames); if (id) return id; }
+    const day = (entry.Days && entry.Days[0]) || "";
+    if (!day) return "";
+    const bt = await admPost("/Student/Admission/GetBatchTimeByProgramSessionBranchCampusAndBatchDay", Object.assign({}, p, { batchDay: day, courseId: courseId }));
+    if (bt && bt.Batch && bt.Batch.length) { const id = admPickBatch(bt.Batch); if (id) return id; }
+    const time = (bt && bt.BatchTime && bt.BatchTime[0]) || (entry.Times && entry.Times[0]) || "";
+    if (!time) return "";
+    const bb = await admPost("/Student/Admission/GetBatchByProgramSessionBranchCampusAndBatchDayTime", Object.assign({}, p, { batchDay: day, batchTime: time, courseId: courseId }));
+    return admPickBatch(bb && bb.Batch);
+  }
   async function admCourseCheck(cb) {
     const c = cb.__course;
     if (!cb.checked) { delete admBatchOf[c.id]; admUpdateAmount(); return; }
     const p = { programId: $("admProgram").value, sessionId: $("admSession").value, branchId: $("admBranch").value, campusId: $("admCampus").value, versionStudy: admVersion, gender: $("admGender").value };
     try {
-      const bd = await admPost("/Student/Admission/GetBatchDayByProgramSessionBranchAndCampus", Object.assign({}, p, { courseIds: [c.id] }));
-      const batchDay = admFirstVal(bd);
-      const bt = await admPost("/Student/Admission/GetBatchTimeByProgramSessionBranchCampusAndBatchDay", Object.assign({}, p, { batchDay: batchDay, courseId: c.id }));
-      const batchTime = admFirstVal(bt);
-      const bb = await admPost("/Student/Admission/GetBatchByProgramSessionBranchCampusAndBatchDayTime", Object.assign({}, p, { batchDay: batchDay, batchTime: batchTime, courseId: c.id }));
-      const batchId = admFirstVal(bb);
+      const batchId = await admGetBatchId(p, c.id);
       if (!batchId) throw new Error("no batch");
       admBatchOf[c.id] = { batchId: batchId, course: c };
     } catch (e) { cb.checked = false; delete admBatchOf[c.id]; admOutLine("  ⚠ " + (c.name || c.id) + ": এই শাখায় batch নেই"); }
@@ -3056,10 +3075,7 @@
     const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; }
     try {
       const inst = await admResolveInstitute();
-      const discOf = {};
-      Array.prototype.forEach.call(document.querySelectorAll("#admCourseBox .admcrow"), function (r) {
-        const cb = r.querySelector(".admc-cb"); if (cb.checked) discOf[cb.getAttribute("data-cid")] = parseInt(r.querySelector(".admc-disc").value, 10) || 0;
-      });
+      const discOf = {};   // no per-course discount — the Amount field is what's actually paid
       const sel = { program: $("admProgram").value, session: $("admSession").value, branch: $("admBranch").value,
         campus: $("admCampus").value, gender: $("admGender").value, religion: $("admReligion").value,
         mobile: mobile, instName: inst.name, instId: inst.id, approverId: ($("admApprId").value || "").trim() };
