@@ -154,7 +154,7 @@
     adm_base_l: { bn: "UMS ঠিকানা", en: "UMS address" },
     adm_mobile_l: { bn: "Mobile Number", en: "Mobile Number" },
     adm_prog_l: { bn: "Program", en: "Program" },
-    adm_amount_l: { bn: "Amount — ঐচ্ছিক", en: "Amount — optional" },
+    adm_amount_l: { bn: "Amount", en: "Amount" },
     adm_count_l: { bn: "Count", en: "Count" },
     adm_pool_l: { bn: "একসাথে", en: "at once" },
     adm_need_load: { bn: "আগে ⟳ ফর্ম আনো চাপো", en: "press ⟳ Load form first" },
