@@ -2899,9 +2899,10 @@
       let start = s + 6; if (bin[start] === "\r") start++; if (bin[start] === "\n") start++;
       const e = bin.indexOf("endstream", start); if (e < 0) break;
       idx = e + 9; streams++;
+      let end = e; while (end > start && (bin[end - 1] === "\n" || bin[end - 1] === "\r")) end--;   // drop the EOL before endstream
       for (const fmt of ["deflate", "deflate-raw"]) {
         try {
-          const inf = await new Response(new Blob([bytes.subarray(start, e)]).stream().pipeThrough(new DecompressionStream(fmt))).arrayBuffer();
+          const inf = await new Response(new Blob([bytes.subarray(start, end)]).stream().pipeThrough(new DecompressionStream(fmt))).arrayBuffer();
           const txt = new TextDecoder("latin1").decode(new Uint8Array(inf)); okd++;
           if (txt.indexOf("BT") >= 0 || txt.indexOf("Tj") >= 0 || txt.indexOf("TJ") >= 0) out += admPdfStrings(txt) + " ";
           break;
