@@ -3254,8 +3254,8 @@
               const q = payIds.split(",").filter(Boolean).map(function (id) { return "studentPaymentIdList=" + encodeURIComponent(id.trim()); }).join("&");
               if (q) {
                 const rc = await admGetDoc("/Student/Payment/GenerateCoursewiseMoneyReciept?" + q);
-                const txt = ((rc && rc.body && rc.body.textContent) || "").replace(/\s+/g, " ");
-                if (n === 1) admOutLine("  ▸ receipt: " + txt.slice(0, 500));   // DEBUG: to wire Reg No / Roll
+                const txt = ((rc && rc.body && rc.body.textContent) || "").replace(/\s+/g, " ").trim();
+                if (n === 1) admOutLine("  ▸ receipt[" + q + "]: title=" + ((rc && rc.title) || "") + " len=" + ((rc && rc.body && rc.body.innerHTML.length) || 0) + " · " + (txt.slice(0, 450) || "(empty)"));   // DEBUG
                 const rm = txt.match(/Reg(?:istration)?\.?\s*(?:No\.?|Number)?\s*[:\-]?\s*([A-Za-z0-9\-\/]{4,})/i);
                 const rl = txt.match(/Roll\s*(?:No\.?|Number)?\s*[:\-]?\s*([A-Za-z0-9\-\/]{3,})/i);
                 if (rm) regNo = rm[1];
