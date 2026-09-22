@@ -3262,7 +3262,12 @@
               if (payId) {
                 const rc = await admGetDoc("/Student/Payment/GenerateMoneyReciept?id=" + encodeURIComponent(payId));
                 const txt = ((rc && rc.body && rc.body.textContent) || "").replace(/\s+/g, " ").trim();
-                if (n === 1) admOutLine("  ▸ receipt: " + (txt.slice(0, 500) || "(empty)"));   // DEBUG: to wire Reg No / Roll
+                if (n === 1) {   // DEBUG: locate the real receipt block (skip navbar), then wire Reg/Roll
+                  const marks = ["Money Receipt", "Registration", "Reg. No", "Reg No", "Roll", "Student Name", "MRN", "CRN"]
+                    .map(function (k) { const i = txt.indexOf(k); return i >= 0 ? k + "@" + i : null; }).filter(Boolean);
+                  admOutLine("  ▸ receipt len=" + txt.length + " marks: " + marks.join(", "));
+                  admOutLine("  ▸ receipt body: " + txt.slice(400, 1200));
+                }
                 const rm = txt.match(/Reg(?:istration)?\.?\s*(?:No\.?|Number)?\s*[:\-]?\s*([A-Za-z0-9\-\/]{4,})/i);
                 const rl = txt.match(/Roll\s*(?:No\.?|Number)?\s*[:\-]?\s*([A-Za-z0-9\-\/]{3,})/i);
                 if (rm) regNo = rm[1];
