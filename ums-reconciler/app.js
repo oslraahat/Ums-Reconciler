@@ -3288,21 +3288,26 @@
             /* success answers {IsSuccess, PaymentId}; the money receipt (with Reg No / Roll) is a PDF at
                GenerateMoneyReciept?id=<PaymentId> — show the payment id and a link to open that receipt */
             const payId = String(reg.PaymentId || reg.AdditionalValue || reg.additionalValue || "").split(",")[0].trim();
-            let regNo = "", roll = "", paid = "", due = "";
+            let sName = "", branch = "", mrNo = "", regNo = "", roll = "", paid = "", due = "";
             try {
               const rtxt = payId ? await admReceiptText(payId) : "";
               if (n === 1) admOutLine("  ▸ pdf: " + (rtxt ? rtxt.slice(0, 600) : "(no text extracted)"));   // DEBUG: confirm the decoder
-              const g = function (re) { const m = rtxt.match(re); return m ? m[1] : ""; };
+              const g = function (re) { const m = rtxt.match(re); return m ? m[1].trim() : ""; };
+              sName = g(/Student\s*Name\s*[:\-]?\s*([A-Za-z][A-Za-z .]+?)\s*(?:Roll|Registration)/i);
+              branch = g(/Branch\s*[:\-]?\s*([A-Za-z][A-Za-z .]+?)\s*(?:\d|$)/i);
+              mrNo = g(/Money\s*Receipt[^#]*#\s*(\d+)/i);
               regNo = g(/Registration\s*(?:Number|No\.?)?\s*[:\-]?\s*(\d{4,})/i);
               roll = g(/Roll\s*(?:Number|No\.?)?\s*[:\-]?\s*(\d{4,})/i);
               paid = g(/Paid\s*Amount\s*[:\-]?\s*([0-9,]+(?:\.\d+)?)/i);
               due = g(/Due\s*Amount\s*[:\-]?\s*([0-9,]+(?:\.\d+)?)/i);
             } catch (e) {}
             ok++;
-            const parts = ["✓ #" + n + "/" + count, vm.Name];
+            const parts = ["✓ #" + n + "/" + count, sName || vm.Name];
             if (regNo) parts.push("reg " + regNo);
             if (roll) parts.push("roll " + roll);
-            parts.push("pay " + payId);
+            if (branch) parts.push(branch);
+            if (mrNo) parts.push("MR #" + mrNo);
+            parts.push("id " + payId);
             if (paid) parts.push("দেওয়া ৳" + paid);
             if (due) parts.push("বাকি ৳" + due);
             admOutLine("  " + parts.join(" · "));
