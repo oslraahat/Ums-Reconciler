@@ -3254,28 +3254,12 @@
                 : (reg.ErrorMessage || reg.Message));
               throw new Error(rm || ("no success — " + String(typeof reg === "string" ? reg : JSON.stringify(reg)).slice(0, 300)));
             }
-            /* success answers {IsSuccess, PaymentId}; the money receipt at GenerateCoursewiseMoneyReciept
-               ?studentPaymentIdList=<PaymentId> carries the student's Reg No and Roll */
+            /* success answers {IsSuccess, PaymentId}; the money receipt (with Reg No / Roll) is a PDF at
+               GenerateMoneyReciept?id=<PaymentId> — show the payment id and a link to open that receipt */
             const payId = String(reg.PaymentId || reg.AdditionalValue || reg.additionalValue || "").split(",")[0].trim();
-            let regNo = "", roll = "";
-            try {
-              if (payId) {
-                const rc = await admGetDoc("/Student/Payment/GenerateMoneyReciept?id=" + encodeURIComponent(payId));
-                const txt = ((rc && rc.body && rc.body.textContent) || "").replace(/\s+/g, " ").trim();
-                if (n === 1) {   // DEBUG: locate the real receipt block (skip navbar), then wire Reg/Roll
-                  const marks = ["Money Receipt", "Registration", "Reg. No", "Reg No", "Roll", "Student Name", "MRN", "CRN"]
-                    .map(function (k) { const i = txt.indexOf(k); return i >= 0 ? k + "@" + i : null; }).filter(Boolean);
-                  admOutLine("  ▸ receipt len=" + txt.length + " marks: " + marks.join(", "));
-                  admOutLine("  ▸ receipt body: " + txt.slice(400, 1200));
-                }
-                const rm = txt.match(/Reg(?:istration)?\.?\s*(?:No\.?|Number)?\s*[:\-]?\s*([A-Za-z0-9\-\/]{4,})/i);
-                const rl = txt.match(/Roll\s*(?:No\.?|Number)?\s*[:\-]?\s*([A-Za-z0-9\-\/]{3,})/i);
-                if (rm) regNo = rm[1];
-                if (rl) roll = rl[1];
-              }
-            } catch (e) {}
+            const rcpt = payId ? (admBaseUrl() + "/Student/Payment/GenerateMoneyReciept?id=" + encodeURIComponent(payId)) : "";
             ok++;
-            admOutLine("  ✓ #" + n + "/" + count + " · " + (regNo ? "reg " + regNo : "pay " + payId) + (roll ? " · roll " + roll : ""));
+            admOutLine("  ✓ #" + n + "/" + count + " · " + vm.Name + " · pay " + payId + (rcpt ? " · রসিদ: " + rcpt : ""));
           } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
         }
       }
