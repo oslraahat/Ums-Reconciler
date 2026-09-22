@@ -669,9 +669,12 @@
               <div><label data-i18n="adm_amount_l">Amount — ঐচ্ছিক</label>
                 <input id="admAmount" type="number" min="0" data-ph="adm_amount_ph"></div>
             </div>
-            <div class="admgrid three" style="margin-top:14px">
-              <div><label data-i18n="adm_appr_name_l">Approver Name</label><input id="admApprName" spellcheck="false"></div>
-              <div><label data-i18n="adm_appr_id_l">Approver ID</label><input id="admApprId" spellcheck="false"></div>
+            <div class="admgrid" style="margin-top:14px">
+              <div><label data-i18n="adm_discount_l">Special Discount — ঐচ্ছিক</label>
+                <input id="admDiscount" type="number" min="0" value="0" data-ph="adm_discount_ph"></div>
+              <div><label data-i18n="adm_appr_l">Discount Approved By</label>
+                <input id="admApprover" list="admApprDl" spellcheck="false" data-ph="adm_appr_ph" autocomplete="off">
+                <datalist id="admApprDl"></datalist></div>
             </div>
           </details>
 

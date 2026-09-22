@@ -134,15 +134,15 @@
     adm_h: { bn: "New Admission", en: "New Admission" },
     adm_load: { bn: "⟳ তথ্য আনো", en: "⟳ Fetch Data" },
     adm_loading: { bn: "⏳ আনছে…", en: "⏳ loading…" },
-    adm_defaults: { bn: "▸ Gender · Religion · Branch · Campus · Amount · Institute · Approver", en: "▸ Gender · Religion · Branch · Campus · Amount · Institute · Approver" },
+    adm_defaults: { bn: "▸ Gender · Religion · Branch · Campus · Amount · Institute · Discount", en: "▸ Gender · Religion · Branch · Campus · Amount · Institute · Discount" },
     adm_gender_l: { bn: "Gender", en: "Gender" },
     adm_religion_l: { bn: "Religion", en: "Religion" },
     adm_session_l: { bn: "Session", en: "Session" },
     adm_branch_l: { bn: "Branch", en: "Branch" },
     adm_campus_l: { bn: "Campus", en: "Campus" },
     adm_inst_l: { bn: "Institute", en: "Institute" },
-    adm_appr_id_l: { bn: "Approver ID", en: "Approver ID" },
-    adm_appr_name_l: { bn: "Approver Name", en: "Approver Name" },
+    adm_discount_l: { bn: "Special Discount — ঐচ্ছিক", en: "Special Discount — optional" },
+    adm_appr_l: { bn: "Discount Approved By", en: "Discount Approved By" },
     adm_pick_prog: { bn: "— আগে Fetch Data চাপো —", en: "— press Fetch Data first —" },
     adm_courses_l: { bn: "Courses (টিক দাও · পাশে batch দেখাবে)", en: "Courses (tick · batch shown)" },
     adm_courses_hint: { bn: "ফর্ম আনলে কোর্স এখানে আসবে", en: "courses appear here once the form is loaded" },
@@ -160,8 +160,11 @@
     adm_need_load: { bn: "আগে ⟳ ফর্ম আনো চাপো", en: "press ⟳ Load form first" },
     adm_need_course: { bn: "অন্তত একটা কোর্স টিক দাও", en: "tick at least one course" },
     adm_inst_ph: { bn: "নাম টাইপ করো…", en: "type a name…" },
+    adm_appr_ph: { bn: "PIN / Mobile / Name", en: "PIN / Mobile / Name" },
     adm_mobile_ph: { bn: "8801XXXXXXXXX", en: "8801XXXXXXXXX" },
     adm_amount_ph: { bn: "min (অটো)", en: "min (auto)" },
+    adm_discount_ph: { bn: "0", en: "0" },
+    adm_need_appr: { bn: "Discount দিলে Discount Approved By বেছে নাও", en: "pick Discount Approved By when a discount is set" },
     adm_loaded: { bn: "✓ {n}টা program এলো", en: "✓ {n} programs loaded" },
     adm_no_program: { bn: "কোনো program পাওয়া গেল না", en: "no programs found" },
     adm_run: { bn: "▶ Run Admission", en: "▶ Run Admission" },
@@ -3119,10 +3122,17 @@
     const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; }
     try {
       const inst = await admResolveInstitute();
-      const discOf = {};   // no per-course discount — the Amount field is what's actually paid
+      const discount = parseInt("0" + ((($("admDiscount") && $("admDiscount").value) || "").trim()), 10) || 0;
+      /* one special-discount total → the server checks it equals the sum of the course-wise entries,
+         so put the whole amount on the first ticked course; a discount needs an approver id */
+      let approver = { name: "", id: "" };
+      if (discount > 0) { approver = await admResolveApprover(); if (!approver.id) throw new Error(t("adm_need_appr")); }
+      const cids = Object.keys(admBatchOf);
+      const discOf = {};
+      if (discount > 0 && cids.length) discOf[cids[0]] = discount;
       const sel = { program: $("admProgram").value, session: $("admSession").value, branch: $("admBranch").value,
         campus: $("admCampus").value, gender: $("admGender").value, religion: $("admReligion").value,
-        mobile: mobile, instName: inst.name, instId: inst.id, approverId: ($("admApprId").value || "").trim() };
+        mobile: mobile, instName: inst.name, instId: inst.id, approverId: approver.id };
       const amount = ($("admAmount").value || "").trim();
       const intOf = function (v) { return parseInt("0" + v, 10) || 0; };
 
@@ -3183,11 +3193,34 @@
   }
   function admStop() { admStopFlag = true; admOutLine("⏹ থামানো হচ্ছে…"); }
   let admInstTimer = null;
+  let admApprTimer = null;
   async function admInstSearch() {
     const q = (($("admInst") && $("admInst").value) || "").trim(); if (q.length < 2) return;
     try {
       const r = await admPost("/Administration/CommonAjax/GetInstituteList", { query: q });
       const dl = $("admInstDl"); if (dl) dl.innerHTML = ((r && r.returnList) || []).slice(0, 20).map(function (x) { return '<option value="' + (x.Text || "").replace(/"/g, "&quot;") + '">'; }).join("");
+    } catch (e) {}
+  }
+  /* the discount approver — one field like Institute: the datalist shows names, and at run time we
+     re-query GetDiscountApprovedBy to turn the typed name back into its id (Value) */
+  async function admResolveApprover() {
+    const q = (($("admApprover") && $("admApprover").value) || "").trim();
+    if (!q) return { name: "", id: "" };
+    try {
+      const r = await admPost("/Student/Admission/GetDiscountApprovedBy", { query: q });
+      const list = (r && r.returnList) || [];
+      const hit = list.find(function (x) { return (x.Text || "").toLowerCase() === q.toLowerCase(); })
+        || list.find(function (x) { return (x.Text || "").toLowerCase().indexOf(q.toLowerCase()) >= 0; })
+        || list[0];
+      if (hit) return { name: hit.Text, id: hit.Value };
+    } catch (e) {}
+    return { name: q, id: "" };
+  }
+  async function admApprSearch() {
+    const q = (($("admApprover") && $("admApprover").value) || "").trim(); if (q.length < 2) return;
+    try {
+      const r = await admPost("/Student/Admission/GetDiscountApprovedBy", { query: q });
+      const dl = $("admApprDl"); if (dl) dl.innerHTML = ((r && r.returnList) || []).slice(0, 20).map(function (x) { return '<option value="' + (x.Text || "").replace(/"/g, "&quot;") + '">'; }).join("");
     } catch (e) {}
   }
   function admOnShow() {
@@ -3541,6 +3574,7 @@
     if ($("admBranch")) $("admBranch").addEventListener("change", admOnBranch);
     if ($("admGender")) $("admGender").addEventListener("change", function () { if (admLoaded) admOnSession(); });   // branch depends on gender
     if ($("admInst")) $("admInst").addEventListener("input", function () { if (admInstTimer) clearTimeout(admInstTimer); admInstTimer = setTimeout(admInstSearch, 350); });
+    if ($("admApprover")) $("admApprover").addEventListener("input", function () { if (admApprTimer) clearTimeout(admApprTimer); admApprTimer = setTimeout(admApprSearch, 350); });
     admSetMode("sequential");
     if ($("admBase")) $("admBase").addEventListener("input", function () { try { chrome.storage.local.set({ admBase: this.value }); } catch (e) {} admConnDebounced(); });
     ["crmBase", "crmCount", "crmUsers"].forEach(function (id) { const e = $(id); if (e) e.addEventListener("input", crmRender); });
