@@ -162,6 +162,7 @@
     adm_r_id: { bn: "রসিদ-id", en: "MR id" },
     adm_r_paid: { bn: "দেওয়া", en: "Paid" },
     adm_r_due: { bn: "বাকি", en: "Due" },
+    adm_http_l: { bn: "⚡ HTTP", en: "⚡ HTTP" },
     adm_browser_l: { bn: "🖥 ব্রাউজার", en: "🖥 Browser" },
     adm_browser_t: { bn: "ব্রাউজারে আসল ফর্ম খুলে দৃশ্যমান করে চালায় (ধীর, একজন একজন)", en: "opens the real form in a tab and runs it visibly (slower, one at a time)" },
     adm_pool_l: { bn: "একসাথে", en: "at once" },
@@ -3424,6 +3425,11 @@
   }
   let admMode = "sequential";
   let admBrowserMode = false;
+  function admSetRunMode(browser) {
+    admBrowserMode = !!browser;
+    if ($("admBrowserBtn")) $("admBrowserBtn").classList.toggle("on", admBrowserMode);
+    if ($("admHttp")) $("admHttp").classList.toggle("on", !admBrowserMode);
+  }
   function admSetMode(m) {
     admMode = m === "parallel" ? "parallel" : "sequential";
     const par = admMode === "parallel";
@@ -3808,7 +3814,8 @@
     if ($("admStop")) $("admStop").addEventListener("click", admStop);
     if ($("admSeq")) $("admSeq").addEventListener("click", function () { admSetMode("sequential"); });
     if ($("admPar")) $("admPar").addEventListener("click", function () { admSetMode("parallel"); });
-    if ($("admBrowser")) $("admBrowser").addEventListener("change", function () { admBrowserMode = this.checked; });
+    if ($("admHttp")) $("admHttp").addEventListener("click", function () { admSetRunMode(false); });
+    if ($("admBrowserBtn")) $("admBrowserBtn").addEventListener("click", function () { admSetRunMode(true); });
     if ($("admLoad")) $("admLoad").addEventListener("click", admLoadForm);
     if ($("admProgram")) $("admProgram").addEventListener("change", admOnProgram);
     if ($("admSession")) $("admSession").addEventListener("change", admOnSession);
