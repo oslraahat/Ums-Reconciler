@@ -3107,14 +3107,17 @@
       return { Id: c.id, Name: c.name, ProgramId: c.programId || sel.program, SessionId: c.sessionId || sel.session,
         BranchId: 0, CampusId: 0, AttachedPhysicalBranchId: 0,
         Batch: 0, BatchId: b.batchId, IsTaken: true, maxSubject: c.maxSubject, OfficeMinSub: c.officeMinSub,
-        PublicMinSubject: 0, OfficeMinPayment: c.minPay || 0, PublicMinPayment: 0,
+        PublicMinSubject: 0, OfficeMinPayment: 0, PublicMinPayment: 0,   // stays 0 like the real form (server computes the fee)
         IsOfficeCompulsary: c.isOfficeCompulsary, IsPublicCompulsary: false, IsComplementaryCourse: false,
         IsFromShowOnOtherProgram: c.isFromOther, SubjectViewModels: [] };
     });
     return { Id: 0, Name: name, MobNumber: sel.mobile, Program: sel.program, Session: sel.session, Branch: sel.branch,
       AttachedPhysicalBranch: "", Campus: sel.campus, VersionOfStudy: admVersion, Gender: sel.gender, Religion: sel.religion,
       Email: "", LastInstituteName: sel.instName, LastInstituteId: sel.instId, CourseViewModels: courseVMs,
-      StudentPayment: admDefaultPayment(), MbbsBdsStatus: null, AcademicGroup: null };
+      /* medical programs show a "2nd Timer Status" (MbbsBdsStatus) radio; the working form has its first
+         option (value "10") selected. null 500s the fee endpoint on those programs. AcademicGroup stays
+         null — it only shows (Science/Humanities/…) when the program opts in, which medical does not. */
+      StudentPayment: admDefaultPayment(), MbbsBdsStatus: "10", AcademicGroup: null };
   }
   async function admRun() {
     if (admBusyFlag) return;
