@@ -690,8 +690,9 @@
               <button type="button" id="admSeq" class="on" data-i18n="adm_seq">একজন একজন</button>
               <button type="button" id="admPar" data-i18n="adm_par">একসাথে</button>
             </div>
-            <span id="admPoolWrap" style="display:none;align-items:center;gap:6px">
-              <input id="admPool" type="number" min="1" max="20" value="3" style="width:96px;height:var(--ctl-h)" data-title="adm_pool_l" title="একসাথে কতগুলো"></span>
+            <label id="admPoolWrap" style="display:none;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);font-weight:600" data-title="adm_pool_l" title="একসাথে কতগুলো চলবে">
+              <span data-i18n="adm_pool_n">কয়টা</span>
+              <input id="admPool" type="number" min="1" max="20" value="3" style="width:66px;height:var(--ctl-h)"></label>
           </div>
           <span class="hint" data-i18n="adm_run_hint" style="display:block;margin:6px 0 0"></span>
           <pre class="crmout" id="admOut" style="display:none"></pre>
