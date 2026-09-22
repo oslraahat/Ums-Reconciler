@@ -478,7 +478,7 @@
       if (!info || !info.batchId) throw new Error("no batch");
       admBatchOf[c.id] = { batchId: info.batchId, course: c, day: info.day, time: info.time, name: info.name };
       admShowBatch(cb, info);
-    } catch (e) { cb.checked = false; delete admBatchOf[c.id]; admShowBatch(cb, null); admOutLine("  ⚠ " + (c.name || c.id) + ": এই শাখায় batch নেই"); }
+    } catch (e) { cb.checked = false; delete admBatchOf[c.id]; admShowBatch(cb, null); admOutLine("  ⚠ " + (c.name || c.id) + ": batch নেই — Branch বা Campus আবার সিলেক্ট করুন"); }
     admUpdateAmount();
   }
   async function admResolveInstitute() {
