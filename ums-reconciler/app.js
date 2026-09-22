@@ -3359,7 +3359,12 @@
     if (!admLoaded) { admOutLine(t("adm_need_load")); return; }
     const mobile = ($("admMobile").value || "").trim();
     if (!mobile) { admOutLine(t("adm_need_mobile")); admBadField("admMobile"); return; }
-    if (!admTickedCourseIds().length) { admOutLine(t("adm_need_course")); return; }
+    if (!admTickedCourseIds().length) {
+      admOutLine(t("adm_need_course"));
+      const box = $("admCourseBox");
+      if (box) { box.classList.add("field-bad"); box.scrollIntoView({ block: "nearest" }); const clr = function () { box.classList.remove("field-bad"); box.removeEventListener("change", clr); }; box.addEventListener("change", clr); }
+      return;
+    }
     if (admBrowserMode) { admStopFlag = false; admBusy(true); const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; } try { await admRunBrowser(mobile); } catch (e) { admOutLine("⚠ " + ((e && e.message) || e)); } admBusy(false); return; }
     if (!Object.keys(admBatchOf).length) { admOutLine(t("adm_need_course")); return; }
     admStopFlag = false; admBusy(true);
