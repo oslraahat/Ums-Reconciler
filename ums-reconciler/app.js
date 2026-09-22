@@ -3210,7 +3210,6 @@
       const feeVM = admBuildStudent(sel, admName());
       const totalSpDiscount = Object.keys(discOf).reduce(function (s, k) { return s + (discOf[k] || 0); }, 0);
       const feeJson = JSON.stringify(feeVM);
-      admOutLine("  ▸ payload: " + feeJson);   // DEBUG: copy this and share it
       const fee = await admPost("/Student/Admission/CalculateCourseFee", { format: "json", studentViewModelJson: feeJson, previousStudentId: 0, bookingId: 0 });
       if (fee && fee.IsSuccess === false) throw new Error("[fee] " + (Array.isArray(fee.Message) ? (fee.Message[0] && fee.Message[0].ErrorMessage) : fee.Message));
       const net = intOf(fee && fee.NetReceivableAmount), totalFee = intOf(fee && fee.TotalCourseFee), receivable = intOf(fee && fee.ReceivableAmount);
@@ -3240,10 +3239,6 @@
                {IsSuccess, AdditionalValue:"<paymentId,paymentId>"} and the receipt is fetched from
                GenerateCoursewiseMoneyReciept?studentPaymentIdList=… (boardInfos "[]" = no board rows) */
             const boardInfos = JSON.stringify(admBoardRows || []);
-            if (n === 1) {   // DEBUG
-              admOutLine("  ▸ boardInfos: " + boardInfos);
-              admOutLine("  ▸ payment: " + JSON.stringify(vm.StudentPayment));
-            }
             const reg = await admPost("/Student/Admission/NewStudentAdmission", { studentObj: JSON.stringify(vm), boardInfos: boardInfos });
             if (!reg || reg.IsSuccess !== true) {
               const rm = reg && (Array.isArray(reg.Message)
@@ -3251,7 +3246,8 @@
                 : (reg.ErrorMessage || reg.Message));
               throw new Error(rm || ("no success — " + String(typeof reg === "string" ? reg : JSON.stringify(reg)).slice(0, 300)));
             }
-            const payIds = String(reg.AdditionalValue || "").trim();
+            if (n === 1) admOutLine("  ▸ reg resp: " + JSON.stringify(reg).slice(0, 300));   // DEBUG: to wire the real Reg No
+            const payIds = String(reg.AdditionalValue || reg.additionalValue || reg.Message || "").trim();
             let regNo = payIds || "(done)";
             try {
               const q = payIds.split(",").filter(Boolean).map(function (id) { return "studentPaymentIdList=" + encodeURIComponent(id.trim()); }).join("&");
