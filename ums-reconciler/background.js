@@ -147,9 +147,16 @@ const RECEIPT_RE = /GenerateMoneyReciept|GenerateCoursewiseMoneyReciept/i;
 function receiptId(url) { const m = url && url.match(/[?&](?:id|studentPaymentIdList)=(\d+)/); return m ? m[1] : ""; }
 
 async function admBrowserRun(p) {
-  let tab = null;
+  let tab = null, win = null;
+  const url = p.base + "/Student/Admission/NewStudentAdmission";
   try {
-    tab = await chrome.tabs.create({ url: p.base + "/Student/Admission/NewStudentAdmission", active: p.show !== false });
+    if (p.show === false) {   // Headless: open in a minimised, unfocused window so nothing shows on screen
+      win = await chrome.windows.create({ url: url, focused: false, state: "minimized" });
+      tab = win && win.tabs && win.tabs[0];
+      if (!tab) return { ok: false, message: "উইন্ডো খুলল না" };
+    } else {
+      tab = await chrome.tabs.create({ url: url, active: true });
+    }
     await waitTabComplete(tab.id, 30000);
     await bgSleep(800);   // let any client-side redirect settle before injecting
     let info = await getTab(tab.id);
@@ -177,7 +184,7 @@ async function admBrowserRun(p) {
     if (id) return { ok: true, payId: id, url: url };
     return { ok: false, message: "Submit হলো কিন্তু রসিদে পৌঁছাল না (validation আটকে থাকতে পারে)" };
   } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
-  finally { if (tab && p.close !== false) { try { await chrome.tabs.remove(tab.id); } catch (e) {} } }
+  finally { if (p.close !== false) { try { if (win) await chrome.windows.remove(win.id); else if (tab) await chrome.tabs.remove(tab.id); } catch (e) {} } }
 }
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {

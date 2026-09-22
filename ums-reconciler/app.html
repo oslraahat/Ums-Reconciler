@@ -626,20 +626,9 @@
           <p class="hint" data-i18n="adm_intro" style="margin:0 0 14px"></p>
 
           <div class="row-actions" style="align-items:end;gap:8px;flex-wrap:wrap">
-            <div style="flex:0 1 300px;min-width:170px"><label data-i18n="adm_base_l">UMS ঠিকানা</label>
+            <div style="flex:1 1 300px;min-width:200px"><label data-i18n="adm_base_l">UMS ঠিকানা</label>
               <input id="admBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
             <button class="btn g" id="admLoad" data-i18n="adm_load" style="height:var(--ctl-h)">⟳ Fetch Data</button>
-            <div class="seg" style="height:var(--ctl-h)" data-title="adm_browser_t" title="HTTP = সরাসরি দ্রুত · Browser = আসল ফর্ম ট্যাবে দৃশ্যমান · Headless = ব্যাকগ্রাউন্ড ট্যাবে, দেখায় না">
-              <button type="button" id="admHttp" class="on" data-i18n="adm_http_l">⚡ HTTP</button>
-              <button type="button" id="admBrowserBtn" data-i18n="adm_browser_l">🪟 Browser</button>
-              <button type="button" id="admHeadless" data-i18n="adm_headless_l">🙈 Headless</button>
-            </div>
-            <div class="seg" style="height:var(--ctl-h)">
-              <button type="button" id="admSeq" class="on" data-i18n="adm_seq">একজন একজন</button>
-              <button type="button" id="admPar" data-i18n="adm_par">একসাথে</button>
-            </div>
-            <span id="admPoolWrap" style="display:none;align-items:center;gap:6px">
-              <input id="admPool" type="number" min="1" max="20" value="3" style="width:100px;height:var(--ctl-h)" data-title="adm_pool_l" title="একসাথে কতগুলো"></span>
           </div>
 
           <div class="admgrid" style="margin-top:14px">
@@ -685,9 +674,22 @@
             </div>
           </details>
 
-          <div class="row-actions" style="margin-top:16px;align-items:center">
-            <button class="btn ok" id="admRun" data-i18n="adm_run">▶ Run Admission</button>
+          <div class="row-actions" style="margin-top:16px;align-items:center;gap:8px;flex-wrap:wrap">
+            <button class="btn ok" id="admRun" data-i18n="adm_run">▶ Start</button>
             <button class="btn g" id="admStop" disabled data-i18n="adm_stop">✕ থামাও</button>
+            <span id="admStatus" class="ok" style="display:none;font-size:12.5px;font-weight:700"></span>
+            <span style="flex:1;min-width:8px"></span>
+            <div class="seg" style="height:var(--ctl-h)" data-title="adm_browser_t" title="HTTP = সরাসরি দ্রুত · Browser = আসল ফর্ম ট্যাবে দৃশ্যমান · Headless = ব্যাকগ্রাউন্ড ট্যাবে, দেখায় না">
+              <button type="button" id="admHttp" class="on" data-i18n="adm_http_l">⚡ HTTP</button>
+              <button type="button" id="admBrowserBtn" data-i18n="adm_browser_l">🪟 Browser</button>
+              <button type="button" id="admHeadless" data-i18n="adm_headless_l">🙈 Headless</button>
+            </div>
+            <div class="seg" style="height:var(--ctl-h)">
+              <button type="button" id="admSeq" class="on" data-i18n="adm_seq">একজন একজন</button>
+              <button type="button" id="admPar" data-i18n="adm_par">একসাথে</button>
+            </div>
+            <span id="admPoolWrap" style="display:none;align-items:center;gap:6px">
+              <input id="admPool" type="number" min="1" max="20" value="3" style="width:96px;height:var(--ctl-h)" data-title="adm_pool_l" title="একসাথে কতগুলো"></span>
           </div>
           <span class="hint" data-i18n="adm_run_hint" style="display:block;margin:6px 0 0"></span>
           <pre class="crmout" id="admOut" style="display:none"></pre>

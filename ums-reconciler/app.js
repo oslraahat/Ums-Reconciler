@@ -177,8 +177,11 @@
     adm_need_appr: { bn: "Discount দিলে Discount Approved By বেছে নাও", en: "pick Discount Approved By when a discount is set" },
     adm_loaded: { bn: "✓ {n}টা program এলো", en: "✓ {n} programs loaded" },
     adm_no_program: { bn: "কোনো program পাওয়া গেল না", en: "no programs found" },
-    adm_run: { bn: "▶ Run Admission", en: "▶ Run Admission" },
-    adm_running: { bn: "⏳ চলছে…", en: "⏳ running…" },
+    adm_run: { bn: "▶ Start", en: "▶ Start" },
+    adm_pause: { bn: "⏸ Pause", en: "⏸ Pause" },
+    adm_resume: { bn: "⏵ Resume", en: "⏵ Resume" },
+    adm_running: { bn: "⏳ চলছে…", en: "⏳ Running…" },
+    adm_paused: { bn: "⏸ থামানো", en: "⏸ Paused" },
     adm_stop: { bn: "✕ থামাও", en: "✕ Stop" },
     adm_run_hint: { bn: "প্রতিটার Reg No দেখায়, শেষে কয়টা সফল/ব্যর্থ। ✕ থামায়।",
       en: "Shows each Reg No, then how many passed/failed. ✕ stops it." },
@@ -2779,13 +2782,29 @@
      StudentRegistration → DuePayment. These AJAX POSTs need only the session cookie (no antiforgery
      token). The name is auto; the mobile and the counts come from the user. It measures how fast N
      admissions complete. ⚠ creates REAL records — a test/demo server only. */
-  let admBusyFlag = false, admStopFlag = false, admConnSeq = 0, admConnTimer = null, admConnState = null, admToken = "";
+  let admBusyFlag = false, admStopFlag = false, admPauseFlag = false, admConnSeq = 0, admConnTimer = null, admConnState = null, admToken = "";
   const ADM_PATH = "/Student/Admission/NewStudentAdmission";
-  function admBusy(on) {
-    admBusyFlag = on;
-    const b = $("admRun"); if (b) { b.disabled = on; b.textContent = t(on ? "adm_running" : "adm_run"); }
-    if ($("admStop")) $("admStop").disabled = !on;
+  /* while a run is going the Start button stays enabled and becomes Pause/Resume (Stop ends it);
+     a separate "⏳ Running…" status badge shows the run state */
+  function admStatusPaint() {
+    const st = $("admStatus"); if (!st) return;
+    st.style.display = admBusyFlag ? "" : "none";
+    st.className = admPauseFlag ? "warn" : "ok";
+    st.textContent = admBusyFlag ? t(admPauseFlag ? "adm_paused" : "adm_running") : "";
   }
+  function admBusy(on) {
+    admBusyFlag = on; if (!on) admPauseFlag = false;
+    const b = $("admRun"); if (b) { b.disabled = false; b.textContent = on ? t(admPauseFlag ? "adm_resume" : "adm_pause") : t("adm_run"); }
+    if ($("admStop")) $("admStop").disabled = !on;
+    admStatusPaint();
+  }
+  function admTogglePause() {
+    admPauseFlag = !admPauseFlag;
+    const b = $("admRun"); if (b) b.textContent = t(admPauseFlag ? "adm_resume" : "adm_pause");
+    admStatusPaint();
+  }
+  /* the loops call this between admissions so Pause holds and Stop breaks out */
+  async function admWaitIfPaused() { while (admPauseFlag && !admStopFlag) await sleep(200); }
   /* colour each line by its lead marker — ✓ ok, ✗ fail, ⚠ warn, → start, ── summary — so a run is
      scannable; textContent keeps UMS-supplied text safe from HTML injection */
   function admOutLine(s) {
@@ -3301,6 +3320,7 @@
     admOutLine("→ " + count + " admission · " + (admRunModeVal === "headless" ? "🙈 headless" : "🪟 ব্রাউজারে") + " · একজন একজন");
     const t0 = Date.now(); let ok = 0, fail = 0;
     for (let i = 0; i < count && !admStopFlag; i++) {
+      await admWaitIfPaused(); if (admStopFlag) break;
       const n = i + 1;
       try {
         const params = Object.assign({}, base, { name: admName() });
@@ -3328,7 +3348,7 @@
     admOutLine("── " + ok + " ok · " + fail + " failed of " + (ok + fail) + " · " + ((Date.now() - t0) / 1000).toFixed(1) + "s" + (admStopFlag ? " (stopped)" : ""));
   }
   async function admRun() {
-    if (admBusyFlag) return;
+    if (admBusyFlag) { admTogglePause(); return; }   // Start button doubles as Pause/Resume while running
     if (!admLoaded) { admOutLine(t("adm_need_load")); return; }
     const mobile = ($("admMobile").value || "").trim();
     if (!mobile) { admOutLine(t("adm_need_mobile")); return; }
@@ -3378,6 +3398,7 @@
       const t0 = Date.now(); let next = 0, ok = 0, fail = 0;
       async function worker() {
         while (!admStopFlag) {
+          await admWaitIfPaused(); if (admStopFlag) break;
           const i = next++; if (i >= count) break; const n = i + 1;
           try {
             const vm = admBuildStudent(sel, admName()); vm.StudentPayment = payment;
