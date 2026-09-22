@@ -2940,7 +2940,7 @@
 
   /* ---- interactive form: the dropdowns are fetched from UMS, the user picks ---- */
   let admLoaded = false, admClassId = "", admVersion = "", admCourseView = "", admBatchOf = {};
-  let admBoardRows = [], admPayMethod = 0;   // captured from the admission page at load
+  let admBoardRows = [], admPayMethod = 0, admBoardView = "";   // captured at load / on session change
   /* a <select>'s chosen value inside a parsed (non-live) page: the option carrying `selected`, else
      the first real option */
   function admSelVal(doc, sel) {
@@ -2948,18 +2948,20 @@
     const o = el.querySelector("option[selected]") || el.querySelector('option[value]:not([value=""])') || (el.options && el.options[0]);
     return o ? (o.getAttribute("value") || o.value || "") : "";
   }
-  /* the Board Exam rows the real form submits (SSC/HSC …) — Year/Roll/Reg may stay blank, but each row
-     carries its StudentExamId and selected BoardId; empty when the program shows no board section */
+  /* the Board Exam rows the real form submits (SSC/HSC …). They live in GetBranchByProgramSession's
+     ExamBoardView, so discover the rows straight from the examBoard_/examId_/examYear_ fields present
+     (don't rely on #hasBoardInfo — that hidden flag sits on the main page, not in this fragment).
+     Year/Roll/Reg may stay blank; each row still carries its StudentExamId and selected BoardId. */
   function admBoardInfoFrom(doc) {
-    const hb = doc.querySelector("#hasBoardInfo");
-    if (!hb || String(hb.value || "").toUpperCase() !== "YES") return [];
-    const total = parseInt((doc.querySelector("#totalInfo") || {}).value || "0", 10) || 0;
-    const rows = [];
-    for (let i = 0; i < total; i++) {
-      rows.push({ StudentExamId: (doc.querySelector("#examId_" + i) || {}).value || "",
-        Year: "", BoardId: admSelVal(doc, "#examBoard_" + i) || "0", BoardRoll: "", RegistrationNumber: "" });
-    }
-    return rows;
+    const idx = {};
+    Array.prototype.forEach.call(doc.querySelectorAll('[id^="examBoard_"],[id^="examId_"],[id^="examYear_"]'), function (el) {
+      const m = (el.id || "").match(/_(\d+)$/); if (m) idx[m[1]] = 1;
+    });
+    return Object.keys(idx).map(Number).sort(function (a, b) { return a - b; }).map(function (i) {
+      const v = function (id) { const e = doc.querySelector("#" + id + "_" + i); return (e && e.value) || ""; };
+      return { StudentExamId: v("examId") || "0", Year: v("examYear"), BoardId: admSelVal(doc, "#examBoard_" + i) || "0",
+        BoardRoll: v("boardRoll"), RegistrationNumber: v("registrationNumber") };
+    });
   }
   function admFill(id, opts, prefer, placeholder) {
     const sel = $(id); if (!sel) return null;
@@ -2981,8 +2983,7 @@
       const toks = page.querySelectorAll('input[name="__RequestVerificationToken"]');
       admToken = toks.length ? (toks[toks.length - 1].getAttribute("value") || toks[toks.length - 1].value || "") : "";
       if (!admToken) throw new Error("antiforgery token পেলাম না — ঠিক পেজ এসেছে তো?");
-      admBoardRows = admBoardInfoFrom(page);                 // Board Exam rows the form would submit
-      admPayMethod = parseInt("0" + admSelVal(page, "#PaymentMethods"), 10) || 0;   // e.g. Cash
+      admPayMethod = parseInt("0" + admSelVal(page, "#PaymentMethods"), 10) || 0;   // e.g. Cash (board rows come later, from ExamBoardView)
       const classOpt = admDocOpts(page, "#StudentClass option", ["Admission"]);
       if (!classOpt) throw new Error("no Student Class");
       admClassId = classOpt.value;
@@ -3026,6 +3027,10 @@
     admFill("admBranch", opts, ["Farmgate", "Rajshahi"], null);   // single option auto-selects (admFill picks opts[0])
     if (!opts.length) admOutLine("⚠ Branch খালি — resp: " + String(typeof br === "string" ? br : JSON.stringify(br)).slice(0, 300));
     if (br && br.CourseView) admCourseView = br.CourseView;        // the real courses arrive here
+    /* the Board Exam section (SSC/HSC rows) rides along as ExamBoardView in this same response, not on
+       the initial page — parse it here so registration can submit the board rows the form would */
+    admBoardView = (br && (br.ExamBoardView || br.examBoardView)) || "";
+    admBoardRows = admBoardInfoFrom(new DOMParser().parseFromString(String(admBoardView), "text/html"));
     admRenderCourses();
     await admOnBranch();
   }
