@@ -3171,17 +3171,28 @@
           const i = next++; if (i >= count) break; const n = i + 1;
           try {
             const vm = admBuildStudent(sel, admName()); vm.StudentPayment = payment;
-            const reg = await admPost("/Student/Admission/StudentRegistration", { studentObj: JSON.stringify(vm) });
+            /* the real "Submit" posts to NewStudentAdmission with {studentObj, boardInfos}; it answers
+               {IsSuccess, AdditionalValue:"<paymentId,paymentId>"} and the receipt is fetched from
+               GenerateCoursewiseMoneyReciept?studentPaymentIdList=… (boardInfos "[]" = no board rows) */
+            const reg = await admPost("/Student/Admission/NewStudentAdmission", { studentObj: JSON.stringify(vm), boardInfos: "[]" });
             if (!reg || reg.IsSuccess !== true) {
               const rm = reg && (Array.isArray(reg.Message)
                 ? reg.Message.map(function (x) { return x && (x.ErrorMessage || x.Message || x); }).join("; ")
                 : reg.Message);
               throw new Error(rm || ("no success — " + String(typeof reg === "string" ? reg : JSON.stringify(reg)).slice(0, 300)));
             }
-            const due = await admPost("/Student/Payment/DuePayment", { stdProgramId: reg.Message });
-            const html = typeof due === "string" ? due : JSON.stringify(due);
-            const mm = html.match(/Registration\s*(?:Number|No\.?)\s*[:\-]?\s*(\d{5,})/i) || html.match(/\b(\d{7,})\b/);
-            ok++; admOutLine("  ✓ #" + n + "/" + count + " · reg " + (mm ? mm[1] : reg.Message));
+            const payIds = String(reg.AdditionalValue || "").trim();
+            let regNo = payIds || "(done)";
+            try {
+              const q = payIds.split(",").filter(Boolean).map(function (id) { return "studentPaymentIdList=" + encodeURIComponent(id.trim()); }).join("&");
+              if (q) {
+                const rc = await admGetDoc("/Student/Payment/GenerateCoursewiseMoneyReciept?" + q);
+                const txt = (rc && rc.body && rc.body.textContent) || "";
+                const mm = txt.match(/Registration\s*(?:Number|No\.?)\s*[:\-]?\s*(\d{5,})/i) || txt.match(/\b(\d{7,})\b/);
+                if (mm) regNo = mm[1];
+              }
+            } catch (e) {}
+            ok++; admOutLine("  ✓ #" + n + "/" + count + " · reg " + regNo);
           } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
         }
       }
