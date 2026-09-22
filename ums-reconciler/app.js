@@ -2940,7 +2940,7 @@
 
   /* ---- interactive form: the dropdowns are fetched from UMS, the user picks ---- */
   let admLoaded = false, admClassId = "", admVersion = "", admCourseView = "", admBatchOf = {};
-  let admBoardRows = [], admPayMethod = 0, admBoardView = "";   // captured at load / on session change
+  let admBoardRows = [], admPayMethod = 0, admBoardView = "", admPhysBranch = "";   // captured at load / on session change
   /* a <select>'s chosen value inside a parsed (non-live) page: the option carrying `selected`, else
      the first real option */
   function admSelVal(doc, sel) {
@@ -3031,6 +3031,11 @@
        the initial page — parse it here so registration can submit the board rows the form would */
     admBoardView = (br && (br.ExamBoardView || br.examBoardView)) || "";
     admBoardRows = admBoardInfoFrom(new DOMParser().parseFromString(String(admBoardView), "text/html"));
+    /* when GetBranchByProgramSession offers Attached Physical Branch options (count > 0) the form makes
+       that field required — pick the first real option, else leave it blank */
+    const physCount = parseInt("0" + (br && (br.attachedPhysicalBrunchOptionsCount || br.AttachedPhysicalBrunchOptionsCount)), 10) || 0;
+    const physReal = admOpts((br && (br.AttachedPhysicalBrunchOptions || br.attachedPhysicalBrunchOptions)) || "").filter(function (o) { return o.value && !/select/i.test(o.text); });
+    admPhysBranch = (physCount > 0 && physReal.length) ? physReal[0].value : "";
     admRenderCourses();
     await admOnBranch();
   }
@@ -3164,7 +3169,7 @@
         SubjectViewModels: admPickSubjects(c.subjects || [], parseInt(c.officeMinSub, 10) || 0, parseInt(c.maxSubject, 10) || 0) };
     });
     return { Id: 0, Name: name, MobNumber: sel.mobile, Program: sel.program, Session: sel.session, Branch: sel.branch,
-      AttachedPhysicalBranch: "", Campus: sel.campus, VersionOfStudy: admVersion, Gender: sel.gender, Religion: sel.religion,
+      AttachedPhysicalBranch: admPhysBranch, Campus: sel.campus, VersionOfStudy: admVersion, Gender: sel.gender, Religion: sel.religion,
       Email: "", LastInstituteName: sel.instName, LastInstituteId: sel.instId, CourseViewModels: courseVMs,
       /* medical programs show a "2nd Timer Status" (MbbsBdsStatus) radio; the working form has its first
          option (value "10") selected. null 500s the fee endpoint on those programs. AcademicGroup stays
