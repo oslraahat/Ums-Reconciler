@@ -636,18 +636,13 @@
             </div>
           </div>
 
-          <div class="admgrid" style="margin-top:14px">
+          <div class="admgrid three" style="margin-top:14px">
             <div><label data-i18n="adm_prog_l">Program</label>
               <select id="admProgram" disabled><option value="" data-i18n="adm_pick_prog">— আগে Fetch Data চাপো —</option></select></div>
             <div><label data-i18n="adm_session_l">Session</label>
               <select id="admSession" disabled></select></div>
-          </div>
-
-          <div class="admgrid" style="margin-top:14px">
             <div><label data-i18n="adm_mobile_l">Mobile Number</label>
               <input id="admMobile" name="mobile" type="tel" autocomplete="tel" spellcheck="false" data-ph="adm_mobile_ph"></div>
-            <div><label data-i18n="adm_count_l">Count</label>
-              <input id="admCount" type="number" min="1" max="10000" value="1"></div>
           </div>
 
           <div style="margin-top:14px"><label data-i18n="adm_courses_l">Courses</label>
@@ -684,6 +679,9 @@
             <button class="btn g" id="admStop" disabled data-i18n="adm_stop">✕ থামাও</button>
             <span id="admStatus" class="ok" style="display:none;font-size:12.5px;font-weight:700"></span>
             <span style="flex:1;min-width:8px"></span>
+            <label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);font-weight:600">
+              <span data-i18n="adm_count_l">Count</span>
+              <input id="admCount" type="number" min="1" max="10000" value="1" style="width:82px;height:var(--ctl-h)"></label>
             <div class="seg" style="height:var(--ctl-h)">
               <button type="button" id="admSeq" class="on" data-i18n="adm_seq">একজন একজন</button>
               <button type="button" id="admPar" data-i18n="adm_par">একসাথে</button>
