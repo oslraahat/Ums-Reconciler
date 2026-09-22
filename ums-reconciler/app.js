@@ -2869,6 +2869,37 @@
     if (/Account\/Login/i.test(r.url || "")) throw new Error("not logged in — আগে ব্রাউজারে ওই সার্ভারে লগইন করো");
     return new DOMParser().parseFromString(txt, "text/html");
   }
+  /* pull the visible (parenthesised) strings out of a PDF content stream, unescaping \( \) \\ and \ddd */
+  function admPdfStrings(s) {
+    const parts = []; const re = /\(((?:\\.|[^()\\])*)\)/g; let m;
+    while ((m = re.exec(s))) {
+      parts.push(m[1].replace(/\\(\d{1,3})/g, function (_, o) { return String.fromCharCode(parseInt(o, 8)); }).replace(/\\([()\\])/g, "$1"));
+    }
+    return parts.join(" ");
+  }
+  /* the money receipt is a base64 PDF in #moneyReceiptData; decode it, inflate each FlateDecode content
+     stream (zlib) and return the visible text so Reg No / Roll / amounts can be read */
+  async function admReceiptText(payId) {
+    const rc = await admGetDoc("/Student/Payment/GenerateMoneyReciept?id=" + encodeURIComponent(payId));
+    const el = rc.querySelector("#moneyReceiptData");
+    const b64 = el ? (el.value || el.getAttribute("value") || "") : "";
+    if (!b64) return "";
+    const bytes = Uint8Array.from(atob(b64.replace(/\s+/g, "")), function (c) { return c.charCodeAt(0); });
+    let bin = ""; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
+    let out = "", idx = 0;
+    while (true) {
+      const s = bin.indexOf("stream", idx); if (s < 0) break;
+      let start = s + 6; if (bin[start] === "\r") start++; if (bin[start] === "\n") start++;
+      const e = bin.indexOf("endstream", start); if (e < 0) break;
+      idx = e + 9;
+      try {
+        const inf = await new Response(new Blob([bytes.subarray(start, e)]).stream().pipeThrough(new DecompressionStream("deflate"))).arrayBuffer();
+        const txt = new TextDecoder("latin1").decode(new Uint8Array(inf));
+        if (txt.indexOf("BT") >= 0 || txt.indexOf("Tj") >= 0 || txt.indexOf("TJ") >= 0) out += admPdfStrings(txt) + " ";
+      } catch (e2) {}
+    }
+    return out.replace(/\s+/g, " ").trim();
+  }
   function admOpts(html) {
     const doc = new DOMParser().parseFromString("<select>" + String(html || "") + "</select>", "text/html");
     return Array.prototype.map.call(doc.querySelectorAll("option"), function (o) { return { value: o.getAttribute("value") || o.value, text: (o.textContent || "").trim() }; })
@@ -3257,9 +3288,21 @@
             /* success answers {IsSuccess, PaymentId}; the money receipt (with Reg No / Roll) is a PDF at
                GenerateMoneyReciept?id=<PaymentId> — show the payment id and a link to open that receipt */
             const payId = String(reg.PaymentId || reg.AdditionalValue || reg.additionalValue || "").split(",")[0].trim();
-            const rcpt = payId ? (admBaseUrl() + "/Student/Payment/GenerateMoneyReciept?id=" + encodeURIComponent(payId)) : "";
+            let regNo = "", roll = "", paid = "";
+            try {
+              const rtxt = payId ? await admReceiptText(payId) : "";
+              if (n === 1 && rtxt) admOutLine("  ▸ pdf: " + rtxt.slice(0, 600));   // DEBUG: to wire Reg/Roll/amount
+              const g = function (re) { const m = rtxt.match(re); return m ? m[1] : ""; };
+              regNo = g(/Reg(?:istration)?\.?\s*(?:No\.?|Number)?\s*[:\-]?\s*([0-9][0-9A-Za-z\-\/]{3,})/i);
+              roll = g(/Roll\s*(?:No\.?|Number)?\s*[:\-]?\s*([0-9][0-9A-Za-z\-\/]{3,})/i);
+              paid = g(/(?:Received|Paid|Total\s*Paid)\s*(?:Amount)?\s*[:\-]?\s*([0-9,]+)/i);
+            } catch (e) {}
             ok++;
-            admOutLine("  ✓ #" + n + "/" + count + " · " + vm.Name + " · pay " + payId + (rcpt ? " · রসিদ: " + rcpt : ""));
+            const parts = ["✓ #" + n + "/" + count, vm.Name, "pay " + payId];
+            if (regNo) parts.push("reg " + regNo);
+            if (roll) parts.push("roll " + roll);
+            if (paid) parts.push("৳" + paid);
+            admOutLine("  " + parts.join(" · "));
           } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
         }
       }
