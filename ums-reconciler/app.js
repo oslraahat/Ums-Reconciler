@@ -2937,12 +2937,17 @@
       const e = bin.indexOf("endstream", start); if (e < 0) break;
       idx = e + 9; streams++;
       let end = e; while (end > start && (bin[end - 1] === "\n" || bin[end - 1] === "\r")) end--;   // drop the EOL before endstream
+      let got = false;
       for (const fmt of ["deflate", "deflate-raw"]) {
         try {
           const inf = await new Response(new Blob([bytes.subarray(start, end)]).stream().pipeThrough(new DecompressionStream(fmt))).arrayBuffer();
-          inflated.push(new TextDecoder("latin1").decode(new Uint8Array(inf))); okd++;
+          inflated.push(new TextDecoder("latin1").decode(new Uint8Array(inf))); okd++; got = true;
           break;
         } catch (e2) {}
+      }
+      if (!got) {   // uncompressed stream (a plain-text ToUnicode CMap or content) — read it as-is
+        const raw = bin.slice(start, end);
+        if (raw.indexOf("beginbf") >= 0 || raw.indexOf("Tj") >= 0 || raw.indexOf("TJ") >= 0) inflated.push(raw);
       }
     }
     const cmap = admBuildCMap(inflated);
