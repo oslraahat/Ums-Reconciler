@@ -3246,19 +3246,24 @@
                 : (reg.ErrorMessage || reg.Message));
               throw new Error(rm || ("no success — " + String(typeof reg === "string" ? reg : JSON.stringify(reg)).slice(0, 300)));
             }
-            if (n === 1) admOutLine("  ▸ reg resp: " + JSON.stringify(reg).slice(0, 300));   // DEBUG: to wire the real Reg No
-            const payIds = String(reg.AdditionalValue || reg.additionalValue || reg.Message || "").trim();
-            let regNo = payIds || "(done)";
+            /* success answers {IsSuccess, PaymentId}; the money receipt at GenerateCoursewiseMoneyReciept
+               ?studentPaymentIdList=<PaymentId> carries the student's Reg No and Roll */
+            const payIds = String(reg.PaymentId || reg.AdditionalValue || reg.additionalValue || "").trim();
+            let regNo = "", roll = "";
             try {
               const q = payIds.split(",").filter(Boolean).map(function (id) { return "studentPaymentIdList=" + encodeURIComponent(id.trim()); }).join("&");
               if (q) {
                 const rc = await admGetDoc("/Student/Payment/GenerateCoursewiseMoneyReciept?" + q);
-                const txt = (rc && rc.body && rc.body.textContent) || "";
-                const mm = txt.match(/Registration\s*(?:Number|No\.?)\s*[:\-]?\s*(\d{5,})/i) || txt.match(/\b(\d{7,})\b/);
-                if (mm) regNo = mm[1];
+                const txt = ((rc && rc.body && rc.body.textContent) || "").replace(/\s+/g, " ");
+                if (n === 1) admOutLine("  ▸ receipt: " + txt.slice(0, 500));   // DEBUG: to wire Reg No / Roll
+                const rm = txt.match(/Reg(?:istration)?\.?\s*(?:No\.?|Number)?\s*[:\-]?\s*([A-Za-z0-9\-\/]{4,})/i);
+                const rl = txt.match(/Roll\s*(?:No\.?|Number)?\s*[:\-]?\s*([A-Za-z0-9\-\/]{3,})/i);
+                if (rm) regNo = rm[1];
+                if (rl) roll = rl[1];
               }
             } catch (e) {}
-            ok++; admOutLine("  ✓ #" + n + "/" + count + " · reg " + regNo);
+            ok++;
+            admOutLine("  ✓ #" + n + "/" + count + " · " + (regNo ? "reg " + regNo : "pay " + payIds) + (roll ? " · roll " + roll : ""));
           } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
         }
       }
