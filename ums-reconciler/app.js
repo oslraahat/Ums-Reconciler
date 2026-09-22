@@ -3100,8 +3100,12 @@
   function admBuildStudent(sel, name) {
     const courseVMs = Object.keys(admBatchOf).map(function (cid) {
       const b = admBatchOf[cid], c = b.course;
+      /* course-level BranchId/CampusId stay 0 — they come from per-course .branch-course-<id> /
+         .campus-course-<id> selects that these courses don't have (the working direct-POST tool never
+         sets them); the real branch/campus ride on the student object. Sending the student's branch id
+         here makes the fee endpoint look up a course-branch row that doesn't exist → 500. */
       return { Id: c.id, Name: c.name, ProgramId: c.programId || sel.program, SessionId: c.sessionId || sel.session,
-        BranchId: parseInt(sel.branch, 10) || 0, CampusId: parseInt(sel.campus, 10) || 0, AttachedPhysicalBranchId: 0,
+        BranchId: 0, CampusId: 0, AttachedPhysicalBranchId: 0,
         Batch: 0, BatchId: b.batchId, IsTaken: true, maxSubject: c.maxSubject, OfficeMinSub: c.officeMinSub,
         PublicMinSubject: 0, OfficeMinPayment: c.minPay || 0, PublicMinPayment: 0,
         IsOfficeCompulsary: c.isOfficeCompulsary, IsPublicCompulsary: false, IsComplementaryCourse: false,
