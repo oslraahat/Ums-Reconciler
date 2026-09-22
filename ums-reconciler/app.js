@@ -2882,10 +2882,33 @@
   function admDocOpts(doc, sel, prefer) {
     return admPick(Array.prototype.map.call(doc.querySelectorAll(sel), function (o) { return { value: o.getAttribute("value") || o.value, text: (o.textContent || "").trim() }; }).filter(function (o) { return o.value && String(o.value).trim(); }), prefer);
   }
+  /* a course's subjects live in the CourseView as .course-<id>-subjects checkboxes carrying
+     data-course-subject-id/name/payment and data-group-no; readonly ones are compulsory */
+  function admSubjectsOf(doc, courseId) {
+    const cbs = doc.querySelectorAll(".course-" + courseId + "-subjects");
+    return Array.prototype.map.call(cbs, function (s) {
+      return { Id: s.getAttribute("data-course-subject-id"), Name: s.getAttribute("data-course-subject-name"),
+        Payment: s.getAttribute("data-course-subject-payment") || "0", group: s.getAttribute("data-group-no") || "0",
+        readonly: s.hasAttribute("readonly") || s.readOnly === true, checked: s.checked || s.hasAttribute("checked") };
+    }).filter(function (s) { return s.Id; });
+  }
+  /* the course fee is the sum of the CHECKED subjects' payment; take the compulsory (readonly/checked)
+     ones, then fill up to the minimum, one per non-zero group, never past the max */
+  function admPickSubjects(subs, minN, maxN) {
+    const picked = [], groupUsed = {}, max = maxN || subs.length;
+    const take = function (s) {
+      if (picked.length >= max) return;
+      const g = s.group; if (g && g !== "0") { if (groupUsed[g]) return; groupUsed[g] = 1; }
+      picked.push({ Id: s.Id, Name: s.Name, Payment: s.Payment, IsTaken: true });
+    };
+    subs.forEach(function (s) { if (s.readonly || s.checked) take(s); });
+    subs.forEach(function (s) { if (picked.length < (minN || 0) && !s.readonly && !s.checked) take(s); });
+    return picked;
+  }
   function admCourses(courseViewHtml) {
     const doc = new DOMParser().parseFromString(String(courseViewHtml || ""), "text/html");
     let cbs = doc.querySelectorAll(".course-name-check");
-    if (!cbs.length) cbs = doc.querySelectorAll('input[data-course-id], input[type=checkbox][class*="course-"]');
+    if (!cbs.length) cbs = doc.querySelectorAll('input[data-course-id]:not([class*="-subjects"]), input[type=checkbox][class*="course-name"]');
     return Array.prototype.map.call(cbs, function (cb) {
       let id = cb.getAttribute("data-course-id") || cb.getAttribute("data-courseid");
       if (!id) { const m = (cb.className || "").match(/course-(\d+)/); if (m) id = m[1]; }
@@ -2896,7 +2919,8 @@
         officeMinSub: cb.getAttribute("data-officeminsub"), maxSubject: cb.getAttribute("data-maximumsubject"),
         isOfficeCompulsary: cb.getAttribute("data-isofficecompulsary"),
         minPay: parseFloat(cb.getAttribute("data-officeminpayment") || cb.getAttribute("data-publicminpayment") || cb.getAttribute("data-officeminpay") || "0") || 0,
-        isFromOther: String(cb.getAttribute("data-isfromshowonotherprogram")).toLowerCase() === "true" };
+        isFromOther: String(cb.getAttribute("data-isfromshowonotherprogram")).toLowerCase() === "true",
+        subjects: admSubjectsOf(doc, id) };
     }).filter(function (c) { return c.id; });
   }
   /* batch endpoints return arrays whose item may be a string or {Value/Text} — take the first usable */
@@ -2998,11 +3022,6 @@
       admOutLine("⚠ courses খালি — view(" + String(admCourseView || "").length + "): " + String(admCourseView || "(empty)").replace(/[<>]/g, function (c) { return c === "<" ? "‹" : "›"; }).slice(0, 400));
       return;
     }
-    try {   // DEBUG: show how subjects are marked up in the CourseView so we can build SubjectViewModels
-      const dbg = new DOMParser().parseFromString(String(admCourseView || ""), "text/html");
-      const sub = dbg.querySelector('[data-course-subject-id], [class*="-subjects"]');
-      admOutLine("  ▸ courseView " + String(admCourseView || "").length + " chars · subject sample: " + (sub ? sub.outerHTML.replace(/\s+/g, " ").slice(0, 500) : "NONE in CourseView"));
-    } catch (e) {}
     box.innerHTML = "";
     courses.forEach(function (c, i) {
       const row = document.createElement("div"); row.className = "admcrow";
@@ -3113,7 +3132,8 @@
         Batch: 0, BatchId: b.batchId, IsTaken: true, maxSubject: c.maxSubject, OfficeMinSub: c.officeMinSub,
         PublicMinSubject: 0, OfficeMinPayment: 0, PublicMinPayment: 0,   // stays 0 like the real form (server computes the fee)
         IsOfficeCompulsary: c.isOfficeCompulsary, IsPublicCompulsary: false, IsComplementaryCourse: false,
-        IsFromShowOnOtherProgram: c.isFromOther, SubjectViewModels: [] };
+        IsFromShowOnOtherProgram: c.isFromOther,
+        SubjectViewModels: admPickSubjects(c.subjects || [], parseInt(c.officeMinSub, 10) || 0, parseInt(c.maxSubject, 10) || 0) };
     });
     return { Id: 0, Name: name, MobNumber: sel.mobile, Program: sel.program, Session: sel.session, Branch: sel.branch,
       AttachedPhysicalBranch: "", Campus: sel.campus, VersionOfStudy: admVersion, Gender: sel.gender, Religion: sel.religion,
