@@ -147,7 +147,7 @@
     adm_courses_l: { bn: "Courses (টিক দাও · পাশে batch দেখাবে)", en: "Courses (tick · batch shown)" },
     adm_courses_hint: { bn: "ফর্ম আনলে কোর্স এখানে আসবে", en: "courses appear here once the form is loaded" },
     adm_no_courses: { bn: "এই প্রোগ্রামে কোর্স নেই", en: "no courses on this program" },
-    adm_seq: { bn: "একজন একজন", en: "One at a time" },
+    adm_seq: { bn: "একে একে", en: "One at a time" },
     adm_par: { bn: "একসাথে", en: "All at once" },
     adm_intro: { bn: "⟳ Fetch Data চাপো, dropdown বেছে নাও, মোবাইল ও সংখ্যা দিয়ে ▶ Run। ⚠ আসল admission তৈরি হয় — টেস্ট সার্ভারে চালাও।",
       en: "Press ⟳ Fetch Data, pick the dropdowns, give the mobile and count, then ▶ Run. ⚠ Creates real admissions — use a test server." },
@@ -163,7 +163,7 @@
     adm_r_paid: { bn: "দেওয়া", en: "Paid" },
     adm_r_due: { bn: "বাকি", en: "Due" },
     adm_http_l: { bn: "⚡ HTTP", en: "⚡ HTTP" },
-    adm_browser_l: { bn: "🖥️ ব্রাউজার", en: "🖥️ Browser" },
+    adm_browser_l: { bn: "🌐 ব্রাউজার", en: "🌐 Browser" },
     adm_headless_l: { bn: "🕶️ Headless", en: "🕶️ Headless" },
     adm_browser_t: { bn: "ব্রাউজারে আসল ফর্ম খুলে দৃশ্যমান করে চালায় (ধীর, একজন একজন)", en: "opens the real form in a tab and runs it visibly (slower, one at a time)" },
     adm_pool_l: { bn: "একসাথে", en: "at once" },
@@ -3406,7 +3406,7 @@
         DiscountApprovedBy: (totalSpDiscount > 0 ? sel.approverId : ""), SpReferenceNote: "", PaymentMethod: admPayMethod, NextReceivedDate: nextDate });
 
       const count = admCount(), pool = admMode === "parallel" ? admPool() : 1;
-      admOutLine("→ " + count + " admission · " + (admMode === "parallel" ? pool + " একসাথে" : "একজন একজন") + " · net ৳" + netAfter + " · paying ৳" + received);
+      admOutLine("→ " + count + " admission · " + (admMode === "parallel" ? pool + " একসাথে" : "একে একে") + " · net ৳" + netAfter + " · paying ৳" + received);
       const t0 = Date.now(); let next = 0, ok = 0, fail = 0;
       async function worker() {
         while (!admStopFlag) {

@@ -155,7 +155,7 @@ async function admBrowserRun(p) {
   const url = p.base + "/Student/Admission/NewStudentAdmission";
   try {
     if (p.show === false) {   // Headless: minimised, unfocused window — Chrome can't fully hide it, but keep it off-screen and minimised
-      win = await chrome.windows.create({ url: url, focused: false, state: "minimized", top: 0, left: 0, width: 500, height: 400 });
+      win = await chrome.windows.create({ url: url, focused: false, state: "minimized" });   // state can't be combined with bounds
       tab = win && win.tabs && win.tabs[0];
       if (!tab) return { ok: false, message: "উইন্ডো খুলল না" };
       try { await chrome.windows.update(win.id, { state: "minimized", focused: false }); } catch (e) {}
