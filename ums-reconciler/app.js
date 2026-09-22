@@ -2893,7 +2893,7 @@
     if (!b64) return "";
     const bytes = Uint8Array.from(atob(b64.replace(/\s+/g, "")), function (c) { return c.charCodeAt(0); });
     let bin = ""; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    let out = "", idx = 0, streams = 0, okd = 0;
+    let out = "", idx = 0, streams = 0, okd = 0, rawSample = "";
     while (true) {
       const s = bin.indexOf("stream", idx); if (s < 0) break;
       let start = s + 6; if (bin[start] === "\r") start++; if (bin[start] === "\n") start++;
@@ -2904,12 +2904,15 @@
         try {
           const inf = await new Response(new Blob([bytes.subarray(start, end)]).stream().pipeThrough(new DecompressionStream(fmt))).arrayBuffer();
           const txt = new TextDecoder("latin1").decode(new Uint8Array(inf)); okd++;
-          if (txt.indexOf("BT") >= 0 || txt.indexOf("Tj") >= 0 || txt.indexOf("TJ") >= 0) out += admPdfStrings(txt) + " ";
+          if (txt.indexOf("BT") >= 0 || (txt.indexOf("Tj") >= 0 || txt.indexOf("TJ") >= 0)) {
+            out += admPdfStrings(txt) + " ";
+            if (!rawSample) { const b = txt.indexOf("BT"); rawSample = txt.slice(b < 0 ? 0 : b, (b < 0 ? 0 : b) + 300); }
+          }
           break;
         } catch (e2) {}
       }
     }
-    if (dbg) admOutLine("  ▸ streams=" + streams + " inflated=" + okd + " textLen=" + out.length + (out ? " sample: " + out.replace(/\s+/g, " ").slice(0, 200) : ""));
+    if (dbg) { admOutLine("  ▸ streams=" + streams + " inflated=" + okd + " textLen=" + out.length); if (rawSample) admOutLine("  ▸ raw: " + rawSample.replace(/[\r\n]+/g, " ")); }
     return out.replace(/\s+/g, " ").trim();
   }
   function admOpts(html) {
