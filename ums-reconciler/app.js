@@ -2885,25 +2885,30 @@
   }
   /* the money receipt is a base64 PDF in #moneyReceiptData; decode it, inflate each FlateDecode content
      stream (zlib) and return the visible text so Reg No / Roll / amounts can be read */
-  async function admReceiptText(payId) {
+  async function admReceiptText(payId, dbg) {
     const rc = await admGetDoc("/Student/Payment/GenerateMoneyReciept?id=" + encodeURIComponent(payId));
-    const el = rc.querySelector("#moneyReceiptData");
-    const b64 = el ? (el.value || el.getAttribute("value") || "") : "";
+    let el = rc.querySelector("#moneyReceiptData") || rc.querySelector('[name="moneyReceiptData"]');
+    let b64 = el ? (el.getAttribute("value") || el.value || el.textContent || "") : "";
+    if (dbg) admOutLine("  ▸ rcpt: title=" + (rc.title || "") + " field=" + (el ? "yes" : "NO") + " b64=" + b64.length);
     if (!b64) return "";
     const bytes = Uint8Array.from(atob(b64.replace(/\s+/g, "")), function (c) { return c.charCodeAt(0); });
     let bin = ""; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    let out = "", idx = 0;
+    let out = "", idx = 0, streams = 0, okd = 0;
     while (true) {
       const s = bin.indexOf("stream", idx); if (s < 0) break;
       let start = s + 6; if (bin[start] === "\r") start++; if (bin[start] === "\n") start++;
       const e = bin.indexOf("endstream", start); if (e < 0) break;
-      idx = e + 9;
-      try {
-        const inf = await new Response(new Blob([bytes.subarray(start, e)]).stream().pipeThrough(new DecompressionStream("deflate"))).arrayBuffer();
-        const txt = new TextDecoder("latin1").decode(new Uint8Array(inf));
-        if (txt.indexOf("BT") >= 0 || txt.indexOf("Tj") >= 0 || txt.indexOf("TJ") >= 0) out += admPdfStrings(txt) + " ";
-      } catch (e2) {}
+      idx = e + 9; streams++;
+      for (const fmt of ["deflate", "deflate-raw"]) {
+        try {
+          const inf = await new Response(new Blob([bytes.subarray(start, e)]).stream().pipeThrough(new DecompressionStream(fmt))).arrayBuffer();
+          const txt = new TextDecoder("latin1").decode(new Uint8Array(inf)); okd++;
+          if (txt.indexOf("BT") >= 0 || txt.indexOf("Tj") >= 0 || txt.indexOf("TJ") >= 0) out += admPdfStrings(txt) + " ";
+          break;
+        } catch (e2) {}
+      }
     }
+    if (dbg) admOutLine("  ▸ streams=" + streams + " inflated=" + okd + " textLen=" + out.length + (out ? " sample: " + out.replace(/\s+/g, " ").slice(0, 200) : ""));
     return out.replace(/\s+/g, " ").trim();
   }
   function admOpts(html) {
@@ -3296,8 +3301,7 @@
             const payId = String(reg.PaymentId || reg.AdditionalValue || reg.additionalValue || "").split(",")[0].trim();
             let sName = "", branch = "", mrNo = "", regNo = "", roll = "", paid = "", due = "";
             try {
-              const rtxt = payId ? await admReceiptText(payId) : "";
-              if (n === 1) admOutLine("  ▸ pdf: " + (rtxt ? rtxt.slice(0, 600) : "(no text extracted)"));   // DEBUG: confirm the decoder
+              const rtxt = payId ? await admReceiptText(payId, n === 1) : "";
               const g = function (re) { const m = rtxt.match(re); return m ? m[1].trim() : ""; };
               sName = g(/Student\s*Name\s*[:\-]?\s*([A-Za-z][A-Za-z .]+?)\s*(?:Roll|Registration)/i);
               branch = g(/Branch\s*[:\-]?\s*([A-Za-z][A-Za-z .]+?)\s*(?:\d|$)/i);
