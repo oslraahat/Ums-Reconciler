@@ -175,8 +175,10 @@ async function admBrowserRun(p) {
       if (cur && RECEIPT_RE.test(cur.url || "")) { const id = receiptId(cur.url); if (id) return { ok: true, payId: id, url: cur.url }; }
       try {
         const res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func: admDriver, args: [p] });
-        r = res && res[0] && res[0].result; break;
-      } catch (e) { lastErr = String((e && e.message) || e); await bgSleep(900); if (!await getTab(tab.id)) break; }
+        r = res && res[0] && res[0].result;
+        if (r === undefined || r === null) { lastErr = "driver ফল দিল না (frame বদলে গেছে / throttled হতে পারে)"; await bgSleep(500); continue; }
+        break;
+      } catch (e) { lastErr = String((e && e.message) || e) || "executeScript ব্যর্থ"; await bgSleep(900); if (!await getTab(tab.id)) break; }
     }
     if (!r) {
       const cur = await getTab(tab.id); const id = cur && receiptId(cur.url || "");
