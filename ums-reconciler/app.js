@@ -3288,20 +3288,23 @@
             /* success answers {IsSuccess, PaymentId}; the money receipt (with Reg No / Roll) is a PDF at
                GenerateMoneyReciept?id=<PaymentId> — show the payment id and a link to open that receipt */
             const payId = String(reg.PaymentId || reg.AdditionalValue || reg.additionalValue || "").split(",")[0].trim();
-            let regNo = "", roll = "", paid = "";
+            let regNo = "", roll = "", paid = "", due = "";
             try {
               const rtxt = payId ? await admReceiptText(payId) : "";
-              if (n === 1 && rtxt) admOutLine("  ▸ pdf: " + rtxt.slice(0, 600));   // DEBUG: to wire Reg/Roll/amount
+              if (n === 1) admOutLine("  ▸ pdf: " + (rtxt ? rtxt.slice(0, 600) : "(no text extracted)"));   // DEBUG: confirm the decoder
               const g = function (re) { const m = rtxt.match(re); return m ? m[1] : ""; };
-              regNo = g(/Reg(?:istration)?\.?\s*(?:No\.?|Number)?\s*[:\-]?\s*([0-9][0-9A-Za-z\-\/]{3,})/i);
-              roll = g(/Roll\s*(?:No\.?|Number)?\s*[:\-]?\s*([0-9][0-9A-Za-z\-\/]{3,})/i);
-              paid = g(/(?:Received|Paid|Total\s*Paid)\s*(?:Amount)?\s*[:\-]?\s*([0-9,]+)/i);
+              regNo = g(/Registration\s*(?:Number|No\.?)?\s*[:\-]?\s*(\d{4,})/i);
+              roll = g(/Roll\s*(?:Number|No\.?)?\s*[:\-]?\s*(\d{4,})/i);
+              paid = g(/Paid\s*Amount\s*[:\-]?\s*([0-9,]+(?:\.\d+)?)/i);
+              due = g(/Due\s*Amount\s*[:\-]?\s*([0-9,]+(?:\.\d+)?)/i);
             } catch (e) {}
             ok++;
-            const parts = ["✓ #" + n + "/" + count, vm.Name, "pay " + payId];
+            const parts = ["✓ #" + n + "/" + count, vm.Name];
             if (regNo) parts.push("reg " + regNo);
             if (roll) parts.push("roll " + roll);
-            if (paid) parts.push("৳" + paid);
+            parts.push("pay " + payId);
+            if (paid) parts.push("দেওয়া ৳" + paid);
+            if (due) parts.push("বাকি ৳" + due);
             admOutLine("  " + parts.join(" · "));
           } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
         }
