@@ -2920,6 +2920,7 @@
         isOfficeCompulsary: cb.getAttribute("data-isofficecompulsary"),
         minPay: parseFloat(cb.getAttribute("data-officeminpayment") || cb.getAttribute("data-publicminpayment") || cb.getAttribute("data-officeminpay") || "0") || 0,
         isFromOther: String(cb.getAttribute("data-isfromshowonotherprogram")).toLowerCase() === "true",
+        isAcademic: String(cb.getAttribute("data-isacademicgroup")).toLowerCase() === "true",
         subjects: admSubjectsOf(doc, id) };
     }).filter(function (c) { return c.id; });
   }
@@ -2947,7 +2948,7 @@
 
   /* ---- interactive form: the dropdowns are fetched from UMS, the user picks ---- */
   let admLoaded = false, admClassId = "", admVersion = "", admCourseView = "", admBatchOf = {};
-  let admBoardRows = [], admPayMethod = 0, admBoardView = "", admPhysBranch = "";   // captured at load / on session change
+  let admBoardRows = [], admPayMethod = 0, admBoardView = "", admPhysBranch = "", admShowAcademic = false;   // captured at load / on session change
   /* a <select>'s chosen value inside a parsed (non-live) page: the option carrying `selected`, else
      the first real option */
   function admSelVal(doc, sel) {
@@ -3022,6 +3023,7 @@
     if (!admLoaded || !$("admProgram").value) return;
     const se = await admPost("/Student/Admission/GetSessionByProgram", { programId: $("admProgram").value, sessionId: "" });
     if (se.CourseView) admCourseView = se.CourseView;
+    admShowAcademic = !!(se.IsShowAcademicGroupOptionInAdmission || se.isShowAcademicGroupOptionInAdmission);   // program needs an Academic Group
     admFill("admSession", admOpts(se.SessionOptions), ["2025"], null);
     await admOnSession();
   }
@@ -3043,7 +3045,6 @@
     const physCount = parseInt("0" + (br && (br.attachedPhysicalBrunchOptionsCount || br.AttachedPhysicalBrunchOptionsCount)), 10) || 0;
     const physReal = admOpts((br && (br.AttachedPhysicalBrunchOptions || br.attachedPhysicalBrunchOptions)) || "").filter(function (o) { return o.value && !/select/i.test(o.text); });
     admPhysBranch = (physCount > 0 && physReal.length) ? physReal[0].value : "";
-    if (br && typeof br === "object") admOutLine("  ▸ br keys: " + Object.keys(br).join(","));   // DEBUG: find the academic-group / mbbs flags
     admRenderCourses();
     await admOnBranch();
   }
@@ -3162,6 +3163,11 @@
       BookingDiscountAmount: 0, OfferedDiscountViewModels: [], PreviousStudentDiscountViewModels: [],
       SpecialDiscountViewModels: [] };
   }
+  /* true when any ticked course is flagged data-isacademicgroup — such a course also makes the
+     Academic Group required (mirrors the form's ShowMBBSStatusAndAcademicGroup) */
+  function admAnyAcademicTicked() {
+    return Object.keys(admBatchOf).some(function (cid) { return admBatchOf[cid].course && admBatchOf[cid].course.isAcademic; });
+  }
   function admBuildStudent(sel, name) {
     const courseVMs = Object.keys(admBatchOf).map(function (cid) {
       const b = admBatchOf[cid], c = b.course;
@@ -3180,9 +3186,10 @@
       AttachedPhysicalBranch: admPhysBranch, Campus: sel.campus, VersionOfStudy: admVersion, Gender: sel.gender, Religion: sel.religion,
       Email: "", LastInstituteName: sel.instName, LastInstituteId: sel.instId, CourseViewModels: courseVMs,
       /* medical programs show a "2nd Timer Status" (MbbsBdsStatus) radio; the working form has its first
-         option (value "10") selected. null 500s the fee endpoint on those programs. AcademicGroup stays
-         null — it only shows (Science/Humanities/…) when the program opts in, which medical does not. */
-      StudentPayment: admDefaultPayment(), MbbsBdsStatus: "10", AcademicGroup: null };
+         option (value "10") selected. null 500s the fee endpoint on those programs. AcademicGroup is
+         required (Science=10 default) when the program opts in or a ticked course is academic-group. */
+      StudentPayment: admDefaultPayment(), MbbsBdsStatus: "10",
+      AcademicGroup: (admShowAcademic || admAnyAcademicTicked()) ? "10" : null };
   }
   async function admRun() {
     if (admBusyFlag) return;
