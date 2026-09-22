@@ -123,8 +123,20 @@ async function admDriver(p) {
       const err = (document.querySelector("#boardInfoErrorMessage,.text-danger,.alert-danger") || {}).textContent || "";
       throw new Error("Payment ধাপে গেল না" + (err ? " — " + err.replace(/\s+/g, " ").trim().slice(0, 120) : ""));
     }
-    if ($("#receivedAmount") && p.received != null && p.received !== "") $("#receivedAmount").value = p.received;
+    if ($("#receivedAmount") && p.received != null && p.received !== "") { $("#receivedAmount").value = p.received; $("#receivedAmount").dispatchEvent(new Event("input", { bubbles: true })); $("#receivedAmount").dispatchEvent(new Event("change", { bubbles: true })); }
+    /* Next Receiving Date is required when there's a due — the form validation blocks Submit without it */
+    const nd = new Date(); nd.setDate(nd.getDate() + 2);
+    const ndStr = nd.getFullYear() + "-" + String(nd.getMonth() + 1).padStart(2, "0") + "-" + String(nd.getDate()).padStart(2, "0");
+    if ($("#nextRecDate")) { $("#nextRecDate").value = ndStr; $("#nextRecDate").dispatchEvent(new Event("change", { bubbles: true })); }
+    /* pick a payment method if none is chosen (Cash is the usual default) */
+    const pm = $("#PaymentMethods");
+    if (pm && !pm.value) { const opt = Array.prototype.find.call(pm.options, function (o) { return o.value.trim(); }); if (opt) { pm.value = opt.value; pm.dispatchEvent(new Event("change", { bubbles: true })); } }
+    await sleep(300);
     const submit = $("#newAdmissionPaymentSubmitBtn") || $("#admissionPaymentSubmitBtn"); if (!submit) throw new Error("Submit বাটন নেই"); submit.click();
+    /* if client validation blocks it, surface the message instead of silently timing out */
+    await sleep(1200);
+    const verr = document.querySelector("#receivedAmountError,#nextRecDateError,.text-danger,.alert-danger,.field-validation-error");
+    if (verr && verr.textContent && verr.textContent.trim() && !/GenerateMoneyReciept/i.test(location.href)) return { ok: false, message: verr.textContent.replace(/\s+/g, " ").trim().slice(0, 140) };
     return { ok: true };
   } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
 }
