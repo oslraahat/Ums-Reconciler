@@ -2918,6 +2918,13 @@
   }
   async function admReceiptText(payId, dbg) {
     const rc = await admGetDoc("/Student/Payment/GenerateMoneyReciept?id=" + encodeURIComponent(payId));
+    if (dbg) {   // DEBUG: is Reg/Roll in the receipt HTML/response (not the PDF)?
+      const inputs = Array.prototype.map.call(rc.querySelectorAll("input,[id]"), function (x) { return (x.id || x.name || "") + (x.value && x.value.length < 40 ? "=" + x.value : ""); }).filter(Boolean).slice(0, 25);
+      admOutLine("  ▸ page inputs: " + inputs.join(", "));
+      const ptxt = ((rc.body && rc.body.textContent) || "").replace(/\s+/g, " ").trim();
+      const hit = ptxt.match(/(Roll|Regist)[\s\S]{0,40}/i);
+      admOutLine("  ▸ page has Roll/Reg text: " + (hit ? hit[0] : "NO") + " · len=" + ptxt.length);
+    }
     let el = rc.querySelector("#moneyReceiptData") || rc.querySelector('[name="moneyReceiptData"]');
     let b64 = el ? (el.getAttribute("value") || el.value || el.textContent || "") : "";
     if (!b64) return "";
