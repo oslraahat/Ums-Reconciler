@@ -2920,7 +2920,6 @@
     const rc = await admGetDoc("/Student/Payment/GenerateMoneyReciept?id=" + encodeURIComponent(payId));
     let el = rc.querySelector("#moneyReceiptData") || rc.querySelector('[name="moneyReceiptData"]');
     let b64 = el ? (el.getAttribute("value") || el.value || el.textContent || "") : "";
-    if (dbg) admOutLine("  ▸ rcpt: title=" + (rc.title || "") + " field=" + (el ? "yes" : "NO") + " b64=" + b64.length);
     if (!b64) return "";
     const bytes = Uint8Array.from(atob(b64.replace(/\s+/g, "")), function (c) { return c.charCodeAt(0); });
     let bin = ""; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
@@ -2943,7 +2942,7 @@
     let out = "";
     inflated.forEach(function (txt) { if (txt.indexOf("Tj") >= 0 || txt.indexOf("TJ") >= 0) out += admDecodeContent(txt, cmap) + " "; });
     out = out.replace(/[ \t]+/g, " ").trim();
-    if (dbg) admOutLine("  ▸ streams=" + streams + " inflated=" + okd + " cmap=" + Object.keys(cmap).length + " textLen=" + out.length + (out ? " · " + out.slice(0, 260) : ""));
+    if (dbg) admOutLine("  ▸ streams=" + streams + " inflated=" + okd + " tounicode=" + (bin.match(/ToUnicode/g) || []).length + " cmap=" + Object.keys(cmap).length + " textLen=" + out.length + (out ? " · " + out.slice(0, 220) : ""));
     return out;
   }
   function admOpts(html) {
