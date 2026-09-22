@@ -2960,6 +2960,14 @@
       const toks = page.querySelectorAll('input[name="__RequestVerificationToken"]');
       admToken = toks.length ? (toks[toks.length - 1].getAttribute("value") || toks[toks.length - 1].value || "") : "";
       if (!admToken) throw new Error("antiforgery token পেলাম না — ঠিক পেজ এসেছে তো?");
+      try {   // DEBUG: board-info section shape (registration needs board rows when hasBoardInfo=YES)
+        const hb = page.querySelector("#hasBoardInfo"), ti = page.querySelector("#totalInfo");
+        const eb = page.querySelector('select[id^="examBoard"]'), eid = page.querySelector('[id^="examId"]');
+        const eys = page.querySelectorAll('[id^="examYear"]');
+        admOutLine("  ▸ board: hasBoardInfo=" + (hb ? hb.value : "none") + " total=" + (ti ? ti.value : "none") +
+          " examYears=" + eys.length + " examId=" + (eid ? eid.value : "none"));
+        if (eb) admOutLine("  ▸ examBoard: " + eb.outerHTML.replace(/\s+/g, " ").slice(0, 400));
+      } catch (e) {}
       const classOpt = admDocOpts(page, "#StudentClass option", ["Admission"]);
       if (!classOpt) throw new Error("no Student Class");
       admClassId = classOpt.value;
