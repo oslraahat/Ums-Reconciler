@@ -154,7 +154,7 @@
     adm_base_l: { bn: "UMS ঠিকানা", en: "UMS address" },
     adm_mobile_l: { bn: "Mobile Number", en: "Mobile Number" },
     adm_prog_l: { bn: "Program", en: "Program" },
-    adm_amount_l: { bn: "Amount (৳) — ঐচ্ছিক", en: "Amount — optional" },
+    adm_amount_l: { bn: "Amount — ঐচ্ছিক", en: "Amount — optional" },
     adm_count_l: { bn: "Count", en: "Count" },
     adm_pool_l: { bn: "একসাথে", en: "at once" },
     adm_need_load: { bn: "আগে ⟳ ফর্ম আনো চাপো", en: "press ⟳ Load form first" },
@@ -2823,6 +2823,15 @@
       return true;
     } catch (e) { admOutLine("⚠ Referer rule: " + ((e && e.message) || e)); return false; }
   }
+  /* strip a UMS warning/error HTML page down to its human message (title + visible body text) */
+  function admHtmlMessage(txt) {
+    let doc; try { doc = new DOMParser().parseFromString(txt, "text/html"); } catch (e) { return txt.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300); }
+    const title = ((doc.querySelector("title") && doc.querySelector("title").textContent) || "").trim();
+    Array.prototype.forEach.call(doc.querySelectorAll("style,script,link,head"), function (n) { n.remove(); });
+    const body = ((doc.body && doc.body.textContent) || "").replace(/\s+/g, " ").trim();
+    const msg = (body || title || "").slice(0, 300);
+    return (title && msg.toLowerCase().indexOf(title.toLowerCase()) < 0 ? title + " — " : "") + msg;
+  }
   async function admPost(path, data) {
     const body = new URLSearchParams();
     Object.keys(data).forEach(function (k) {
@@ -2841,6 +2850,11 @@
     const txt = await r.text();
     if (/Account\/Login/i.test(r.url || "") || /name=["']?Password["']?/i.test(txt.slice(0, 4000))) throw new Error("not logged in (" + path.split("/").pop() + ")");
     if (/PermissionDenied|Permission Denied/i.test(txt.slice(0, 2000))) throw new Error("PermissionDenied — " + path.split("/").pop() + " (token/অনুমতি)");
+    /* UMS answers a rejected action with a styled HTML page titled Warning/Error instead of JSON —
+       pull the readable message out of it (a genuine HTML payload like a DuePayment receipt has no
+       such title, so it passes through untouched) */
+    const errTitle = (txt.slice(0, 3000).match(/<title>\s*(warning|error|access denied|permission[^<]*)\s*<\/title>/i) || [])[1];
+    if (errTitle) throw new Error(path.split("/").pop() + ": " + admHtmlMessage(txt));
     try { return JSON.parse(txt); } catch (e) { return txt; }
   }
   async function admGetDoc(path) {
