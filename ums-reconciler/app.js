@@ -2875,16 +2875,47 @@
     if (/Account\/Login/i.test(r.url || "")) throw new Error("not logged in — আগে ব্রাউজারে ওই সার্ভারে লগইন করো");
     return new DOMParser().parseFromString(txt, "text/html");
   }
-  /* pull the visible (parenthesised) strings out of a PDF content stream, unescaping \( \) \\ and \ddd */
-  function admPdfStrings(s) {
-    const parts = []; const re = /\(((?:\\.|[^()\\])*)\)/g; let m;
-    while ((m = re.exec(s))) {
-      parts.push(m[1].replace(/\\(\d{1,3})/g, function (_, o) { return String.fromCharCode(parseInt(o, 8)); }).replace(/\\([()\\])/g, "$1"));
-    }
-    return parts.join(" ");
-  }
   /* the money receipt is a base64 PDF in #moneyReceiptData; decode it, inflate each FlateDecode content
      stream (zlib) and return the visible text so Reg No / Roll / amounts can be read */
+  /* hex like "0052" or "00520069" → the characters it encodes (2 bytes per code unit) */
+  function admHexToStr(hex) {
+    let s = ""; for (let i = 0; i + 4 <= hex.length; i += 4) s += String.fromCharCode(parseInt(hex.substr(i, 4), 16));
+    return s;
+  }
+  /* merge every ToUnicode CMap (beginbfchar / beginbfrange) in the PDF into one glyph→char map */
+  function admBuildCMap(streams) {
+    const map = {}; let m;
+    streams.forEach(function (txt) {
+      if (txt.indexOf("beginbfchar") < 0 && txt.indexOf("beginbfrange") < 0) return;
+      const charRe = /beginbfchar([\s\S]*?)endbfchar/g;
+      while ((m = charRe.exec(txt))) {
+        const pr = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>/g; let p;
+        while ((p = pr.exec(m[1]))) map[p[1].toUpperCase().padStart(4, "0")] = admHexToStr(p[2]);
+      }
+      const rangeRe = /beginbfrange([\s\S]*?)endbfrange/g;
+      while ((m = rangeRe.exec(txt))) {
+        const rr = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*(?:<([0-9A-Fa-f]+)>|\[([\s\S]*?)\])/g; let r;
+        while ((r = rr.exec(m[1]))) {
+          const lo = parseInt(r[1], 16), hi = parseInt(r[2], 16), w = Math.max(4, r[1].length);
+          if (r[3]) { let d = parseInt(r[3], 16); for (let c = lo; c <= hi; c++) map[c.toString(16).toUpperCase().padStart(w, "0")] = String.fromCharCode(d++); }
+          else if (r[4]) { const arr = r[4].match(/<([0-9A-Fa-f]+)>/g) || []; for (let c = lo, i = 0; c <= hi && i < arr.length; c++, i++) map[c.toString(16).toUpperCase().padStart(w, "0")] = admHexToStr(arr[i].replace(/[<>]/g, "")); }
+        }
+      }
+    });
+    return map;
+  }
+  /* decode a content stream's <hex> glyph runs (in Tj and [ ]TJ) through the cmap; a big Td/space
+     between runs becomes a space so words stay separable */
+  function admDecodeContent(txt, map) {
+    let out = "";
+    const re = /\[([\s\S]*?)\]\s*TJ|<([0-9A-Fa-f]+)>\s*Tj|(-?\d+(?:\.\d+)?)\s+0\s+Td/g; let m;
+    while ((m = re.exec(txt))) {
+      if (m[3] !== undefined) { if (Math.abs(parseFloat(m[3])) > 20) out += " "; continue; }
+      const hexes = m[1] !== undefined ? (m[1].match(/<([0-9A-Fa-f]+)>/g) || []).map(function (h) { return h.replace(/[<>]/g, ""); }) : [m[2]];
+      hexes.forEach(function (hex) { hex = hex.toUpperCase(); for (let i = 0; i + 4 <= hex.length; i += 4) { const g = map[hex.substr(i, 4)]; out += (g !== undefined ? g : ""); } });
+    }
+    return out;
+  }
   async function admReceiptText(payId, dbg) {
     const rc = await admGetDoc("/Student/Payment/GenerateMoneyReciept?id=" + encodeURIComponent(payId));
     let el = rc.querySelector("#moneyReceiptData") || rc.querySelector('[name="moneyReceiptData"]');
@@ -2893,7 +2924,7 @@
     if (!b64) return "";
     const bytes = Uint8Array.from(atob(b64.replace(/\s+/g, "")), function (c) { return c.charCodeAt(0); });
     let bin = ""; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    let out = "", idx = 0, streams = 0, okd = 0, rawSample = "";
+    let idx = 0, streams = 0, okd = 0; const inflated = [];
     while (true) {
       const s = bin.indexOf("stream", idx); if (s < 0) break;
       let start = s + 6; if (bin[start] === "\r") start++; if (bin[start] === "\n") start++;
@@ -2903,17 +2934,17 @@
       for (const fmt of ["deflate", "deflate-raw"]) {
         try {
           const inf = await new Response(new Blob([bytes.subarray(start, end)]).stream().pipeThrough(new DecompressionStream(fmt))).arrayBuffer();
-          const txt = new TextDecoder("latin1").decode(new Uint8Array(inf)); okd++;
-          if (txt.indexOf("BT") >= 0 || (txt.indexOf("Tj") >= 0 || txt.indexOf("TJ") >= 0)) {
-            out += admPdfStrings(txt) + " ";
-            if (!rawSample) { const b = txt.indexOf("BT"); rawSample = txt.slice(b < 0 ? 0 : b, (b < 0 ? 0 : b) + 300); }
-          }
+          inflated.push(new TextDecoder("latin1").decode(new Uint8Array(inf))); okd++;
           break;
         } catch (e2) {}
       }
     }
-    if (dbg) { admOutLine("  ▸ streams=" + streams + " inflated=" + okd + " textLen=" + out.length); if (rawSample) admOutLine("  ▸ raw: " + rawSample.replace(/[\r\n]+/g, " ")); }
-    return out.replace(/\s+/g, " ").trim();
+    const cmap = admBuildCMap(inflated);
+    let out = "";
+    inflated.forEach(function (txt) { if (txt.indexOf("Tj") >= 0 || txt.indexOf("TJ") >= 0) out += admDecodeContent(txt, cmap) + " "; });
+    out = out.replace(/[ \t]+/g, " ").trim();
+    if (dbg) admOutLine("  ▸ streams=" + streams + " inflated=" + okd + " cmap=" + Object.keys(cmap).length + " textLen=" + out.length + (out ? " · " + out.slice(0, 260) : ""));
+    return out;
   }
   function admOpts(html) {
     const doc = new DOMParser().parseFromString("<select>" + String(html || "") + "</select>", "text/html");
