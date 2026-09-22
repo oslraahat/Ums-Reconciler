@@ -213,7 +213,8 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "umsbk-"));
 const s = APP.replace('<script src="reconcile.js"></script>', STUBS + '<script src="reconcile.js"></script>');
 const at = s.lastIndexOf("</body>");
 fs.writeFileSync(path.join(TMP, "a.html"), s.slice(0, at) + DRIVE + s.slice(at));
-["reconcile.js", "app.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
+fs.mkdirSync(path.join(TMP, "js"), { recursive: true });
+["reconcile.js", "app.js", "js/adm.js", "js/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
 
 let waiting = null;
 const pings = [];

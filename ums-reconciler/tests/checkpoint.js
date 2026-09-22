@@ -251,7 +251,8 @@ const page = (drive) => {
 };
 fs.writeFileSync(path.join(TMP, "a.html"), page(DRIVE(PHASE_A)));
 fs.writeFileSync(path.join(TMP, "b.html"), page(DRIVE(PHASE_B)));
-["reconcile.js", "app.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
+fs.mkdirSync(path.join(TMP, "js"), { recursive: true });
+["reconcile.js", "app.js", "js/adm.js", "js/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
 
 let waiting = null;   // the runner’s hand out, waiting for whichever page load is in flight
 const pings = [];     // …and what the page said before it got there, for when it never does

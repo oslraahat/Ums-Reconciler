@@ -24,6 +24,12 @@ const APP = fs.readFileSync(path.join(ROOT, "app.js"), "utf8");
 const HTML = fs.readFileSync(path.join(ROOT, "app.html"), "utf8");
 const CONTENT = fs.readFileSync(path.join(ROOT, "content.js"), "utf8");
 const PANEL = fs.readFileSync(path.join(ROOT, "panel.html"), "utf8");
+/* The New Admission and CRM menus moved to js/adm.js and js/crm.js; their t() calls and key
+   references live there now, so the usage/leftover checks scan all three files together. DICT
+   itself still lives in app.js and is parsed from APP alone. */
+const SRC = APP + "\n"
+  + fs.readFileSync(path.join(ROOT, "js", "adm.js"), "utf8") + "\n"
+  + fs.readFileSync(path.join(ROOT, "js", "crm.js"), "utf8");
 
 let fail = 0;
 const check = (name, ok, extra) => {
@@ -72,7 +78,7 @@ const keys = Object.keys(DICT);
 
 /* ---------- what the code asks for ---------- */
 {
-  const called = [...new Set((APP.match(/\bt\("([a-zA-Z0-9_]+)"\)/g) || [])
+  const called = [...new Set((SRC.match(/\bt\("([a-zA-Z0-9_]+)"\)/g) || [])
     .map(function (m) { return m.slice(3, -2); }))];
   const missing = called.filter(function (k) { return !DICT[k]; });
   check("every label the code asks for exists", missing.length === 0, missing.join(", "));
@@ -116,14 +122,14 @@ const keys = Object.keys(DICT);
   ["data-i18n", "data-ph", "data-title"].forEach(function (a) {
     (HTML.match(new RegExp(a + '="([^"]+)"', "g")) || []).forEach(function (m) { asked.add(m.slice(a.length + 2, -1)); });
   });
-  (APP.match(/\bt\("([a-zA-Z0-9_]+)"\)/g) || []).forEach(function (m) { asked.add(m.slice(3, -2)); });
+  (SRC.match(/\bt\("([a-zA-Z0-9_]+)"\)/g) || []).forEach(function (m) { asked.add(m.slice(3, -2)); });
   /* the ones a literal cannot name: built from a status, chosen by a conditional, or an s_ twin */
   const reachable = function (k) {
     if (asked.has(k)) return true;
     if (k.indexOf("s_") === 0 && asked.has(k.slice(2))) return true;
     if (/^s?_?pill_/.test(k)) return true;
     if (k === "conn_exp" || k === "conn_act") return true;
-    return new RegExp('"' + k + '"').test(APP);      // named anywhere else in the source
+    return new RegExp('"' + k + '"').test(SRC);      // named anywhere else in the source
   };
   const dead = keys.filter(function (k) { return !reachable(k); });
   check("nothing in the dictionary is unreachable", dead.length === 0, dead.join(", "));

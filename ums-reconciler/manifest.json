@@ -54,7 +54,9 @@
         "panel.js",
         "reconcile.js",
         "app.html",
-        "app.js"
+        "app.js",
+        "js/adm.js",
+        "js/crm.js"
       ],
       "matches": [
         "https://*.osl.team/*"

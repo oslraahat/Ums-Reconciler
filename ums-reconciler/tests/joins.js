@@ -42,6 +42,10 @@ const all = (s, re) => {
 const APP = read("app.js"), HTML = read("app.html"), CONTENT = read("content.js");
 const PANEL = read("panel.js"), PANELH = read("panel.html"), BG = read("background.js");
 const REC = read("reconcile.js"), MANIFEST = read("manifest.json");
+/* The New Admission and CRM menus moved to js/adm.js and js/crm.js; their t() calls, key mentions
+   and {placeholder} fills live there now, so the string usage/unused checks scan the three together.
+   DICT itself is still parsed from app.js. */
+const SRC = APP + "\n" + read("js/adm.js") + "\n" + read("js/crm.js");
 
 /* ---------- everything parses ---------- */
 {
@@ -132,13 +136,13 @@ const REC = read("reconcile.js"), MANIFEST = read("manifest.json");
      "Is this string unused?" must not miss: keys are reached by prefix, through arrays of names,
      and through ternaries that nest inside calls a regex will not balance, so every quoted word in
      the source counts as a mention. Blunt, and on the right side of both mistakes. */
-  const literal = all(APP, /\bt\("([\w.]+)"\)/);
+  const literal = all(SRC, /\bt\("([\w.]+)"\)/);
   const i18n = all(HTML, /data-i18n="([\w.]+)"/);
   const ph = all(HTML, /data-ph="([\w.]+)"/);
   const titles = all(HTML, /data-title="([\w.]+)"/);
   const named = uniq(literal.concat(i18n, ph, titles));
-  const prefixes = all(APP, /t\("([\w.]+_)" \+/);
-  const mentioned = uniq(all(APP, /"([\w.]+)"/).concat(named));
+  const prefixes = all(SRC, /t\("([\w.]+_)" \+/);
+  const mentioned = uniq(all(SRC, /"([\w.]+)"/).concat(named));
 
   check("every t() / data-i18n key has a string behind it",
     named.filter(function (k) { return keys.indexOf(k) < 0; }));
@@ -159,7 +163,7 @@ const REC = read("reconcile.js"), MANIFEST = read("manifest.json");
   keys.forEach(function (k) {
     const marks = uniq((String(DICT[k].bn) + String(DICT[k].en)).match(/\{(\w+)\}/g) || []);
     marks.forEach(function (mk) {
-      if (APP.indexOf('"' + mk + '"') < 0) unfilled.push(k + " " + mk);
+      if (SRC.indexOf('"' + mk + '"') < 0) unfilled.push(k + " " + mk);
     });
   });
   check("every {placeholder} is filled somewhere", unfilled);
