@@ -635,44 +635,45 @@
               <input id="admPool" type="number" min="1" max="20" value="3" style="width:117px;height:var(--ctl-h)" data-title="adm_pool_l" title="একসাথে কতগুলো"></span>
           </div>
 
-          <div class="admgrid three" style="margin-top:14px">
-            <div><label data-i18n="adm_gender_l">Gender</label>
-              <select id="admGender"><option value="1" selected>Male</option><option value="2">Female</option></select></div>
-            <div><label data-i18n="adm_religion_l">Religion</label>
-              <select id="admReligion"><option value="1" selected>Islam</option><option value="2">Hinduism</option><option value="3">Christianity</option><option value="4">Buddhism</option><option value="5">Other</option></select></div>
+          <div class="admgrid" style="margin-top:14px">
             <div><label data-i18n="adm_prog_l">Program</label>
               <select id="admProgram" disabled><option value="" data-i18n="adm_pick_prog">— আগে Fetch Data চাপো —</option></select></div>
-          </div>
-
-          <div class="admgrid three" style="margin-top:14px">
             <div><label data-i18n="adm_session_l">Session</label>
               <select id="admSession" disabled></select></div>
-            <div><label data-i18n="adm_branch_l">Branch</label><select id="admBranch" disabled></select></div>
-            <div><label data-i18n="adm_campus_l">Campus</label><select id="admCampus" disabled></select></div>
+          </div>
+
+          <div class="admgrid" style="margin-top:14px">
+            <div><label data-i18n="adm_mobile_l">Mobile Number</label>
+              <input id="admMobile" name="mobile" type="tel" autocomplete="tel" spellcheck="false" data-ph="adm_mobile_ph"></div>
+            <div><label data-i18n="adm_count_l">Count</label>
+              <input id="admCount" type="number" min="1" max="10000" value="1"></div>
           </div>
 
           <div style="margin-top:14px"><label data-i18n="adm_courses_l">Courses</label>
             <div id="admCourseBox" class="admcourses"><span class="hint" data-i18n="adm_courses_hint" style="margin:0"></span></div>
           </div>
 
-          <details style="margin-top:14px"><summary class="hint" data-i18n="adm_defaults" style="cursor:pointer">▸ Institute · Approver</summary>
+          <details style="margin-top:14px"><summary class="hint" data-i18n="adm_defaults" style="cursor:pointer">▸ Gender · Religion · Branch · Campus · Amount · Institute · Approver</summary>
             <div class="admgrid three" style="margin-top:10px">
+              <div><label data-i18n="adm_gender_l">Gender</label>
+                <select id="admGender"><option value="1" selected>Male</option><option value="2">Female</option></select></div>
+              <div><label data-i18n="adm_religion_l">Religion</label>
+                <select id="admReligion"><option value="1" selected>Islam</option><option value="2">Hinduism</option><option value="3">Christianity</option><option value="4">Buddhism</option><option value="5">Other</option></select></div>
+              <div><label data-i18n="adm_branch_l">Branch</label><select id="admBranch" disabled></select></div>
+            </div>
+            <div class="admgrid three" style="margin-top:14px">
+              <div><label data-i18n="adm_campus_l">Campus</label><select id="admCampus" disabled></select></div>
+              <div><label data-i18n="adm_amount_l">Amount (৳) — ঐচ্ছিক</label>
+                <input id="admAmount" type="number" min="0" data-ph="adm_amount_ph"></div>
               <div><label data-i18n="adm_inst_l">Institute</label>
                 <input id="admInst" list="admInstDl" spellcheck="false" data-ph="adm_inst_ph" autocomplete="off" value="DHAKA RESIDENTIAL MODEL COLLEGE [108258]" style="font-size:11px">
                 <datalist id="admInstDl"></datalist></div>
+            </div>
+            <div class="admgrid three" style="margin-top:14px">
               <div><label data-i18n="adm_appr_name_l">Approver Name</label><input id="admApprName" spellcheck="false"></div>
               <div><label data-i18n="adm_appr_id_l">Approver ID</label><input id="admApprId" spellcheck="false"></div>
             </div>
           </details>
-
-          <div class="admgrid three" style="margin-top:14px">
-            <div><label data-i18n="adm_mobile_l">Mobile Number</label>
-              <input id="admMobile" name="mobile" type="tel" autocomplete="tel" spellcheck="false" data-ph="adm_mobile_ph"></div>
-            <div><label data-i18n="adm_amount_l">Amount (৳) — ঐচ্ছিক</label>
-              <input id="admAmount" type="number" min="0" data-ph="adm_amount_ph"></div>
-            <div><label data-i18n="adm_count_l">Count</label>
-              <input id="admCount" type="number" min="1" max="10000" value="1"></div>
-          </div>
 
           <div class="row-actions" style="margin-top:16px;align-items:center">
             <button class="btn ok" id="admRun" data-i18n="adm_run">▶ Run Admission</button>

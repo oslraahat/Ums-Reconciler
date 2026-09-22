@@ -134,7 +134,7 @@
     adm_h: { bn: "New Admission", en: "New Admission" },
     adm_load: { bn: "⟳ তথ্য আনো", en: "⟳ Fetch Data" },
     adm_loading: { bn: "⏳ আনছে…", en: "⏳ loading…" },
-    adm_defaults: { bn: "▸ Institute · Approver", en: "▸ Institute · Approver" },
+    adm_defaults: { bn: "▸ Gender · Religion · Branch · Campus · Amount · Institute · Approver", en: "▸ Gender · Religion · Branch · Campus · Amount · Institute · Approver" },
     adm_gender_l: { bn: "Gender", en: "Gender" },
     adm_religion_l: { bn: "Religion", en: "Religion" },
     adm_session_l: { bn: "Session", en: "Session" },
