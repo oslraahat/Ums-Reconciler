@@ -159,7 +159,7 @@
     adm_r_reg: { bn: "রেজি", en: "Reg" },
     adm_r_roll: { bn: "রোল", en: "Roll" },
     adm_r_mr: { bn: "রসিদ", en: "MR" },
-    adm_r_id: { bn: "id", en: "id" },
+    adm_r_id: { bn: "রসিদ-id", en: "MR id" },
     adm_r_paid: { bn: "দেওয়া", en: "Paid" },
     adm_r_due: { bn: "বাকি", en: "Due" },
     adm_pool_l: { bn: "একসাথে", en: "at once" },
