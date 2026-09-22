@@ -625,15 +625,14 @@
           <div class="ch"><h2 data-i18n="adm_h">New Admission</h2><span class="crmconn" id="admConn" style="margin-left:auto"></span></div>
           <p class="hint" data-i18n="adm_intro" style="margin:0 0 14px"></p>
 
-          <div style="margin-bottom:6px"><label data-i18n="adm_base_l">UMS ঠিকানা</label>
-            <input id="admBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
-          <div class="row-actions" style="align-items:center;gap:8px;flex-wrap:wrap">
+          <div class="row-actions" style="align-items:end;gap:8px;flex-wrap:wrap">
+            <div style="flex:0 1 300px;min-width:170px"><label data-i18n="adm_base_l">UMS ঠিকানা</label>
+              <input id="admBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
             <button class="btn g" id="admLoad" data-i18n="adm_load" style="height:var(--ctl-h)">⟳ Fetch Data</button>
             <div class="seg" style="height:var(--ctl-h)" data-title="adm_browser_t" title="HTTP = দ্রুত headless · Browser = আসল ফর্ম ট্যাবে খুলে দৃশ্যমান">
               <button type="button" id="admHttp" class="on" data-i18n="adm_http_l">⚡ HTTP</button>
               <button type="button" id="admBrowserBtn" data-i18n="adm_browser_l">🌐 Browser</button>
             </div>
-            <span style="flex:1"></span>
             <div class="seg" style="height:var(--ctl-h)">
               <button type="button" id="admSeq" class="on" data-i18n="adm_seq">একজন একজন</button>
               <button type="button" id="admPar" data-i18n="adm_par">একসাথে</button>
