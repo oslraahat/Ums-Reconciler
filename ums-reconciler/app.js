@@ -3345,6 +3345,7 @@
         admOutLine("  " + parts.join(" · "));
       } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
     }
+    try { await new Promise(function (res) { chrome.runtime.sendMessage({ type: "admBrowserClose" }, function () { res(); }); }); } catch (e) {}   // close the reused tab/window
     admOutLine("── " + ok + " ok · " + fail + " failed of " + (ok + fail) + " · " + ((Date.now() - t0) / 1000).toFixed(1) + "s" + (admStopFlag ? " (stopped)" : ""));
   }
   /* flag a field red until it is next focused/typed in, so a validation miss is visible on the field */

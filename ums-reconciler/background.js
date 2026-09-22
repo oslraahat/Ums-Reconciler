@@ -150,50 +150,62 @@ function getTab(id) { return new Promise(function (r) { chrome.tabs.get(id, func
 const RECEIPT_RE = /GenerateMoneyReciept|GenerateCoursewiseMoneyReciept/i;
 function receiptId(url) { const m = url && url.match(/[?&](?:id|studentPaymentIdList)=(\d+)/); return m ? m[1] : ""; }
 
+/* one tab/window is reused for a whole run (opened once, navigated per admission, closed at the end)
+   so Headless/Browser don't pop a new window for every student */
+let admRunTab = null, admRunWin = null;
+async function admEnsureTab(p, url) {
+  if (admRunTab != null && await getTab(admRunTab)) { await chrome.tabs.update(admRunTab, { url: url }); return admRunTab; }
+  admRunTab = null; admRunWin = null;
+  if (p.show === false) {   // Headless: minimised, unfocused window (Chrome still shows it briefly on create — it can't be fully hidden)
+    admRunWin = await chrome.windows.create({ url: url, focused: false, state: "minimized" });
+    admRunTab = admRunWin && admRunWin.tabs && admRunWin.tabs[0] && admRunWin.tabs[0].id;
+    try { await chrome.windows.update(admRunWin.id, { state: "minimized", focused: false }); } catch (e) {}
+  } else {
+    const tb = await chrome.tabs.create({ url: url, active: true });
+    admRunTab = tb.id; admRunWin = null;
+  }
+  return admRunTab;
+}
+async function admCloseRun() {
+  try { if (admRunWin) await chrome.windows.remove(admRunWin.id); else if (admRunTab != null) await chrome.tabs.remove(admRunTab); } catch (e) {}
+  admRunTab = null; admRunWin = null;
+}
+
 async function admBrowserRun(p) {
-  let tab = null, win = null;
   const url = p.base + "/Student/Admission/NewStudentAdmission";
   try {
-    if (p.show === false) {   // Headless: minimised, unfocused window — Chrome can't fully hide it, but keep it off-screen and minimised
-      win = await chrome.windows.create({ url: url, focused: false, state: "minimized" });   // state can't be combined with bounds
-      tab = win && win.tabs && win.tabs[0];
-      if (!tab) return { ok: false, message: "উইন্ডো খুলল না" };
-      try { await chrome.windows.update(win.id, { state: "minimized", focused: false }); } catch (e) {}
-    } else {
-      tab = await chrome.tabs.create({ url: url, active: true });
-    }
-    await waitTabComplete(tab.id, 30000);
-    await bgSleep(800);   // let any client-side redirect settle before injecting
-    let info = await getTab(tab.id);
-    if (!info) return { ok: false, message: "ট্যাব বন্ধ হয়ে গেছে" };
+    const tabId = await admEnsureTab(p, url);
+    if (tabId == null) return { ok: false, message: "ট্যাব খুলল না" };
+    await waitTabComplete(tabId, 30000);
+    await bgSleep(500);   // let any client-side redirect settle before injecting
+    const info = await getTab(tabId);
+    if (!info) { admRunTab = null; admRunWin = null; return { ok: false, message: "ট্যাব বন্ধ হয়ে গেছে" }; }
     if (/Account\/Login/i.test(info.url || "")) return { ok: false, message: "ওই সার্ভারে লগইন নেই — আগে ব্রাউজারে লগইন করো" };
-    /* inject the driver; a transient reload can remove the frame, so retry once (safe — the form is
-       not submitted until the very end, and if it already reached the receipt we treat it as done) */
     let r = null, lastErr = "";
     for (let attempt = 0; attempt < 2; attempt++) {
-      const cur = await getTab(tab.id);
+      const cur = await getTab(tabId);
       if (cur && RECEIPT_RE.test(cur.url || "")) { const id = receiptId(cur.url); if (id) return { ok: true, payId: id, url: cur.url }; }
       try {
-        const res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func: admDriver, args: [p] });
+        const res = await chrome.scripting.executeScript({ target: { tabId: tabId }, world: "MAIN", func: admDriver, args: [p] });
         r = res && res[0] && res[0].result;
         if (r === undefined || r === null) { lastErr = "driver ফল দিল না (frame বদলে গেছে / throttled হতে পারে)"; await bgSleep(500); continue; }
         break;
-      } catch (e) { lastErr = String((e && e.message) || e) || "executeScript ব্যর্থ"; await bgSleep(900); if (!await getTab(tab.id)) break; }
+      } catch (e) { lastErr = String((e && e.message) || e) || "executeScript ব্যর্থ"; await bgSleep(700); if (!await getTab(tabId)) break; }
     }
     if (!r) {
-      const cur = await getTab(tab.id); const id = cur && receiptId(cur.url || "");
+      const cur = await getTab(tabId); const id = cur && receiptId(cur.url || "");
       if (id) return { ok: true, payId: id, url: cur.url };
       return { ok: false, message: lastErr || "ফর্ম injection ব্যর্থ" };
     }
     if (!r.ok) return { ok: false, message: r.message || "ফর্ম পূরণ ব্যর্থ" };
-    const rcptUrl = await waitTabUrl(tab.id, RECEIPT_RE, 25000);
+    const rcptUrl = await waitTabUrl(tabId, RECEIPT_RE, 25000);
     const id = receiptId(rcptUrl);
     if (id) return { ok: true, payId: id, url: rcptUrl };
     return { ok: false, message: "Submit হলো কিন্তু রসিদে পৌঁছাল না (validation আটকে থাকতে পারে)" };
   } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
-  finally { if (p.close !== false) { try { if (win) await chrome.windows.remove(win.id); else if (tab) await chrome.tabs.remove(tab.id); } catch (e) {} } }
 }
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === "admBrowser") { admBrowserRun(msg.params || {}).then(sendResponse); return true; }
+  if (msg && msg.type === "admBrowserClose") { admCloseRun().then(function () { sendResponse({ ok: true }); }); return true; }
 });
