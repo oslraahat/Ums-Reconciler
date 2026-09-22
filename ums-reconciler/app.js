@@ -3043,6 +3043,7 @@
     const physCount = parseInt("0" + (br && (br.attachedPhysicalBrunchOptionsCount || br.AttachedPhysicalBrunchOptionsCount)), 10) || 0;
     const physReal = admOpts((br && (br.AttachedPhysicalBrunchOptions || br.attachedPhysicalBrunchOptions)) || "").filter(function (o) { return o.value && !/select/i.test(o.text); });
     admPhysBranch = (physCount > 0 && physReal.length) ? physReal[0].value : "";
+    if (br && typeof br === "object") admOutLine("  ▸ br keys: " + Object.keys(br).join(","));   // DEBUG: find the academic-group / mbbs flags
     admRenderCourses();
     await admOnBranch();
   }
