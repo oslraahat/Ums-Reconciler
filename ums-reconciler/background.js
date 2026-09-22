@@ -179,9 +179,9 @@ async function admBrowserRun(p) {
       return { ok: false, message: lastErr || "ফর্ম injection ব্যর্থ" };
     }
     if (!r.ok) return { ok: false, message: r.message || "ফর্ম পূরণ ব্যর্থ" };
-    const url = await waitTabUrl(tab.id, RECEIPT_RE, 25000);
-    const id = receiptId(url);
-    if (id) return { ok: true, payId: id, url: url };
+    const rcptUrl = await waitTabUrl(tab.id, RECEIPT_RE, 25000);
+    const id = receiptId(rcptUrl);
+    if (id) return { ok: true, payId: id, url: rcptUrl };
     return { ok: false, message: "Submit হলো কিন্তু রসিদে পৌঁছাল না (validation আটকে থাকতে পারে)" };
   } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
   finally { if (p.close !== false) { try { if (win) await chrome.windows.remove(win.id); else if (tab) await chrome.tabs.remove(tab.id); } catch (e) {} } }
