@@ -2916,32 +2916,25 @@
     }
     return out;
   }
-  async function admReceiptText(payId, dbg) {
+  async function admReceiptText(payId) {
     const rc = await admGetDoc("/Student/Payment/GenerateMoneyReciept?id=" + encodeURIComponent(payId));
-    if (dbg) {   // DEBUG: is Reg/Roll in the receipt HTML/response (not the PDF)?
-      const inputs = Array.prototype.map.call(rc.querySelectorAll("input,[id]"), function (x) { return (x.id || x.name || "") + (x.value && x.value.length < 40 ? "=" + x.value : ""); }).filter(Boolean).slice(0, 25);
-      admOutLine("  ▸ page inputs: " + inputs.join(", "));
-      const ptxt = ((rc.body && rc.body.textContent) || "").replace(/\s+/g, " ").trim();
-      const hit = ptxt.match(/(Roll|Regist)[\s\S]{0,40}/i);
-      admOutLine("  ▸ page has Roll/Reg text: " + (hit ? hit[0] : "NO") + " · len=" + ptxt.length);
-    }
-    let el = rc.querySelector("#moneyReceiptData") || rc.querySelector('[name="moneyReceiptData"]');
-    let b64 = el ? (el.getAttribute("value") || el.value || el.textContent || "") : "";
+    const el = rc.querySelector("#moneyReceiptData") || rc.querySelector('[name="moneyReceiptData"]');
+    const b64 = el ? (el.getAttribute("value") || el.value || el.textContent || "") : "";
     if (!b64) return "";
     const bytes = Uint8Array.from(atob(b64.replace(/\s+/g, "")), function (c) { return c.charCodeAt(0); });
     let bin = ""; for (let i = 0; i < bytes.length; i++) bin += String.fromCharCode(bytes[i]);
-    let idx = 0, streams = 0, okd = 0; const inflated = [];
+    let idx = 0; const inflated = [];
     while (true) {
       const s = bin.indexOf("stream", idx); if (s < 0) break;
       let start = s + 6; if (bin[start] === "\r") start++; if (bin[start] === "\n") start++;
       const e = bin.indexOf("endstream", start); if (e < 0) break;
-      idx = e + 9; streams++;
+      idx = e + 9;
       let end = e; while (end > start && (bin[end - 1] === "\n" || bin[end - 1] === "\r")) end--;   // drop the EOL before endstream
       let got = false;
       for (const fmt of ["deflate", "deflate-raw"]) {
         try {
           const inf = await new Response(new Blob([bytes.subarray(start, end)]).stream().pipeThrough(new DecompressionStream(fmt))).arrayBuffer();
-          inflated.push(new TextDecoder("latin1").decode(new Uint8Array(inf))); okd++; got = true;
+          inflated.push(new TextDecoder("latin1").decode(new Uint8Array(inf))); got = true;
           break;
         } catch (e2) {}
       }
@@ -2953,9 +2946,7 @@
     const cmap = admBuildCMap(inflated);
     let out = "";
     inflated.forEach(function (txt) { if (txt.indexOf("Tj") >= 0 || txt.indexOf("TJ") >= 0) out += admDecodeContent(txt, cmap) + " "; });
-    out = out.replace(/[ \t]+/g, " ").trim();
-    if (dbg) admOutLine("  ▸ streams=" + streams + " inflated=" + okd + " tounicode=" + (bin.match(/ToUnicode/g) || []).length + " cmap=" + Object.keys(cmap).length + " textLen=" + out.length + (out ? " · " + out.slice(0, 220) : ""));
-    return out;
+    return out.replace(/[ \t]+/g, " ").trim();
   }
   function admOpts(html) {
     const doc = new DOMParser().parseFromString("<select>" + String(html || "") + "</select>", "text/html");
@@ -3342,30 +3333,28 @@
                 : (reg.ErrorMessage || reg.Message));
               throw new Error(rm || ("no success — " + String(typeof reg === "string" ? reg : JSON.stringify(reg)).slice(0, 300)));
             }
-            /* success answers {IsSuccess, PaymentId}; the money receipt (with Reg No / Roll) is a PDF at
-               GenerateMoneyReciept?id=<PaymentId> — show the payment id and a link to open that receipt */
+            /* success answers {IsSuccess, PaymentId}; Reg No / Roll / Money-Receipt no. come from the
+               receipt PDF, while paid/due are the amounts we already computed (reliable) */
             const payId = String(reg.PaymentId || reg.AdditionalValue || reg.additionalValue || "").split(",")[0].trim();
-            let sName = "", branch = "", mrNo = "", regNo = "", roll = "", paid = "", due = "";
+            let branch = "", mrNo = "", regNo = "", roll = "";
             try {
-              const rtxt = payId ? await admReceiptText(payId, n === 1) : "";
+              const rtxt = payId ? await admReceiptText(payId) : "";
               const g = function (re) { const m = rtxt.match(re); return m ? m[1].trim() : ""; };
-              sName = g(/Student\s*Name\s*[:\-]?\s*([A-Za-z][A-Za-z .]+?)\s*(?:Roll|Registration)/i);
-              branch = g(/Branch\s*[:\-]?\s*([A-Za-z][A-Za-z .]+?)\s*(?:\d|$)/i);
-              mrNo = g(/Money\s*Receipt[^#]*#\s*(\d+)/i);
               regNo = g(/Registration\s*(?:Number|No\.?)?\s*[:\-]?\s*(\d{4,})/i);
               roll = g(/Roll\s*(?:Number|No\.?)?\s*[:\-]?\s*(\d{4,})/i);
-              paid = g(/Paid\s*Amount\s*[:\-]?\s*([0-9,]+(?:\.\d+)?)/i);
-              due = g(/Due\s*Amount\s*[:\-]?\s*([0-9,]+(?:\.\d+)?)/i);
+              branch = g(/Branch\s*[:\-]?\s*([A-Za-z][A-Za-z .]+?)\s*(?:\d|$)/i);
+              mrNo = g(/Money\s*Receipt[^#]*#\s*(\d+)/i);
             } catch (e) {}
             ok++;
-            const parts = ["✓ #" + n + "/" + count, sName || vm.Name];
+            const money = function (v) { return "৳" + Number(v).toLocaleString("en-US"); };
+            const parts = ["✓ #" + n + "/" + count, vm.Name];
             if (regNo) parts.push(t("adm_r_reg") + " " + regNo);
             if (roll) parts.push(t("adm_r_roll") + " " + roll);
             if (branch) parts.push(branch);
             if (mrNo) parts.push(t("adm_r_mr") + " #" + mrNo);
             parts.push(t("adm_r_id") + " " + payId);
-            if (paid) parts.push(t("adm_r_paid") + " ৳" + paid);
-            if (due) parts.push(t("adm_r_due") + " ৳" + due);
+            parts.push(t("adm_r_paid") + " " + money(received));
+            if (netAfter - received > 0) parts.push(t("adm_r_due") + " " + money(netAfter - received));
             admOutLine("  " + parts.join(" · "));
           } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
         }
