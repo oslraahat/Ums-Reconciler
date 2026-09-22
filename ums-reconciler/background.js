@@ -89,12 +89,16 @@ async function admDriver(p) {
     if (!await waitFor(function () { return hasOpts("#Program"); }, 40000)) throw new Error("Program এলো না");
     setSel("#Program", String(p.program)); await sleep(400); await noBlock();
     if (!await waitFor(function () { return hasOpts("#Session"); }, 30000)) throw new Error("Session এলো না");
-    setSel("#Session", String(p.session));
-    setSel("#Gender", String(p.gender)); setSel("#Religion", String(p.religion));
+    setSel("#Session", String(p.session)); await sleep(400); await noBlock();
+    await waitFor(function () { return document.querySelector(".course-name-check"); }, 25000);   // let the session cascade finish
+    setSel("#Gender", String(p.gender)); setSel("#Religion", String(p.religion)); await sleep(200);
     if ($("#LastInstituteName")) $("#LastInstituteName").value = p.instName || "";
     if ($("#LastInstituteId")) $("#LastInstituteId").value = p.instId || "";
-    setSel("#VersionOfStudy", String(p.version)); await sleep(600); await noBlock();
-    if (!await waitFor(function () { return hasOpts("#Branch"); }, 40000)) throw new Error("Branch এলো না");
+    setSel("#VersionOfStudy", String(p.version)); await sleep(800); await noBlock();
+    if (!await waitFor(function () { return hasOpts("#Branch"); }, 25000)) {
+      const dv = function (s) { const e = $(s); return e ? (e.value || "?") + "/" + ((e.options || []).length) + "o" : "none"; };
+      throw new Error("Branch এলো না [ver " + dv("#VersionOfStudy") + " · gen " + dv("#Gender") + " · sess " + dv("#Session") + " · branch " + dv("#Branch") + " · courses " + document.querySelectorAll(".course-name-check").length + "]");
+    }
     setSel("#Branch", String(p.branch)); await sleep(300); await noBlock();
     await waitFor(function () { return hasOpts("#Campus"); }, 15000); setSel("#Campus", String(p.campus)); await sleep(300); await noBlock();
     if (hasOpts("#AttachedPhysicalBranch") && p.physBranch) setSel("#AttachedPhysicalBranch", String(p.physBranch));
@@ -150,10 +154,11 @@ async function admBrowserRun(p) {
   let tab = null, win = null;
   const url = p.base + "/Student/Admission/NewStudentAdmission";
   try {
-    if (p.show === false) {   // Headless: open in a minimised, unfocused window so nothing shows on screen
-      win = await chrome.windows.create({ url: url, focused: false, state: "minimized" });
+    if (p.show === false) {   // Headless: minimised, unfocused window — Chrome can't fully hide it, but keep it off-screen and minimised
+      win = await chrome.windows.create({ url: url, focused: false, state: "minimized", top: 0, left: 0, width: 500, height: 400 });
       tab = win && win.tabs && win.tabs[0];
       if (!tab) return { ok: false, message: "উইন্ডো খুলল না" };
+      try { await chrome.windows.update(win.id, { state: "minimized", focused: false }); } catch (e) {}
     } else {
       tab = await chrome.tabs.create({ url: url, active: true });
     }
