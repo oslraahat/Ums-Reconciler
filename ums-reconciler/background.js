@@ -129,17 +129,40 @@ async function admDriver(p) {
   } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
 }
 
+function bgSleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+function getTab(id) { return new Promise(function (r) { chrome.tabs.get(id, function (t) { r(chrome.runtime.lastError ? null : t); }); }); }
+const RECEIPT_RE = /GenerateMoneyReciept|GenerateCoursewiseMoneyReciept/i;
+function receiptId(url) { const m = url && url.match(/[?&](?:id|studentPaymentIdList)=(\d+)/); return m ? m[1] : ""; }
+
 async function admBrowserRun(p) {
   let tab = null;
   try {
     tab = await chrome.tabs.create({ url: p.base + "/Student/Admission/NewStudentAdmission", active: p.show !== false });
     await waitTabComplete(tab.id, 30000);
-    const res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func: admDriver, args: [p] });
-    const r = res && res[0] && res[0].result;
-    if (!r || !r.ok) return { ok: false, message: (r && r.message) || "ফর্ম পূরণ ব্যর্থ" };
-    const url = await waitTabUrl(tab.id, /GenerateMoneyReciept|GenerateCoursewiseMoneyReciept/i, 25000);
-    const m = url && url.match(/[?&](?:id|studentPaymentIdList)=(\d+)/);
-    if (m) return { ok: true, payId: m[1], url: url };
+    await bgSleep(800);   // let any client-side redirect settle before injecting
+    let info = await getTab(tab.id);
+    if (!info) return { ok: false, message: "ট্যাব বন্ধ হয়ে গেছে" };
+    if (/Account\/Login/i.test(info.url || "")) return { ok: false, message: "ওই সার্ভারে লগইন নেই — আগে ব্রাউজারে লগইন করো" };
+    /* inject the driver; a transient reload can remove the frame, so retry once (safe — the form is
+       not submitted until the very end, and if it already reached the receipt we treat it as done) */
+    let r = null, lastErr = "";
+    for (let attempt = 0; attempt < 2; attempt++) {
+      const cur = await getTab(tab.id);
+      if (cur && RECEIPT_RE.test(cur.url || "")) { const id = receiptId(cur.url); if (id) return { ok: true, payId: id, url: cur.url }; }
+      try {
+        const res = await chrome.scripting.executeScript({ target: { tabId: tab.id }, world: "MAIN", func: admDriver, args: [p] });
+        r = res && res[0] && res[0].result; break;
+      } catch (e) { lastErr = String((e && e.message) || e); await bgSleep(900); if (!await getTab(tab.id)) break; }
+    }
+    if (!r) {
+      const cur = await getTab(tab.id); const id = cur && receiptId(cur.url || "");
+      if (id) return { ok: true, payId: id, url: cur.url };
+      return { ok: false, message: lastErr || "ফর্ম injection ব্যর্থ" };
+    }
+    if (!r.ok) return { ok: false, message: r.message || "ফর্ম পূরণ ব্যর্থ" };
+    const url = await waitTabUrl(tab.id, RECEIPT_RE, 25000);
+    const id = receiptId(url);
+    if (id) return { ok: true, payId: id, url: url };
     return { ok: false, message: "Submit হলো কিন্তু রসিদে পৌঁছাল না (validation আটকে থাকতে পারে)" };
   } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
   finally { if (tab && p.close !== false) { try { await chrome.tabs.remove(tab.id); } catch (e) {} } }
