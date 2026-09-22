@@ -80,37 +80,37 @@ function waitTabUrl(tabId, re, ms) {
 async function admDriver(p) {
   const $ = function (s) { return document.querySelector(s); };
   const sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
-  const waitFor = async function (fn, ms) { const t0 = Date.now(); while (Date.now() - t0 < (ms || 15000)) { try { if (fn()) return true; } catch (e) {} await sleep(150); } return false; };
+  const waitFor = async function (fn, ms) { const t0 = Date.now(); while (Date.now() - t0 < (ms || 15000)) { try { if (fn()) return true; } catch (e) {} await sleep(70); } return false; };
   const noBlock = function () { return waitFor(function () { return !document.querySelector(".blockOverlay,.blockUI"); }, 20000); };
   const setSel = function (sel, val) { const el = $(sel); if (!el) return false; el.value = val; el.dispatchEvent(new Event("change", { bubbles: true })); return true; };
   const hasOpts = function (sel) { const s = $(sel); return s && s.options.length > 1; };
   try {
-    setSel("#StudentClass", "Admission"); await sleep(400); await noBlock();
+    setSel("#StudentClass", "Admission"); await sleep(100); await noBlock();
     if (!await waitFor(function () { return hasOpts("#Program"); }, 40000)) throw new Error("Program এলো না");
-    setSel("#Program", String(p.program)); await sleep(400); await noBlock();
+    setSel("#Program", String(p.program)); await sleep(100); await noBlock();
     if (!await waitFor(function () { return hasOpts("#Session"); }, 30000)) throw new Error("Session এলো না");
-    setSel("#Session", String(p.session)); await sleep(400); await noBlock();
+    setSel("#Session", String(p.session)); await sleep(100); await noBlock();
     await waitFor(function () { return document.querySelector(".course-name-check"); }, 25000);   // let the session cascade finish
-    setSel("#Gender", String(p.gender)); setSel("#Religion", String(p.religion)); await sleep(200);
+    setSel("#Gender", String(p.gender)); setSel("#Religion", String(p.religion)); await sleep(80);
     if ($("#LastInstituteName")) $("#LastInstituteName").value = p.instName || "";
     if ($("#LastInstituteId")) $("#LastInstituteId").value = p.instId || "";
-    setSel("#VersionOfStudy", String(p.version)); await sleep(800); await noBlock();
+    setSel("#VersionOfStudy", String(p.version)); await sleep(120); await noBlock();
     if (!await waitFor(function () { return hasOpts("#Branch"); }, 25000)) {
       const dv = function (s) { const e = $(s); return e ? (e.value || "?") + "/" + ((e.options || []).length) + "o" : "none"; };
       throw new Error("Branch এলো না [ver " + dv("#VersionOfStudy") + " · gen " + dv("#Gender") + " · sess " + dv("#Session") + " · branch " + dv("#Branch") + " · courses " + document.querySelectorAll(".course-name-check").length + "]");
     }
-    setSel("#Branch", String(p.branch)); await sleep(300); await noBlock();
-    await waitFor(function () { return hasOpts("#Campus"); }, 15000); setSel("#Campus", String(p.campus)); await sleep(300); await noBlock();
+    setSel("#Branch", String(p.branch)); await sleep(100); await noBlock();
+    await waitFor(function () { return hasOpts("#Campus"); }, 15000); setSel("#Campus", String(p.campus)); await sleep(100); await noBlock();
     if (hasOpts("#AttachedPhysicalBranch") && p.physBranch) setSel("#AttachedPhysicalBranch", String(p.physBranch));
     await waitFor(function () { return document.querySelector(".course-name-check"); }, 15000);
     const ids = (p.courseIds || []).map(String);
     for (const cid of ids) {
       const cb = document.querySelector(".course-name-check.course-" + cid) || Array.prototype.find.call(document.querySelectorAll(".course-name-check"), function (c) { const m = (c.className || "").match(/course-(\d+)/); return m && m[1] === cid; });
       if (cb && !cb.checked) cb.click();
-      await sleep(500); await noBlock();
+      await sleep(150); await noBlock();
       for (const cls of [".batch-day-course-" + cid, ".batch-time-course-" + cid, ".batch-course-" + cid]) {
         const ok = await waitFor(function () { const s = $(cls); return s && Array.prototype.some.call(s.options, function (o) { return o.value.trim(); }); }, 9000);
-        if (ok) { const s = $(cls); const opt = Array.prototype.find.call(s.options, function (o) { return o.value.trim(); }); s.value = opt.value; s.dispatchEvent(new Event("change", { bubbles: true })); await sleep(600); }
+        if (ok) { const s = $(cls); const opt = Array.prototype.find.call(s.options, function (o) { return o.value.trim(); }); s.value = opt.value; s.dispatchEvent(new Event("change", { bubbles: true })); await sleep(180); await noBlock(); }
       }
     }
     if ($("#Name")) $("#Name").value = p.name;
@@ -122,7 +122,7 @@ async function admDriver(p) {
     document.querySelectorAll("input[type=radio]").forEach(function (r) { if (!r.offsetParent) return; (groups[r.name] = groups[r.name] || []).push(r); });
     Object.keys(groups).forEach(function (k) { const rs = groups[k]; if (!rs.some(function (r) { return r.checked; })) { rs[0].checked = true; rs[0].dispatchEvent(new Event("change", { bubbles: true })); } });
     const next = $("#newAdmissionNextBtn") || $("#nextBtn"); if (!next) throw new Error("Next বাটন নেই"); next.click();
-    await sleep(1500); await noBlock();
+    await sleep(250); await noBlock();
     if (!await waitFor(function () { const el = $("#receivedAmount"); return el && el.offsetParent; }, 20000)) {
       const err = (document.querySelector("#boardInfoErrorMessage,.text-danger,.alert-danger") || {}).textContent || "";
       throw new Error("Payment ধাপে গেল না" + (err ? " — " + err.replace(/\s+/g, " ").trim().slice(0, 120) : ""));
@@ -135,10 +135,10 @@ async function admDriver(p) {
     /* pick a payment method if none is chosen (Cash is the usual default) */
     const pm = $("#PaymentMethods");
     if (pm && !pm.value) { const opt = Array.prototype.find.call(pm.options, function (o) { return o.value.trim(); }); if (opt) { pm.value = opt.value; pm.dispatchEvent(new Event("change", { bubbles: true })); } }
-    await sleep(300);
+    await sleep(120);
     const submit = $("#newAdmissionPaymentSubmitBtn") || $("#admissionPaymentSubmitBtn"); if (!submit) throw new Error("Submit বাটন নেই"); submit.click();
     /* if client validation blocks it, surface the message instead of silently timing out */
-    await sleep(1200);
+    await sleep(700);
     const verr = document.querySelector("#receivedAmountError,#nextRecDateError,.text-danger,.alert-danger,.field-validation-error");
     if (verr && verr.textContent && verr.textContent.trim() && !/GenerateMoneyReciept/i.test(location.href)) return { ok: false, message: verr.textContent.replace(/\s+/g, " ").trim().slice(0, 140) };
     return { ok: true };
