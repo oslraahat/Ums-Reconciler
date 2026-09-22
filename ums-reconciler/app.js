@@ -137,6 +137,7 @@
     adm_defaults: { bn: "▸ Gender · Religion · Branch · Campus · Amount · Institute · Discount", en: "▸ Gender · Religion · Branch · Campus · Amount · Institute · Discount" },
     adm_gender_l: { bn: "Gender", en: "Gender" },
     adm_religion_l: { bn: "Religion", en: "Religion" },
+    adm_class_l: { bn: "Student Class", en: "Student Class" },
     adm_session_l: { bn: "Session", en: "Session" },
     adm_branch_l: { bn: "Branch", en: "Branch" },
     adm_campus_l: { bn: "Campus", en: "Campus" },
