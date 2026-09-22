@@ -2782,7 +2782,15 @@
     const b = $("admRun"); if (b) { b.disabled = on; b.textContent = t(on ? "adm_running" : "adm_run"); }
     if ($("admStop")) $("admStop").disabled = !on;
   }
-  function admOutLine(s) { const o = $("admOut"); if (!o) return; o.style.display = ""; o.textContent += (o.textContent ? "\n" : "") + s; o.scrollTop = o.scrollHeight; }
+  /* colour each line by its lead marker — ✓ ok, ✗ fail, ⚠ warn, → start, ── summary — so a run is
+     scannable; textContent keeps UMS-supplied text safe from HTML injection */
+  function admOutLine(s) {
+    const o = $("admOut"); if (!o) return; o.style.display = "";
+    const cls = /^\s*✓/.test(s) ? "ok" : /^\s*✗/.test(s) ? "no" : /^\s*⚠/.test(s) ? "warn" : /^\s*──/.test(s) ? "mut" : /^\s*→/.test(s) ? "info" : "";
+    const span = document.createElement("span"); if (cls) span.className = cls;
+    span.textContent = (o.childNodes.length ? "\n" : "") + s;
+    o.appendChild(span); o.scrollTop = o.scrollHeight;
+  }
   function admCount() { return Math.max(1, Math.min(1000, parseInt($("admCount").value, 10) || 1)); }
   function admPool() { return Math.max(1, Math.min(20, parseInt($("admPool").value, 10) || 1)); }
   function admBaseUrl() { return (($("admBase") && $("admBase").value) || "").trim().replace(/\/+$/, ""); }
