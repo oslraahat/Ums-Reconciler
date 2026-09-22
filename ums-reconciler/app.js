@@ -156,6 +156,12 @@
     adm_prog_l: { bn: "Program", en: "Program" },
     adm_amount_l: { bn: "Amount", en: "Amount" },
     adm_count_l: { bn: "Count", en: "Count" },
+    adm_r_reg: { bn: "রেজি", en: "Reg" },
+    adm_r_roll: { bn: "রোল", en: "Roll" },
+    adm_r_mr: { bn: "রসিদ", en: "MR" },
+    adm_r_id: { bn: "id", en: "id" },
+    adm_r_paid: { bn: "দেওয়া", en: "Paid" },
+    adm_r_due: { bn: "বাকি", en: "Due" },
     adm_pool_l: { bn: "একসাথে", en: "at once" },
     adm_need_load: { bn: "আগে ⟳ ফর্ম আনো চাপো", en: "press ⟳ Load form first" },
     adm_need_course: { bn: "অন্তত একটা কোর্স টিক দাও", en: "tick at least one course" },
@@ -3303,13 +3309,13 @@
             } catch (e) {}
             ok++;
             const parts = ["✓ #" + n + "/" + count, sName || vm.Name];
-            if (regNo) parts.push("reg " + regNo);
-            if (roll) parts.push("roll " + roll);
+            if (regNo) parts.push(t("adm_r_reg") + " " + regNo);
+            if (roll) parts.push(t("adm_r_roll") + " " + roll);
             if (branch) parts.push(branch);
-            if (mrNo) parts.push("MR #" + mrNo);
-            parts.push("id " + payId);
-            if (paid) parts.push("দেওয়া ৳" + paid);
-            if (due) parts.push("বাকি ৳" + due);
+            if (mrNo) parts.push(t("adm_r_mr") + " #" + mrNo);
+            parts.push(t("adm_r_id") + " " + payId);
+            if (paid) parts.push(t("adm_r_paid") + " ৳" + paid);
+            if (due) parts.push(t("adm_r_due") + " ৳" + due);
             admOutLine("  " + parts.join(" · "));
           } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
         }
