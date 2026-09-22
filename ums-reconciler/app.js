@@ -2930,6 +2930,7 @@
         const rr = /<([0-9A-Fa-f]+)>\s*<([0-9A-Fa-f]+)>\s*(?:<([0-9A-Fa-f]+)>|\[([\s\S]*?)\])/g; let r;
         while ((r = rr.exec(m[1]))) {
           const lo = parseInt(r[1], 16), hi = parseInt(r[2], 16), w = Math.max(4, r[1].length);
+          if (!(hi >= lo) || hi - lo > 0xFFFF) continue;   // guard: a huge/garbage range would freeze the tab (untrusted PDF)
           if (r[3]) { let d = parseInt(r[3], 16); for (let c = lo; c <= hi; c++) map[c.toString(16).toUpperCase().padStart(w, "0")] = String.fromCharCode(d++); }
           else if (r[4]) { const arr = r[4].match(/<([0-9A-Fa-f]+)>/g) || []; for (let c = lo, i = 0; c <= hi && i < arr.length; c++, i++) map[c.toString(16).toUpperCase().padStart(w, "0")] = admHexToStr(arr[i].replace(/[<>]/g, "")); }
         }
@@ -3179,7 +3180,7 @@
     box.innerHTML = "";
     courses.forEach(function (c) {
       const row = document.createElement("div"); row.className = "admcrow";
-      row.innerHTML = '<label><input type="checkbox" class="admc-cb" data-cid="' + c.id + '"><span>' + (c.name || c.id).replace(/</g, "&lt;") + '</span></label>' +
+      row.innerHTML = '<label><input type="checkbox" class="admc-cb" data-cid="' + String(c.id).replace(/"/g, "&quot;") + '"><span>' + (c.name || c.id).replace(/</g, "&lt;") + '</span></label>' +
         '<span class="admc-batch"></span>';
       const cb = row.querySelector(".admc-cb"); cb.__course = c;
       cb.addEventListener("change", function () { admCourseCheck(cb); });
@@ -3374,7 +3375,7 @@
     const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; }
     try {
       const inst = await admResolveInstitute();
-      const discount = parseInt("0" + ((($("admDiscount") && $("admDiscount").value) || "").trim()), 10) || 0;
+      const discount = parseInt("0" + ((($("admDiscount") && $("admDiscount").value) || "").replace(/,/g, "").trim()), 10) || 0;
       /* one special-discount total → the server checks it equals the sum of the course-wise entries,
          so put the whole amount on the first ticked course; a discount needs an approver id */
       let approver = { name: "", id: "" };
@@ -3385,7 +3386,7 @@
       const sel = { program: $("admProgram").value, session: $("admSession").value, branch: $("admBranch").value,
         campus: $("admCampus").value, gender: $("admGender").value, religion: $("admReligion").value,
         mobile: mobile, instName: inst.name, instId: inst.id, approverId: approver.id };
-      const amount = ($("admAmount").value || "").trim();
+      const amount = ($("admAmount").value || "").replace(/,/g, "").trim();
       const intOf = function (v) { return parseInt("0" + v, 10) || 0; };
 
       const feeVM = admBuildStudent(sel, admName());

@@ -150,21 +150,20 @@ function getTab(id) { return new Promise(function (r) { chrome.tabs.get(id, func
 const RECEIPT_RE = /GenerateMoneyReciept|GenerateCoursewiseMoneyReciept/i;
 function receiptId(url) { const m = url && url.match(/[?&](?:id|studentPaymentIdList)=(\d+)/); return m ? m[1] : ""; }
 
-/* one tab/window is reused for a whole run (opened once, navigated per admission, closed at the end)
-   so Headless/Browser don't pop a new window for every student */
-let admRunTab = null, admRunWin = null;
+/* one tab is reused for a whole run (opened once, navigated per admission, closed at the end) so
+   Browser/Headless don't open a new tab for every student */
+let admRunTab = null;
 async function admEnsureTab(p, url) {
   if (admRunTab != null && await getTab(admRunTab)) { await chrome.tabs.update(admRunTab, { url: url }); return admRunTab; }
-  admRunTab = null; admRunWin = null;
-  /* both open a tab in the current window — Browser in front (active), Headless in the background
-     (active:false) so it never opens a separate window or steals focus */
+  /* a tab in the current window — Browser in front (active), Headless in the background (active:false)
+     so it never opens a separate window or steals focus */
   const tb = await chrome.tabs.create({ url: url, active: p.show !== false });
-  admRunTab = tb.id; admRunWin = null;
+  admRunTab = tb.id;
   return admRunTab;
 }
 async function admCloseRun() {
-  try { if (admRunWin) await chrome.windows.remove(admRunWin.id); else if (admRunTab != null) await chrome.tabs.remove(admRunTab); } catch (e) {}
-  admRunTab = null; admRunWin = null;
+  try { if (admRunTab != null) await chrome.tabs.remove(admRunTab); } catch (e) {}
+  admRunTab = null;
 }
 
 async function admBrowserRun(p) {
@@ -175,23 +174,26 @@ async function admBrowserRun(p) {
     await waitTabComplete(tabId, 30000);
     await bgSleep(500);   // let any client-side redirect settle before injecting
     const info = await getTab(tabId);
-    if (!info) { admRunTab = null; admRunWin = null; return { ok: false, message: "ট্যাব বন্ধ হয়ে গেছে" }; }
+    if (!info) { admRunTab = null; return { ok: false, message: "ট্যাব বন্ধ হয়ে গেছে" }; }
     if (/Account\/Login/i.test(info.url || "")) return { ok: false, message: "ওই সার্ভারে লগইন নেই — আগে ব্রাউজারে লগইন করো" };
-    let r = null, lastErr = "";
-    for (let attempt = 0; attempt < 2; attempt++) {
-      const cur = await getTab(tabId);
-      if (cur && RECEIPT_RE.test(cur.url || "")) { const id = receiptId(cur.url); if (id) return { ok: true, payId: id, url: cur.url }; }
-      try {
-        const res = await chrome.scripting.executeScript({ target: { tabId: tabId }, world: "MAIN", func: admDriver, args: [p] });
-        r = res && res[0] && res[0].result;
-        if (r === undefined || r === null) { lastErr = "driver ফল দিল না (frame বদলে গেছে / throttled হতে পারে)"; await bgSleep(500); continue; }
-        break;
-      } catch (e) { lastErr = String((e && e.message) || e) || "executeScript ব্যর্থ"; await bgSleep(700); if (!await getTab(tabId)) break; }
+    const cur0 = await getTab(tabId);
+    if (cur0 && RECEIPT_RE.test(cur0.url || "")) { const id = receiptId(cur0.url); if (id) return { ok: true, payId: id, url: cur0.url }; }
+    /* ONE injection only — no retry: the driver clicks the real Submit near the end, and a lost result
+       usually means it already submitted and the tab navigated. Re-running would create a DUPLICATE real
+       admission. On any loss, wait to see if the receipt appeared (submit went through) before failing. */
+    let r = null;
+    try {
+      const res = await chrome.scripting.executeScript({ target: { tabId: tabId }, world: "MAIN", func: admDriver, args: [p] });
+      r = res && res[0] && res[0].result;
+    } catch (e) {
+      const rc = await waitTabUrl(tabId, RECEIPT_RE, 8000); const id = receiptId(rc);
+      if (id) return { ok: true, payId: id, url: rc };
+      return { ok: false, message: "injection: " + (String((e && e.message) || e) || "ব্যর্থ") };
     }
-    if (!r) {
-      const cur = await getTab(tabId); const id = cur && receiptId(cur.url || "");
-      if (id) return { ok: true, payId: id, url: cur.url };
-      return { ok: false, message: lastErr || "ফর্ম injection ব্যর্থ" };
+    if (r == null) {
+      const rc = await waitTabUrl(tabId, RECEIPT_RE, 8000); const id = receiptId(rc);
+      if (id) return { ok: true, payId: id, url: rc };
+      return { ok: false, message: "driver ফল হারাল (ডুপ্লিকেট এড়াতে re-run করিনি — ট্যাব দেখে নাও)" };
     }
     if (!r.ok) return { ok: false, message: r.message || "ফর্ম পূরণ ব্যর্থ" };
     const rcptUrl = await waitTabUrl(tabId, RECEIPT_RE, 25000);
