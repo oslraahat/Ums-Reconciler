@@ -2936,7 +2936,14 @@
   }
   const ADM_NAMES = "Rahim Karim Faruk Hasan Mahmud Jahid Rakib Arif Monir Sumon Milon Rubel Shakil Tanvir".split(" ");
   let _admSeq = 0;
-  function admName() { const r = function () { return ADM_NAMES[Math.floor(Math.random() * ADM_NAMES.length)]; }; _admSeq++; return r() + r() + (Date.now().toString(36) + _admSeq).slice(-4); }
+  /* letters only — the admission form strips digits from the name (/[^a-zA-Z-\s]/), so a base36 suffix
+     with numbers would be rejected; a 4-letter random tail keeps each nick name distinct */
+  function admName() {
+    const r = function () { return ADM_NAMES[Math.floor(Math.random() * ADM_NAMES.length)]; };
+    const L = "abcdefghijklmnopqrstuvwxyz"; let suf = "";
+    for (let i = 0; i < 4; i++) suf += L[Math.floor(Math.random() * L.length)];
+    _admSeq++; return r() + " " + r() + suf;
+  }
 
   /* ---- interactive form: the dropdowns are fetched from UMS, the user picks ---- */
   let admLoaded = false, admClassId = "", admVersion = "", admCourseView = "", admBatchOf = {};
