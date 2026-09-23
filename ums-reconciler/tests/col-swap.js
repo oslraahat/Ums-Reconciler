@@ -20,7 +20,11 @@
 const fs = require("fs");
 const path = require("path");
 
-const APP = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+/* detectCols/swapCheck moved to lib/import.js (app.js keeps thin references), so the source lifted
+   and run here is import.js concatenated BEFORE app.js — name-based extraction then finds the real
+   `function detectCols` / `async function swapCheck` before the thin `const` refs in app.js. */
+const APP = fs.readFileSync(path.join(__dirname, "..", "lib", "import.js"), "utf8") + "\n" +
+  fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
 
 let fail = 0;
 const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  " : "FAIL  ") + name + (!ok && extra ? "   " + extra : "")); };
