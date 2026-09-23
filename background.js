@@ -73,10 +73,19 @@ chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(function () {
   try {
     chrome.storage.local.get("umsReopen", function (o) {
       var t = o && o.umsReopen;
-      if (t && Date.now() - t < 30000) {
-        try { chrome.storage.local.remove("umsReopen"); } catch (e) {}
-        try { chrome.tabs.create({ url: chrome.runtime.getURL(PAGE) }); } catch (e) {}
-      }
+      if (!(t && Date.now() - t < 30000)) return;
+      try { chrome.storage.local.remove("umsReopen"); } catch (e) {}
+      const url = chrome.runtime.getURL(PAGE);
+      /* reuse a still-open tool tab if one survived the reload (focus it) instead of stacking a
+         second one; otherwise open a fresh tab */
+      existingTab(url).then(function (open) {
+        if (open) {
+          chrome.tabs.update(open.tabId, { active: true }, function () { if (chrome.runtime.lastError) chrome.tabs.create({ url: url }); });
+          if (open.windowId != null && open.windowId >= 0) { try { chrome.windows.update(open.windowId, { focused: true }); } catch (e) {} }
+        } else {
+          chrome.tabs.create({ url: url });
+        }
+      }).catch(function () { try { chrome.tabs.create({ url: url }); } catch (e) {} });
     });
   } catch (e) {}
 })();
