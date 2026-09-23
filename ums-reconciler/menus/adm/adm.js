@@ -814,4 +814,13 @@
     instSearch: admInstSearch, apprSearch: admApprSearch, connDebounced: admConnDebounced,
     onShow: admOnShow, setConn: admSetConn, getConn: function () { return admConnState; }
   };
+
+  /* Self-heal: the moment this page loads, tear down any leftover referer rule (id 8801) from an
+     earlier build or an interrupted run. This runs on every open/refresh of the tool page and needs
+     no extension reload, so a rule that was quietly rewriting the user's UMS AJAX can't survive
+     simply reopening the tool. New Admission re-adds a correctly-scoped one only while it posts. */
+  try {
+    if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.updateSessionRules)
+      chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [8801] });
+  } catch (e) {}
 })();
