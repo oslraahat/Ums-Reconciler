@@ -214,13 +214,21 @@ async function admDriver(p) {
     /* pick a payment method if none is chosen (Cash is the usual default) */
     const pm = $("#PaymentMethods");
     if (pm && !pm.value) { const opt = Array.prototype.find.call(pm.options, function (o) { return o.value.trim(); }); if (opt) { pm.value = opt.value; pm.dispatchEvent(new Event("change", { bubbles: true })); } }
+    /* read the money off the Payment step so the run can show Paid / Due like HTTP mode does —
+       "paid" is what the form accepted in #receivedAmount, "due" its remaining-amount field */
+    const numOf = function (el) { if (!el) return null; const raw = (el.value != null && el.value !== "" ? el.value : el.textContent) || ""; const n = parseFloat(String(raw).replace(/,/g, "").replace(/[^0-9.]/g, "")); return isFinite(n) ? n : null; };
+    const firstNum = function (sels) { for (const s of sels) { const n = numOf($(s)); if (n != null) return n; } return null; };
+    const paidVal = numOf($("#receivedAmount"));
+    const totalVal = firstNum(["#netPayable", "#NetPayable", "#netReceivable", "#NetReceivable", "#totalPayable", "#TotalPayable", "#totalAmount", "#TotalAmount", "#payableAmount", "#PayableAmount", "#grandTotal", "#GrandTotal"]);
+    let dueVal = firstNum(["#dueAmount", "#DueAmount", "#due", "#Due", "#remainingAmount", "#RemainingAmount", "#duePayment", "#DuePayment"]);
+    if (dueVal == null && totalVal != null && paidVal != null) dueVal = Math.max(0, totalVal - paidVal);
     const submit = $("#newAdmissionPaymentSubmitBtn") || $("#admissionPaymentSubmitBtn"); if (!submit) throw new Error("Submit বাটন নেই"); submit.click();
     /* wait (event-driven) for either a client validation message or the redirect to the receipt —
        resolves the instant an error shows, so no fixed post-submit delay */
     await waitFor(function () { return /GenerateMoneyReciept/i.test(location.href) || !!document.querySelector("#receivedAmountError,#nextRecDateError,.text-danger,.alert-danger,.field-validation-error"); }, 4000);
     const verr = document.querySelector("#receivedAmountError,#nextRecDateError,.text-danger,.alert-danger,.field-validation-error");
     if (verr && verr.textContent && verr.textContent.trim() && !/GenerateMoneyReciept/i.test(location.href)) return { ok: false, message: verr.textContent.replace(/\s+/g, " ").trim().slice(0, 140) };
-    return { ok: true };
+    return { ok: true, paid: paidVal, due: dueVal, total: totalVal };
   } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
 }
 
@@ -294,7 +302,7 @@ async function admBrowserRun(p) {
     if (!r.ok) return { ok: false, message: r.message || "ফর্ম পূরণ ব্যর্থ" };
     const rcptUrl = await waitTabUrl(tabId, RECEIPT_RE, 25000);
     const id = receiptId(rcptUrl);
-    if (id) return { ok: true, payId: id, url: rcptUrl };
+    if (id) return { ok: true, payId: id, url: rcptUrl, paid: r.paid, due: r.due, total: r.total };
     return { ok: false, message: "Submit হলো কিন্তু রসিদে পৌঁছাল না (validation আটকে থাকতে পারে)" };
   } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
 }

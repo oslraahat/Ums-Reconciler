@@ -591,6 +591,9 @@
         if (branch) parts.push(branch);
         if (mrNo) parts.push(t("adm_r_mr") + " #" + mrNo);
         if (r.payId) parts.push(t("adm_r_id") + " " + r.payId);
+        const money = function (v) { return "৳" + Number(v).toLocaleString("en-US"); };
+        if (r.paid != null) parts.push(t("adm_r_paid") + " " + money(r.paid));
+        if (r.due != null && r.due > 0) parts.push(t("adm_r_due") + " " + money(r.due));
         admOutLine("  " + parts.join(" · "));
       } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
     }
