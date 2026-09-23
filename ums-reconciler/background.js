@@ -122,23 +122,29 @@ async function admDriver(p) {
       const cb = document.querySelector(".course-name-check.course-" + cid) || Array.prototype.find.call(document.querySelectorAll(".course-name-check"), function (c) { const m = (c.className || "").match(/course-(\d+)/); return m && m[1] === cid; });
       if (cb && !cb.checked) cb.click();
       await noBlock();
-      /* tick the course's subjects like HTTP mode does: the compulsory ones (the form checks them
-         when the course is ticked) plus enough more to meet the course minimum — one per subject
-         group, never past the maximum. Without valid subjects the fee stays 0 and Next won't move
-         to the Payment step. (data-officeminsub / data-maximumsubject live on the course checkbox.) */
+      /* Make the course's subject ticks match what validation wants — the form often pre-checks MORE
+         than allowed (over the maximum, or several in one group), and then Next silently won't move
+         to the Payment step. Build the exact wanted set like HTTP's admPickSubjects does — every
+         compulsory (readonly) subject, then fill up to the minimum preferring ones already checked,
+         one per group, never past the maximum — then CHECK the wanted and UNCHECK the rest (leaving
+         the readonly/compulsory ones as the form set them). */
       await waitFor(function () { return document.querySelector(".course-" + cid + "-subjects"); }, 6000);
       const subs = Array.prototype.slice.call(document.querySelectorAll(".course-" + cid + "-subjects"));
       if (subs.length) {
         const minSub = parseInt((cb && cb.getAttribute("data-officeminsub")) || "0", 10) || 0;
         const maxSub = parseInt((cb && cb.getAttribute("data-maximumsubject")) || "0", 10) || subs.length;
-        const groupUsed = {};
-        subs.forEach(function (s) { if (s.checked) { const g = s.getAttribute("data-group-no"); if (g && g !== "0") groupUsed[g] = 1; } });
-        let taken = subs.filter(function (s) { return s.checked; }).length;
-        subs.forEach(function (s) {
-          if (taken >= minSub || taken >= maxSub || s.checked) return;
-          const g = s.getAttribute("data-group-no"); if (g && g !== "0") { if (groupUsed[g]) return; groupUsed[g] = 1; }
-          s.click(); taken++;
-        });
+        const isRO = function (s) { return s.readOnly || s.hasAttribute("readonly"); };
+        const grp = function (s) { const g = s.getAttribute("data-group-no"); return g && g !== "0" ? g : null; };
+        const want = new Set(), groupUsed = {};
+        subs.forEach(function (s) { if (isRO(s)) { want.add(s); const g = grp(s); if (g) groupUsed[g] = 1; } });   // compulsory
+        const tryAdd = function (s) {
+          if (want.size >= maxSub || want.has(s) || isRO(s)) return;
+          const g = grp(s); if (g) { if (groupUsed[g]) return; groupUsed[g] = 1; }
+          want.add(s);
+        };
+        subs.forEach(function (s) { if (want.size < minSub && s.checked) tryAdd(s); });   // fill to min, keeping the form's own picks first
+        subs.forEach(function (s) { if (want.size < minSub) tryAdd(s); });                // then any others
+        subs.forEach(function (s) { if (isRO(s)) return; const on = want.has(s); if (s.checked !== on) s.click(); });   // apply: uncheck the extras
         await noBlock();
       }
       for (const cls of [".batch-day-course-" + cid, ".batch-time-course-" + cid, ".batch-course-" + cid]) {
