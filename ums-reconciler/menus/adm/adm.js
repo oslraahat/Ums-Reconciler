@@ -113,18 +113,6 @@
       return true;
     } catch (e) { admOutLine("⚠ Referer rule: " + ((e && e.message) || e)); return false; }
   }
-  /* Take the rule back down the moment our own work is done. It rewrites the Referer/Origin of EVERY
-     xmlhttprequest to this UMS host — which includes the user's own tabs on the same server — so a
-     rule left standing quietly breaks normal UMS browsing until the extension is disabled. It's only
-     needed for the brief bursts of HTTP-mode POSTs (Fetch Data, HTTP admission); Browser/Headless
-     don't use it at all (the real page's own JS sends the right Referer). */
-  async function admRemoveRefererRule() {
-    admRefBase = "";
-    try {
-      if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.updateSessionRules)
-        await chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [8801] });
-    } catch (e) {}
-  }
   /* strip a UMS warning/error HTML page down to its human message (title + visible body text) */
   function admHtmlMessage(txt) {
     let doc; try { doc = new DOMParser().parseFromString(txt, "text/html"); } catch (e) { return txt.replace(/<[^>]+>/g, " ").replace(/\s+/g, " ").trim().slice(0, 300); }
@@ -135,6 +123,9 @@
     return (title && msg.toLowerCase().indexOf(title.toLowerCase()) < 0 ? title + " — " : "") + msg;
   }
   async function admPost(path, data) {
+    await admInstallRefererRule();   // every admission POST needs the referer rewrite — install it if
+                                     // it isn't up yet (cheap no-op when already set); it's scoped so it
+                                     // never touches the user's own UMS AJAX, so it can safely stay put
     const body = new URLSearchParams();
     Object.keys(data).forEach(function (k) {
       const v = data[k];
@@ -392,7 +383,8 @@
       await admOnProgram();
       admSetConn("ok");
     } catch (e) { admOutLine("⚠ " + ((e && e.message) || e)); }
-    finally { admLoadBtn(false); admRemoveRefererRule(); }   // don't leave the header rewrite standing over normal UMS browsing
+    finally { admLoadBtn(false); }   // the scoped rule is harmless to normal browsing, and Program/Session
+    // changes still need it for their cascade POSTs — so it's left up (self-heal clears it on next load)
   }
   /* the Fetch Data button's busy/idle look: spin the ⟳ icon and swap the label while it works,
      without wiping the icon span (the label lives in its own [data-i18n] span beside the icon) */
@@ -655,12 +647,12 @@
       if (box) { box.classList.add("field-bad"); box.scrollIntoView({ block: "nearest" }); const clr = function () { box.classList.remove("field-bad"); box.removeEventListener("change", clr); }; box.addEventListener("change", clr); }
       return;
     }
-    if (admBrowserMode) { admStopFlag = false; admBusy(true); const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; } await admInstallRefererRule(); try { await admRunBrowser(mobile); } catch (e) { admOutLine("⚠ " + ((e && e.message) || e)); } admBusy(false); admRemoveRefererRule(); return; }
+    if (admBrowserMode) { admStopFlag = false; admBusy(true); const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; } try { await admRunBrowser(mobile); } catch (e) { admOutLine("⚠ " + ((e && e.message) || e)); } admBusy(false); return; }
     if (!Object.keys(admBatchOf).length) { admOutLine(t("adm_need_course")); return; }
     admStopFlag = false; admBusy(true);
     const out = $("admOut"); if (out) { out.style.display = ""; out.textContent = ""; }
     try {
-      await admInstallRefererRule();   // needed for the admission POSTs; taken down again below
+      await admInstallRefererRule();   // ensure the referer rewrite is up before the admission POSTs
       const inst = await admResolveInstitute();
       const discount = parseInt("0" + ((($("admDiscount") && $("admDiscount").value) || "").replace(/,/g, "").trim()), 10) || 0;
       /* one special-discount total → the server checks it equals the sum of the course-wise entries,
@@ -747,7 +739,6 @@
       admOutLine("── " + ok + " ok · " + fail + " failed of " + (ok + fail) + " · " + secs.toFixed(1) + "s" + (admStopFlag ? " (stopped)" : ""));
     } catch (e) { admOutLine("⚠ " + ((e && e.message) || e)); }
     admBusy(false);
-    admRemoveRefererRule();   // stop rewriting headers over the user's normal UMS browsing
   }
   let admMode = "sequential";
   let admBrowserMode = false, admRunModeVal = "http";   // http | browser | headless
