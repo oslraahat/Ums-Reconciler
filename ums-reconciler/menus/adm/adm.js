@@ -667,7 +667,7 @@
         DiscountApprovedBy: (totalSpDiscount > 0 ? sel.approverId : ""), SpReferenceNote: "", PaymentMethod: admPayMethod, NextReceivedDate: nextDate });
 
       const count = admCount(), pool = admMode === "parallel" ? admPool() : 1;
-      admOutLine("→ " + count + " admission · " + (admMode === "parallel" ? pool + " একসাথে" : "একে একে") + " · net ৳" + netAfter + " · paying ৳" + received);
+      admOutLine("→ " + count + " admission · " + (admMode === "parallel" ? pool + " " + t("adm_par") : t("adm_seq")) + " · net ৳" + netAfter + " · paying ৳" + received);
       const t0 = Date.now(); let next = 0, ok = 0, fail = 0;
       async function worker() {
         while (!admStopFlag) {
