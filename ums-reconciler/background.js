@@ -106,16 +106,22 @@ async function admDriver(p) {
     el.value = opt.value; el.dispatchEvent(new Event("change", { bubbles: true })); return true;
   };
   const hasOpts = function (sel) { const s = $(sel); return s && s.options.length > 1; };
+  /* per-step stopwatch so we can see WHERE Headless loses time to Browser */
+  const _t0 = (self.performance || Date).now();
+  const _T = []; const _m = function (l) { _T.push(l + Math.round(((self.performance || Date).now()) - _t0)); };
   try {
     await waitFor(function () { return hasOpts("#StudentClass"); }, 10000);
     if (!setSelByText("#StudentClass", /admission/i)) setSel("#StudentClass", "Admission");
     if (!($("#StudentClass") && $("#StudentClass").value)) throw new Error("Student Class সেট হলো না (option এলো না?)");
     await noBlock();
     if (!await waitFor(function () { return hasOpts("#Program"); }, 40000)) throw new Error("Program এলো না");
+    _m("prog");
     setSel("#Program", String(p.program)); await noBlock();
     if (!await waitFor(function () { return hasOpts("#Session"); }, 30000)) throw new Error("Session এলো না");
+    _m("sess");
     setSel("#Session", String(p.session)); await noBlock();
     await waitFor(function () { return document.querySelector(".course-name-check"); }, 25000);   // let the session cascade finish
+    _m("crs");
     setSel("#Gender", String(p.gender)); setSel("#Religion", String(p.religion));
     if ($("#LastInstituteName")) $("#LastInstituteName").value = p.instName || "";
     if ($("#LastInstituteId")) $("#LastInstituteId").value = p.instId || "";
@@ -124,10 +130,12 @@ async function admDriver(p) {
       const dv = function (s) { const e = $(s); return e ? (e.value || "?") + "/" + ((e.options || []).length) + "o" : "none"; };
       throw new Error("Branch এলো না [ver " + dv("#VersionOfStudy") + " · gen " + dv("#Gender") + " · sess " + dv("#Session") + " · branch " + dv("#Branch") + " · courses " + document.querySelectorAll(".course-name-check").length + "]");
     }
+    _m("br");
     setSel("#Branch", String(p.branch)); await noBlock();
     await waitFor(function () { return hasOpts("#Campus"); }, 15000); setSel("#Campus", String(p.campus)); await noBlock();
     if (hasOpts("#AttachedPhysicalBranch") && p.physBranch) setSel("#AttachedPhysicalBranch", String(p.physBranch));
     await waitFor(function () { return document.querySelector(".course-name-check"); }, 15000);
+    _m("camp");
     const ids = (p.courseIds || []).map(String);
     const subjDbg = [];
     /* Make the course's subject ticks match what validation wants. The form pre-checks MORE than the
@@ -174,6 +182,7 @@ async function admDriver(p) {
       }
       await pickSubjects(cid, cb);   // after the batch, so its re-render doesn't re-check everything
     }
+    _m("loop");
     if ($("#Name")) $("#Name").value = p.name;
     if ($("#MobNumber")) $("#MobNumber").value = p.mobile;
     /* the value setter the form's validation listens to */
@@ -194,6 +203,7 @@ async function admDriver(p) {
     const groups = {};
     document.querySelectorAll("input[type=radio]").forEach(function (r) { if (!r.offsetParent) return; (groups[r.name] = groups[r.name] || []).push(r); });
     Object.keys(groups).forEach(function (k) { const rs = groups[k]; if (!rs.some(function (r) { return r.checked; })) { rs[0].checked = true; rs[0].dispatchEvent(new Event("change", { bubbles: true })); } });
+    _m("next");
     const next = $("#newAdmissionNextBtn") || $("#nextBtn"); if (!next) throw new Error("Next বাটন নেই"); next.click();
     await noBlock();
     if (!await waitFor(function () { const el = $("#receivedAmount"); return el && el.offsetParent; }, 20000)) {
@@ -222,13 +232,15 @@ async function admDriver(p) {
     const totalVal = firstNum(["#netPayable", "#NetPayable", "#netReceivable", "#NetReceivable", "#totalPayable", "#TotalPayable", "#totalAmount", "#TotalAmount", "#payableAmount", "#PayableAmount", "#grandTotal", "#GrandTotal"]);
     let dueVal = firstNum(["#dueAmount", "#DueAmount", "#due", "#Due", "#remainingAmount", "#RemainingAmount", "#duePayment", "#DuePayment"]);
     if (dueVal == null && totalVal != null && paidVal != null) dueVal = Math.max(0, totalVal - paidVal);
+    _m("pay");
     const submit = $("#newAdmissionPaymentSubmitBtn") || $("#admissionPaymentSubmitBtn"); if (!submit) throw new Error("Submit বাটন নেই"); submit.click();
     /* wait (event-driven) for either a client validation message or the redirect to the receipt —
        resolves the instant an error shows, so no fixed post-submit delay */
     await waitFor(function () { return /GenerateMoneyReciept/i.test(location.href) || !!document.querySelector("#receivedAmountError,#nextRecDateError,.text-danger,.alert-danger,.field-validation-error"); }, 4000);
     const verr = document.querySelector("#receivedAmountError,#nextRecDateError,.text-danger,.alert-danger,.field-validation-error");
     if (verr && verr.textContent && verr.textContent.trim() && !/GenerateMoneyReciept/i.test(location.href)) return { ok: false, message: verr.textContent.replace(/\s+/g, " ").trim().slice(0, 140) };
-    return { ok: true, paid: paidVal, due: dueVal, total: totalVal };
+    _m("done");
+    return { ok: true, paid: paidVal, due: dueVal, total: totalVal, timing: _T.join(" ") };
   } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
 }
 
@@ -306,7 +318,7 @@ async function admBrowserRun(p) {
     if (!r.ok) return { ok: false, message: r.message || "ফর্ম পূরণ ব্যর্থ" };
     const rcptUrl = await waitTabUrl(tabId, RECEIPT_RE, 25000);
     const id = receiptId(rcptUrl);
-    if (id) return { ok: true, payId: id, url: rcptUrl, paid: r.paid, due: r.due, total: r.total };
+    if (id) return { ok: true, payId: id, url: rcptUrl, paid: r.paid, due: r.due, total: r.total, timing: r.timing };
     return { ok: false, message: "Submit হলো কিন্তু রসিদে পৌঁছাল না (validation আটকে থাকতে পারে)" };
   } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
 }

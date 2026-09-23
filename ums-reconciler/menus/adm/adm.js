@@ -595,6 +595,7 @@
         if (r.paid != null) parts.push(t("adm_r_paid") + " " + money(r.paid));
         if (r.due != null && r.due > 0) parts.push(t("adm_r_due") + " " + money(r.due));
         admOutLine("  " + parts.join(" · "));
+        if (r.timing) admOutLine("  ⏱ " + r.timing);   // per-step ms, to see where Headless spends time
       } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
     }
     /* a fixed number of workers (= pool), each pulling the next admission until they run out; each
