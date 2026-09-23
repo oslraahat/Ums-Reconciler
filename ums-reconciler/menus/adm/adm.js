@@ -84,10 +84,12 @@
   /* UMS denies admission AJAX that does not look like it came from the admission page, so rewrite
      the Referer (and Origin) of our own requests to that page — fetch cannot set a cross-origin
      Referer, but declarativeNetRequest can. Scoped to this base's host, which is in host_permissions. */
+  let admRefBase = "";   // the base the session rule is already installed for — skip re-installing it
   async function admInstallRefererRule() {
     try {
       if (!(chrome.declarativeNetRequest && chrome.declarativeNetRequest.updateSessionRules)) return false;
       const base = admBaseUrl();
+      if (base && base === admRefBase) return true;   // already set for this base — nothing to do
       const host = base.replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
       await chrome.declarativeNetRequest.updateSessionRules({
         removeRuleIds: [8801],
@@ -100,6 +102,7 @@
           condition: { requestDomains: [host], resourceTypes: ["xmlhttprequest"] }
         }]
       });
+      admRefBase = base;
       return true;
     } catch (e) { admOutLine("⚠ Referer rule: " + ((e && e.message) || e)); return false; }
   }
@@ -335,8 +338,10 @@
     const base = admBaseUrl(); if (!base) { admOutLine(t("adm_need_base")); return; }
     admLoadBtn(true);
     try {
-      await admInstallRefererRule();   // make our AJAX look like it came from the admission page
-      const page = await admGetDoc(ADM_PATH);
+      /* install the referer rule and fetch the page at the same time — the page GET (a document
+         request) doesn't depend on the rule (that's for the later AJAX POSTs), so there's no reason
+         to wait for one before starting the other */
+      const [, page] = await Promise.all([admInstallRefererRule(), admGetDoc(ADM_PATH)]);
       /* the antiforgery token every POST must carry — take the LAST one on the page (the admission
          form's, not the logout form's) as some UMS setups tie the token to its own form */
       const toks = page.querySelectorAll('input[name="__RequestVerificationToken"]');
