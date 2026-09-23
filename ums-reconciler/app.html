@@ -189,6 +189,11 @@
   #admStop:not(:disabled){background:#ff6b7d;border-color:#ff6b7d}
   #admStop:not(:disabled):hover{background:#ff5468;border-color:#ff5468}
   #admStop:disabled{opacity:1;background:rgba(255,107,125,.3);border-color:rgba(255,107,125,.55);color:#111;cursor:default}
+  /* Fetch Data: yellow with black text, kept legible and balanced in both themes */
+  #admLoad{background:#ffcf4d;color:#111;border:1px solid #e9b820}
+  #admLoad:hover{background:#ffd968;border-color:#e9b820}
+  body.light #admLoad{background:#ffd23f;border-color:#dca70f}
+  body.light #admLoad:hover{background:#ffdc66}
   .hint{font-size:12px;color:var(--mut);margin-top:8px}
   .ok{color:var(--ok)}.no{color:var(--no)}.warn{color:var(--warn)}.info{color:var(--info)}.mut{color:var(--mut)}
   .note{background:#12162400;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13px;color:var(--mut);text-align:center}
