@@ -33,6 +33,18 @@
   #updBtn{display:none;align-items:center;gap:6px;background:#2ec18a;color:#053019;border:1px solid #27a878;font-weight:800}
   #updBtn:hover{background:#37d18b;border-color:#27a878}
   #updBtn:disabled{opacity:.85;cursor:default}
+  /* in-tool update panel (bottom bar): a clean, standard notice with the update steps and actions */
+  #updPanel{position:fixed;left:0;right:0;bottom:0;z-index:9999;background:var(--card);color:var(--text);
+    border-top:1px solid var(--line);padding:12px 44px 12px 16px;box-shadow:0 -2px 16px rgba(0,0,0,.35);display:none;
+    font:600 13px/1.45 system-ui,"Segoe UI","Noto Sans Bengali",sans-serif;
+    align-items:center;justify-content:center;gap:14px;flex-wrap:wrap;text-align:center}
+  #updPanel.on{display:flex}
+  #updPanel .updmsg{max-width:640px}
+  #updPanel .updb{border:1px solid #27a878;border-radius:8px;padding:7px 13px;font-weight:800;cursor:pointer;font-size:12.5px;background:#2ec18a;color:#053019}
+  #updPanel .updb:hover{background:#37d18b}
+  #updPanel .updb.sec{background:transparent;color:var(--text);border-color:var(--line)}
+  #updPanel .updb.sec:hover{background:rgba(127,127,127,.12)}
+  #updPanel .updx{position:absolute;right:12px;top:50%;transform:translateY(-50%);background:transparent;border:none;color:var(--mut);font:800 16px/1 inherit;cursor:pointer}
   .wrap{max-width:1020px;margin:0 auto;padding:22px 16px 60px}
   /* Two places to work, one page.
 
