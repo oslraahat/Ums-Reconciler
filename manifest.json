@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "UMS Reconciler",
-  "version": "13.96.1",
+  "version": "13.96.2",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsfh35H8cv+lAJ1x+F6d3yWVRO8qqBsfBO9l1Pfr5gbNbov6rQi3axQ0ABxEDCHQjF9QVC5A/j6CkaQUNFoL0c68oFvP4kOcRnUc8rc7E9xiwNF4EliGCMHC3Thl5FGCIFW3il6oVpO0AH3dVAlc6x5v1oAxyorfXdcmUO19/7NKqwyp7RXu2KLld8iom8fSAuj6TPEfV/XAZhfdClPE9HWPWqIZSYrUBSQxVliBTBjM57dRMwrtXaurMVDYqs2tAkvC1TkeHNIoH/e1ErqiYg2WeDK03JZh9DD7KwE601nBcN1IWgGA0/qw/9h4uToA6w0vfGfql+/59+Jn4d0OVGQIDAQAB",
   "description": "Verifies that Course Wise payment distribution matches the Program Wise totals on *.osl.team (matched per MRN/CRN, column by column), and compares the same student across two UMS servers cell by cell. Editable base URLs, pop-out window, Google Sheet import.",
   "icons": {
