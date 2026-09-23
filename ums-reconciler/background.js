@@ -166,18 +166,30 @@ function receiptId(url) { const m = url && url.match(/[?&](?:id|studentPaymentId
 
 /* one tab is reused for a whole run (opened once, navigated per admission, closed at the end) so
    Browser/Headless don't open a new tab for every student */
-let admRunTab = null;
+let admRunTab = null, admRunWin = null;
 async function admEnsureTab(p, url) {
   if (admRunTab != null && await getTab(admRunTab)) { await chrome.tabs.update(admRunTab, { url: url }); return admRunTab; }
-  /* a tab in the current window — Browser in front (active), Headless in the background (active:false)
-     so it never opens a separate window or steals focus */
-  const tb = await chrome.tabs.create({ url: url, active: p.show !== false });
-  admRunTab = tb.id;
+  if (p.show === false) {
+    /* Headless — a minimized window kept off-screen. Chrome has no true off-screen/invisible tab, so
+       "hidden" means minimized: it lives in the taskbar, not on the desktop, and never steals focus.
+       The event-driven driver (MutationObserver, not setTimeout) is not throttled when minimized, so
+       it still runs at full speed. The window is reused for the whole run, so it opens at most once. */
+    admRunWin = await chrome.windows.create({ url: url, focused: false, state: "minimized" });
+    admRunTab = admRunWin && admRunWin.tabs && admRunWin.tabs[0] && admRunWin.tabs[0].id;
+    try { await chrome.windows.update(admRunWin.id, { state: "minimized", focused: false }); } catch (e) {}
+    return admRunTab;
+  }
+  /* Browser — a normal tab in the current window, in front */
+  const tb = await chrome.tabs.create({ url: url, active: true });
+  admRunTab = tb.id; admRunWin = null;
   return admRunTab;
 }
 async function admCloseRun() {
-  try { if (admRunTab != null) await chrome.tabs.remove(admRunTab); } catch (e) {}
-  admRunTab = null;
+  try {
+    if (admRunWin != null) await chrome.windows.remove(admRunWin.id);
+    else if (admRunTab != null) await chrome.tabs.remove(admRunTab);
+  } catch (e) {}
+  admRunTab = null; admRunWin = null;
 }
 
 async function admBrowserRun(p) {
@@ -188,7 +200,7 @@ async function admBrowserRun(p) {
     await waitTabComplete(tabId, 30000);
     await bgSleep(500);   // let any client-side redirect settle before injecting
     const info = await getTab(tabId);
-    if (!info) { admRunTab = null; return { ok: false, message: "ট্যাব বন্ধ হয়ে গেছে" }; }
+    if (!info) { admRunTab = null; admRunWin = null; return { ok: false, message: "ট্যাব বন্ধ হয়ে গেছে" }; }
     if (/Account\/Login/i.test(info.url || "")) return { ok: false, message: "🔒 লগইন নেই — প্রথমে ওই UMS সার্ভারে ব্রাউজারে লগইন করুন, তারপর আবার চেষ্টা করুন" };
     const cur0 = await getTab(tabId);
     if (cur0 && RECEIPT_RE.test(cur0.url || "")) { const id = receiptId(cur0.url); if (id) return { ok: true, payId: id, url: cur0.url }; }
