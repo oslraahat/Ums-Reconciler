@@ -246,13 +246,17 @@ async function admEnsureTab(p, url) {
   const cur = admSlots[slot];
   if (cur && cur.tabId != null && await getTab(cur.tabId)) { await chrome.tabs.update(cur.tabId, { url: url }); return cur.tabId; }
   if (p.show === false) {
-    /* Headless — a minimized window kept off-screen. Chrome has no true off-screen/invisible tab, so
-       "hidden" means minimized: it lives in the taskbar, not on the desktop, and never steals focus.
-       The event-driven driver (MutationObserver, not setTimeout) is not throttled when minimized, so
-       it still runs at full speed. Each slot keeps its window for the whole run (opens at most once). */
-    const win = await chrome.windows.create({ url: url, focused: false, state: "minimized" });
+    /* Headless — a window pushed far OFF-SCREEN rather than minimized. A minimized (or background)
+       window has visibilityState "hidden", so Chrome clamps its timers to ~1s and the admission
+       form's own setTimeout-driven cascades crawl (≈ the 4–5s Headless lost to Browser). An
+       off-screen window that is NOT minimized still counts as "visible", so it runs at full speed —
+       while staying off the desktop. It never takes focus. Each slot keeps its window for the whole
+       run (opens at most once). Note: state can't be combined with bounds, so we pass no state. */
+    let win;
+    try { win = await chrome.windows.create({ url: url, focused: false, left: 30000, top: 30000, width: 700, height: 560 }); }
+    catch (e) { win = await chrome.windows.create({ url: url, focused: false, state: "minimized" }); }   // fallback if bounds are rejected
     const tabId = win && win.tabs && win.tabs[0] && win.tabs[0].id;
-    try { await chrome.windows.update(win.id, { state: "minimized", focused: false }); } catch (e) {}
+    try { await chrome.windows.update(win.id, { left: 30000, top: 30000, focused: false }); } catch (e) {}   // keep it parked off-screen
     admSlots[slot] = { tabId: tabId, winId: win.id };
     return tabId;
   }
