@@ -240,6 +240,12 @@
   #admLoad.loading .ldico{animation:admspin .8s linear infinite}
   @keyframes admspin{to{transform:rotate(360deg)}}
   .hint{font-size:11px;color:var(--mut);margin-top:5px}
+  /* On the Payment History page the hints are guidance, not status: read once, then in the way.
+     Each is clamped to a single line so a card is a few controls and not a wall of prose; hovering
+     any of them opens it back to full text. The nodes and their data-i18n keys stay put — applyLang
+     repaints them by key — they are only made shorter, never removed. */
+  #pgPay .hint{line-height:1.3;overflow:hidden;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;cursor:help}
+  #pgPay .hint:hover{-webkit-line-clamp:unset;overflow:visible;cursor:default}
   .ok{color:var(--ok)}.no{color:var(--no)}.warn{color:var(--warn)}.info{color:var(--info)}.mut{color:var(--mut)}
   .note{background:#12162400;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13px;color:var(--mut);text-align:center}
   /* which file / which tab the rows came from — reads above the counts, not as another count */
@@ -539,7 +545,7 @@
       <!-- The sheet picker shows only for a workbook with more than one tab; a .csv, a Google
            Sheet or a pasted block has nothing to choose between, so it stays hidden. -->
       <div class="ch"><span class="n">2</span><h2 data-i18n="verify_h">কী যাচাই হবে</h2><span id="cnt" class="badge">০ টি</span><div id="sheetRow" class="sheetrow" style="display:none"><label for="sheetSel" data-i18n="sheet_l">কোন শিট পড়া হবে</label><select id="sheetSel"></select></div></div>
-      <div class="hint" style="margin:0 0 10px" data-i18n="in_hint">Excel / CSV বা Google Sheet import করো — Reg ও spid/Program অটো-ধরবে।</div>
+      <div class="hint" style="margin:0 0 6px" data-i18n="in_hint">Excel / CSV বা Google Sheet import করো — Reg ও spid/Program অটো-ধরবে।</div>
       <div class="row-actions">
         <label class="btn g impbtn" for="file" style="cursor:pointer" data-i18n="import_btn">⬆ Import Excel</label>
         <input type="file" id="file" accept=".csv,.txt,.xlsx" style="display:none">
