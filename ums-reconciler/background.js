@@ -148,17 +148,34 @@ async function admDriver(p) {
     }
     if ($("#Name")) $("#Name").value = p.name;
     if ($("#MobNumber")) $("#MobNumber").value = p.mobile;
-    document.querySelectorAll('[id^="examYear"]').forEach(function (el, i) { if (!el.value) el.value = i === 0 ? "2024" : "2023"; });
-    document.querySelectorAll('[id^="boardRoll"]').forEach(function (el) { if (!el.value) el.value = String(Math.floor(Math.random() * 1e6)).padStart(6, "0"); });
-    document.querySelectorAll('[id^="registrationNumber"]').forEach(function (el) { if (!el.value) el.value = String(Math.floor(Math.random() * 1e7)).padStart(7, "0"); });
+    /* the value setter the form's validation listens to */
+    const setVal = function (el, val) { el.value = val; el.dispatchEvent(new Event("input", { bubbles: true })); el.dispatchEvent(new Event("change", { bubbles: true })); };
+    /* board rows: fill Board / Exam Group / Result and any other still-empty dropdown the form needs
+       (leaving one blank silently blocks Next → the Payment step never appears). Skip the selects we
+       already drive — the main cascade and the per-course batch selects. */
+    const managed = { StudentClass: 1, Program: 1, Session: 1, Gender: 1, Religion: 1, VersionOfStudy: 1, Branch: 1, Campus: 1, AttachedPhysicalBranch: 1, PaymentMethods: 1 };
+    document.querySelectorAll("select").forEach(function (s) {
+      if (!s.offsetParent || managed[s.id] || /batch-/.test(s.className)) return;
+      if (s.value && s.value.trim()) return;
+      const opt = Array.prototype.find.call(s.options, function (o) { return o.value.trim(); });
+      if (opt) { s.value = opt.value; s.dispatchEvent(new Event("change", { bubbles: true })); }
+    });
+    document.querySelectorAll('[id^="examYear"]').forEach(function (el, i) { if (!el.value) setVal(el, i === 0 ? "2024" : "2023"); });
+    document.querySelectorAll('[id^="boardRoll"]').forEach(function (el) { if (!el.value) setVal(el, String(Math.floor(Math.random() * 1e6)).padStart(6, "0")); });
+    document.querySelectorAll('[id^="registrationNumber"]').forEach(function (el) { if (!el.value) setVal(el, String(Math.floor(Math.random() * 1e7)).padStart(7, "0")); });
     const groups = {};
     document.querySelectorAll("input[type=radio]").forEach(function (r) { if (!r.offsetParent) return; (groups[r.name] = groups[r.name] || []).push(r); });
     Object.keys(groups).forEach(function (k) { const rs = groups[k]; if (!rs.some(function (r) { return r.checked; })) { rs[0].checked = true; rs[0].dispatchEvent(new Event("change", { bubbles: true })); } });
     const next = $("#newAdmissionNextBtn") || $("#nextBtn"); if (!next) throw new Error("Next বাটন নেই"); next.click();
     await noBlock();
     if (!await waitFor(function () { const el = $("#receivedAmount"); return el && el.offsetParent; }, 20000)) {
-      const err = (document.querySelector("#boardInfoErrorMessage,.text-danger,.alert-danger") || {}).textContent || "";
-      throw new Error("Payment ধাপে গেল না" + (err ? " — " + err.replace(/\s+/g, " ").trim().slice(0, 120) : ""));
+      /* say WHY Next didn't advance: the validation messages, or failing that the fields the form
+         flagged invalid (jQuery validate marks them .input-validation-error) */
+      const msgs = Array.prototype.map.call(document.querySelectorAll("#boardInfoErrorMessage,.field-validation-error,.validation-summary-errors,.text-danger,.alert-danger"), function (n) { return (n.textContent || "").replace(/\s+/g, " ").trim(); }).filter(Boolean);
+      const bad = Array.prototype.map.call(document.querySelectorAll(".input-validation-error"), function (n) { return n.id || n.name || (n.className || "").split(" ")[0]; }).filter(Boolean);
+      let why = msgs.join(" · ").slice(0, 160);
+      if (!why && bad.length) why = "খালি/ভুল ফিল্ড: " + bad.slice(0, 8).join(", ");
+      throw new Error("Payment ধাপে গেল না" + (why ? " — " + why : " (ফর্ম কোনো কারণ দেখায়নি)"));
     }
     if ($("#receivedAmount") && p.received != null && p.received !== "") { $("#receivedAmount").value = p.received; $("#receivedAmount").dispatchEvent(new Event("input", { bubbles: true })); $("#receivedAmount").dispatchEvent(new Event("change", { bubbles: true })); }
     /* Next Receiving Date is required when there's a due — the form validation blocks Submit without it */
