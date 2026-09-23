@@ -244,10 +244,11 @@
     if (el) el.classList.toggle("min", minimized);
     if (mini) mini.classList.toggle("on", minimized);
   }
-  /* the Batch page can turn the Single Reconcile button off (its "singleOn" setting, default on) */
+  /* the Batch page can turn the whole in-page panel off (its "singleOn" setting, default on) — so
+     disabling it removes the panel from the UMS page entirely, minimized icon included */
   function applySingle(on) {
-    const b = document.getElementById("umsrec-verify");
-    if (b) b.style.display = (on === false) ? "none" : "";
+    const el = document.getElementById("umsrec");
+    if (el) el.style.display = (on === false) ? "none" : "";
   }
   function setMin(val) {
     applyMin(val);
