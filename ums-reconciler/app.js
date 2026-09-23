@@ -184,7 +184,7 @@
     adm_resume: { bn: "⏵ Resume", en: "⏵ Resume" },
     adm_running: { bn: "⏳ চলছে…", en: "⏳ Running…" },
     adm_paused: { bn: "⏸ থামানো", en: "⏸ Paused" },
-    adm_stop: { bn: "✕ থামাও", en: "✕ Stop" },
+    adm_stop: { bn: "⏹ থামাও", en: "⏹ Stop" },
     adm_run_hint: { bn: "প্রতিটার Reg No দেখায়, শেষে কয়টা সফল/ব্যর্থ। ✕ থামায়।",
       en: "Shows each Reg No, then how many passed/failed. ✕ stops it." },
     adm_need_base: { bn: "আগে UMS ঠিকানা দাও", en: "fill in the UMS address first" },
