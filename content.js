@@ -244,11 +244,20 @@
     if (el) el.classList.toggle("min", minimized);
     if (mini) mini.classList.toggle("on", minimized);
   }
-  /* the Batch page can turn the whole in-page panel off (its "singleOn" setting, default on) — so
-     disabling it removes the panel from the UMS page entirely, minimized icon included */
+  /* the Batch page can turn the whole in-page panel off (its "singleOn" setting, default on). The
+     panel is TWO elements — #umsrec (the big panel) and #umsrec-mini (the small icon shown when
+     minimized) — so both must be hidden when off; when turned back on we clear the inline hide and
+     let the remembered minimized state decide which one shows (so it doesn't pop up maximized). */
   function applySingle(on) {
-    const el = document.getElementById("umsrec");
-    if (el) el.style.display = (on === false) ? "none" : "";
+    const el = document.getElementById("umsrec"), mini = document.getElementById("umsrec-mini");
+    if (on === false) {
+      if (el) el.style.display = "none";
+      if (mini) mini.style.display = "none";
+    } else {
+      if (el) el.style.display = "";
+      if (mini) mini.style.display = "";
+      applyMin(minimized);   // restore whichever (big / mini) matches the remembered state
+    }
   }
   function setMin(val) {
     applyMin(val);
