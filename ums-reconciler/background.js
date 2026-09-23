@@ -50,6 +50,21 @@ chrome.runtime.onInstalled.addListener(function (details) {
   chrome.tabs.create({ url: chrome.runtime.getURL(PAGE) });
 });
 
+/* Safety net: New Admission's HTTP mode installs a declarativeNetRequest session rule (id 8801) that
+   rewrites the Referer/Origin of its own admission POSTs. If an old build left one standing, it could
+   quietly interfere with normal UMS AJAX. Clear it whenever the service worker starts (install, update,
+   browser start, or wake) so no stale rule ever lingers; New Admission re-adds a correctly-scoped one
+   only for the brief moment it actually posts. */
+(function clearStaleRefererRule() {
+  try {
+    if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.updateSessionRules)
+      chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [8801] });
+  } catch (e) {}
+})();
+chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(function () {
+  try { chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [8801] }); } catch (e) {}
+});
+
 /* ───────────────────────── New Admission · Browser mode ─────────────────────────
    The HTTP mode (in app.js) posts the admission directly. Browser mode instead opens the real
    admission form in a tab and drives it visibly — the page's own JavaScript does the cascades, fee
