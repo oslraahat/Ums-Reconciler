@@ -26,6 +26,13 @@
   function idleLabel() { try { if (self.APP && self.APP.t) return self.APP.t("upd_btn"); } catch (e) {} return L("⬇ আপডেট", "⬇ Update"); }
 
   function reloadExt() { try { if (chrome.runtime && chrome.runtime.reload) chrome.runtime.reload(); } catch (e) {} }
+  /* reload picks up the new files but closes this tab; set a short-lived flag first so background.js
+     reopens the tool on the fresh start (write it, THEN reload, so the flag is persisted in time) */
+  function reloadAndReopen() {
+    var go = function () { try { if (chrome.runtime.reload) chrome.runtime.reload(); } catch (e) {} };
+    try { chrome.storage.local.set({ umsReopen: Date.now() }, function () { setTimeout(go, 300); }); }
+    catch (e) { setTimeout(go, 300); }
+  }
   function downloadZip() {
     try {
       if (chrome.downloads && chrome.downloads.download) chrome.downloads.download({ url: ZIP_URL, filename: "Ums-Reconciler-" + BRANCH + ".zip" });
@@ -64,10 +71,6 @@
      CAN write the extension folder). If the host isn't installed / fails, fall back to the panel. */
   var HOST = "com.umsreconciler.crmloadtest";
   function setBtn(txt, dis) { var b = document.getElementById("updBtn"); if (b) { b.textContent = txt; b.disabled = !!dis; } }
-  function stageText(s) {
-    var bn = { download: "নামছে…", extract: "খুলছে…", write: "লিখছে…" }, en = { download: "Downloading…", extract: "Extracting…", write: "Installing…" };
-    return L(bn[s] || "…", en[s] || "…");
-  }
   function autoUpdate(cur) {
     var done = false, timer = null, port = null;
     function stop() { done = true; if (timer) { clearTimeout(timer); timer = null; } try { if (port) port.disconnect(); } catch (e) {} }
@@ -83,8 +86,8 @@
       arm(15000);   // stale/missing host gives nothing back — bail after 15s
       port.onMessage.addListener(function (msg) {
         if (!msg) return;
-        if (msg.type === "updateOut") { setBtn("⏳ " + stageText(msg.stage), true); arm(90000); }   // actively working — allow time per stage
-        else if (msg.type === "updated") { stop(); setBtn(L("✓ হয়ে গেছে — reload", "✓ Done — reloading"), true); setTimeout(function () { try { if (chrome.runtime.reload) chrome.runtime.reload(); } catch (e) {} }, 500); }
+        if (msg.type === "updateOut") { setBtn(L("⏳ আপডেট হচ্ছে…", "⏳ Updating…"), true); arm(90000); }   // actively working — allow time per stage
+        else if (msg.type === "updated") { stop(); setBtn(L("✓ হয়ে গেছে — reload", "✓ Done — reloading"), true); reloadAndReopen(); }
         else if (msg.type === "error") { stop(); if (self.alert) alert(L("আপডেট হলো না: ", "Update failed: ") + (msg.text || "")); setBtn(idleLabel(), false); showPanel(latestVer || cur, cur); }
       });
       port.onDisconnect.addListener(function () { if (!done) { done = true; if (timer) clearTimeout(timer); setBtn(idleLabel(), false); showPanel(latestVer || cur, cur); } });   // host missing → manual panel

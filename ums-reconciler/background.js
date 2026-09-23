@@ -65,6 +65,22 @@ chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(function () {
   try { chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [8801] }); } catch (e) {}
 });
 
+/* Reopen the tool after an in-tool update. chrome.runtime.reload() (called once an update is written)
+   restarts the extension, which closes the tool's own tab — so the update flow sets a short-lived
+   "reopen" flag just before reloading, and here, on the fresh service-worker start, we reopen app.html
+   and clear the flag. The timestamp guards against reopening on an unrelated wake. */
+(function reopenAfterUpdate() {
+  try {
+    chrome.storage.local.get("umsReopen", function (o) {
+      var t = o && o.umsReopen;
+      if (t && Date.now() - t < 30000) {
+        try { chrome.storage.local.remove("umsReopen"); } catch (e) {}
+        try { chrome.tabs.create({ url: chrome.runtime.getURL(PAGE) }); } catch (e) {}
+      }
+    });
+  } catch (e) {}
+})();
+
 /* Don't leave a Headless admission window parked off-screen. It's normally closed when the run ends
    (admCloseRun), but if the tool tab is closed mid-run — or the worker goes idle — the window can
    linger invisibly on the admission form. onSuspend fires only when the service worker is going idle,
