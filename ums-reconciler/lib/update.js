@@ -177,7 +177,7 @@
           var latest = m && m.version;
           if (latest && newer(latest, cur) > 0) {
             var b = document.getElementById("updBtn");
-            if (b) { b.style.display = ""; b.textContent = idleLabel(); b.title = L("নতুন আপডেট আছে — v" + latest, "New update available — v" + latest); }
+            if (b) { b.style.display = "inline-flex"; b.textContent = idleLabel(); b.title = L("নতুন আপডেট আছে — v" + latest, "New update available — v" + latest); }
             showBanner(latest, cur);
           }
         })

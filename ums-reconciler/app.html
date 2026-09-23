@@ -28,6 +28,11 @@
   .tbtn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;
         padding:5px 11px;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap}
   .tbtn:hover{background:rgba(255,255,255,.25)}
+  /* Update button (shown only when a newer build exists): a clean green "ready" pill, not the muddy
+     amber that clashed with the purple bar */
+  #updBtn{display:none;align-items:center;gap:6px;background:#2ec18a;color:#053019;border:1px solid #27a878;font-weight:800}
+  #updBtn:hover{background:#37d18b;border-color:#27a878}
+  #updBtn:disabled{opacity:.85;cursor:default}
   .wrap{max-width:1020px;margin:0 auto;padding:22px 16px 60px}
   /* Two places to work, one page.
 
@@ -461,7 +466,7 @@
       <p id="sub" data-i18n="subtitle">Program Wise ⇄ Course Wise — Registration No. দিন, Run চাপুন, রিপোর্ট পান</p>
     </div>
     <div style="display:flex;gap:8px">
-      <button class="tbtn" id="updBtn" data-i18n="upd_btn" style="display:none;background:rgba(255,180,84,.35);border-color:#ffb454">↻ Update</button>
+      <button class="tbtn" id="updBtn" data-i18n="upd_btn">↓ Update</button>
       <button class="tbtn" id="lang">EN</button>
       <button class="tbtn" id="theme">☀ Light</button>
     </div>
