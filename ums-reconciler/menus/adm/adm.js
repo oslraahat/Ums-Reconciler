@@ -91,6 +91,7 @@
       const base = admBaseUrl();
       if (base && base === admRefBase) return true;   // already set for this base — nothing to do
       const host = base.replace(/^https?:\/\//i, "").replace(/\/.*$/, "");
+      const regDomain = host.split(".").slice(-2).join(".");   // e.g. ums-4.osl.team → osl.team
       await chrome.declarativeNetRequest.updateSessionRules({
         removeRuleIds: [8801],
         addRules: [{
@@ -99,7 +100,13 @@
             { header: "referer", operation: "set", value: base + ADM_PATH },
             { header: "origin", operation: "set", value: base }
           ] },
-          condition: { requestDomains: [host], resourceTypes: ["xmlhttprequest"] }
+          /* The crucial scope: exclude any request INITIATED BY a UMS page itself. The user's own
+             dropdown AJAX is initiated by an osl.team page, so excludedInitiatorDomains keeps the
+             rewrite off it entirely (that broad rewrite was quietly breaking dropdowns across the
+             UMS while the extension was active). OUR requests are initiated by the extension page
+             (chrome-extension://…), not osl.team, so they are NOT excluded and still get the
+             Referer/Origin they need. */
+          condition: { requestDomains: [host], resourceTypes: ["xmlhttprequest"], excludedInitiatorDomains: [regDomain] }
         }]
       });
       admRefBase = base;
