@@ -41,7 +41,7 @@ const check = (name, ok, extra) => {
   /* crmParse leans on crmIsHeader, so both come across */
   const crmParse = new Function(lift("crmIsHeader") + "\n" + lift("crmParse") + "\nreturn crmParse;")();
 
-  const lt = require(path.join(ROOT, "..", "crm-loadtest", "loadtest.js"));
+  const lt = require(path.join(ROOT, "crm-loadtest", "loadtest.js"));
   const tmp = path.join(os.tmpdir(), "crm-parse-" + Date.now() + ".txt");
 
   const sample = [

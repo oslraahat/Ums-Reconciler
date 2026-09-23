@@ -15,7 +15,7 @@ Program Wise ও Course Wise — একই ছাত্রের দুই প�
 
 1. `chrome://extensions` (Edge হলে `edge://extensions`)
 2. উপরে ডানে **Developer mode** চালু
-3. **Load unpacked** → এই `ums-reconciler` ফোল্ডার
+3. **Load unpacked** → এই ফোল্ডারটা (`Ums-Reconciler` — যেখানে `manifest.json` আছে)
 4. permission চাইলে **Allow** (`*.osl.team` · `docs.google.com` · `googleusercontent.com`)
 
 **খোলার উপায়** — টুলবারে এক্সটেনশনের আইকনে ক্লিক করলেই Batch পেজ খোলে। আগে থেকে খোলা
