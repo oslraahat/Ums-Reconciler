@@ -333,7 +333,7 @@
   }
   async function admLoadForm() {
     const base = admBaseUrl(); if (!base) { admOutLine(t("adm_need_base")); return; }
-    if ($("admLoad")) { $("admLoad").disabled = true; $("admLoad").textContent = t("adm_loading"); }
+    admLoadBtn(true);
     try {
       await admInstallRefererRule();   // make our AJAX look like it came from the admission page
       const page = await admGetDoc(ADM_PATH);
@@ -368,7 +368,15 @@
       await admOnProgram();
       admSetConn("ok");
     } catch (e) { admOutLine("⚠ " + ((e && e.message) || e)); }
-    finally { if ($("admLoad")) { $("admLoad").disabled = false; $("admLoad").textContent = t("adm_load"); } }
+    finally { admLoadBtn(false); }
+  }
+  /* the Fetch Data button's busy/idle look: spin the ⟳ icon and swap the label while it works,
+     without wiping the icon span (the label lives in its own [data-i18n] span beside the icon) */
+  function admLoadBtn(loading) {
+    const b = $("admLoad"); if (!b) return;
+    b.disabled = loading;
+    b.classList.toggle("loading", loading);
+    const txt = b.querySelector("[data-i18n]"); if (txt) txt.textContent = t(loading ? "adm_loading" : "adm_load");
   }
   async function admOnProgram() {
     if (!admLoaded || !$("admProgram").value) return;

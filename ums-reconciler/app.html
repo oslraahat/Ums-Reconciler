@@ -198,7 +198,16 @@
   #admStop:not(:disabled):hover{background:#ff5468;border-color:#ff5468}
   #admStop:disabled{opacity:1;cursor:default;background:rgba(255,107,125,.14);border-color:rgba(255,107,125,.42);color:#ff9aa6}
   body.light #admStop:disabled{background:#fbe4e7;border-color:#f1bcc2;color:#b23347}
-  /* Fetch Data keeps the plain grey .btn.g look */
+  /* Fetch Data keeps the plain grey .btn.g look, but reacts to interaction: it lifts on hover,
+     presses in on click, and its ⟳ icon spins while it is fetching (the .loading class) */
+  #admLoad{transition:transform .12s ease,box-shadow .12s ease,background .12s ease}
+  #admLoad .ldico{display:inline-block;transition:transform .3s ease}
+  #admLoad:hover:not(:disabled){transform:translateY(-1px);box-shadow:0 3px 10px rgba(0,0,0,.28)}
+  #admLoad:hover:not(:disabled) .ldico{transform:rotate(-90deg)}
+  #admLoad:active:not(:disabled){transform:translateY(0) scale(.97);box-shadow:none}
+  #admLoad.loading{cursor:progress;opacity:.85}
+  #admLoad.loading .ldico{animation:admspin .8s linear infinite}
+  @keyframes admspin{to{transform:rotate(360deg)}}
   .hint{font-size:12px;color:var(--mut);margin-top:8px}
   .ok{color:var(--ok)}.no{color:var(--no)}.warn{color:var(--warn)}.info{color:var(--info)}.mut{color:var(--mut)}
   .note{background:#12162400;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13px;color:var(--mut);text-align:center}
@@ -660,7 +669,7 @@
           <div class="row-actions" style="align-items:end;gap:14px;flex-wrap:wrap">
             <div style="flex:0 1 calc(41% - 7px);min-width:190px"><label data-i18n="adm_base_l">UMS ঠিকানা</label>
               <input id="admBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
-            <button class="btn g" id="admLoad" data-i18n="adm_load" style="height:var(--ctl-h)">⟳ Fetch Data</button>
+            <button class="btn g" id="admLoad" style="height:var(--ctl-h);gap:7px"><span class="ldico">⟳</span><span data-i18n="adm_load">Fetch Data</span></button>
             <span style="flex:1;min-width:8px"></span>
             <div class="seg segeq" style="height:var(--ctl-h)" data-title="adm_browser_t" title="HTTP = ব্রাউজার ছাড়া সরাসরি, দ্রুত · Browser = সামনের ট্যাবে দৃশ্যমান · Headless = ব্যাকগ্রাউন্ড ট্যাবে (focus কাড়ে না, একটু ধীর)">
               <button type="button" id="admHttp" class="on" data-i18n="adm_http_l">⚡ HTTP</button>
