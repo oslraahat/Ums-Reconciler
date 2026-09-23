@@ -170,6 +170,9 @@
      exactly with the একজন একজন/একসাথে toggle beside them */
   #pgAdm .row-actions > label{height:var(--ctl-h);margin:0}
   #pgAdm .seg button{padding:6px 13px}
+  /* equal-width options: three columns of the same size regardless of label length */
+  .segeq{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
+  .segeq button{text-align:center;white-space:nowrap}
   #pgAdm label{margin-bottom:3px;font-size:11.5px}
   #pgAdm .admgrid{gap:11px;margin-top:10px!important}
   #pgAdm details{margin-top:10px!important}
@@ -180,10 +183,12 @@
   #run{background:linear-gradient(90deg,#0ea968,#37d18b);color:#04220f}
   #pause:not(:disabled){background:#ffb454;color:#3a2606;border-color:#ffb454}
   #stop:not(:disabled){background:#ff6b7d;color:#fff;border-color:#ff6b7d}
-  /* New Admission Stop: lit red while a run is going (Start becomes Pause/Resume), dim when idle */
-  #admStop:not(:disabled){background:#ff6b7d;color:#fff;border-color:#ff6b7d}
+  /* New Admission Stop: full red while a run is going (Start becomes Pause/Resume), a faded
+     "partial" red when idle/disabled — always with black text so the label stays readable */
+  #admStop{color:#111}
+  #admStop:not(:disabled){background:#ff6b7d;border-color:#ff6b7d}
   #admStop:not(:disabled):hover{background:#ff5468;border-color:#ff5468}
-  #admStop:disabled{opacity:.45;cursor:default}
+  #admStop:disabled{opacity:1;background:rgba(255,107,125,.3);border-color:rgba(255,107,125,.55);color:#111;cursor:default}
   .hint{font-size:12px;color:var(--mut);margin-top:8px}
   .ok{color:var(--ok)}.no{color:var(--no)}.warn{color:var(--warn)}.info{color:var(--info)}.mut{color:var(--mut)}
   .note{background:#12162400;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13px;color:var(--mut);text-align:center}
@@ -647,7 +652,7 @@
               <input id="admBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
             <button class="btn g" id="admLoad" data-i18n="adm_load" style="height:var(--ctl-h)">⟳ Fetch Data</button>
             <span style="flex:1;min-width:8px"></span>
-            <div class="seg" style="height:var(--ctl-h)" data-title="adm_browser_t" title="HTTP = ব্রাউজার ছাড়া সরাসরি, দ্রুত · Browser = সামনের ট্যাবে দৃশ্যমান · Headless = ব্যাকগ্রাউন্ড ট্যাবে (focus কাড়ে না, একটু ধীর)">
+            <div class="seg segeq" style="height:var(--ctl-h)" data-title="adm_browser_t" title="HTTP = ব্রাউজার ছাড়া সরাসরি, দ্রুত · Browser = সামনের ট্যাবে দৃশ্যমান · Headless = ব্যাকগ্রাউন্ড ট্যাবে (focus কাড়ে না, একটু ধীর)">
               <button type="button" id="admHttp" class="on" data-i18n="adm_http_l">⚡ HTTP</button>
               <button type="button" id="admBrowserBtn" data-i18n="adm_browser_l">🌐 Browser</button>
               <button type="button" id="admHeadless" data-i18n="adm_headless_l">⚙️ Headless</button>
