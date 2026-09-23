@@ -151,8 +151,8 @@
     adm_no_courses: { bn: "এই প্রোগ্রামে কোর্স নেই", en: "no courses on this program" },
     adm_seq: { bn: "একটা করে", en: "One at a time" },
     adm_par: { bn: "একসাথে", en: "All at once" },
-    adm_intro: { bn: "⟳ Fetch Data চাপো, dropdown বেছে নাও, মোবাইল ও সংখ্যা দিয়ে ▶ Run। ⚠ আসল admission তৈরি হয় — টেস্ট সার্ভারে চালাও।",
-      en: "Press ⟳ Fetch Data, pick the dropdowns, give the mobile and count, then ▶ Run. ⚠ Creates real admissions — use a test server." },
+    adm_intro: { bn: "⟳ Fetch Data → dropdown বাছো → মোবাইল ও সংখ্যা দিয়ে ▶ Run। ⚠ আসল admission হয় — টেস্ট সার্ভারে চালাও।",
+      en: "⟳ Fetch Data → pick dropdowns → give mobile and count → ▶ Run. ⚠ Creates real admissions — use a test server." },
     adm_base_l: { bn: "UMS Address", en: "UMS Address" },
     adm_mobile_l: { bn: "Mobile Number", en: "Mobile Number" },
     adm_prog_l: { bn: "Program", en: "Program" },
@@ -214,8 +214,8 @@
     crm_copy: { bn: "⧉ Copy", en: "⧉ Copy" },
     crm_run: { bn: "▶ চালাও", en: "▶ Run" },
     crm_running: { bn: "⏳ চলছে…", en: "⏳ running…" },
-    crm_run_hint: { bn: "লগইন করে Dashboard খোলে, সময় মাপে। ব্রাউজার খোলা থাকলে Sequential-এ আবার Run চাপলে পরের জন যোগ হয়; ✕ দিয়ে বন্ধ।",
-      en: "Logs in, opens the Dashboard, and times it. While the browser stays open, Run again in Sequential adds the next user; ✕ closes it." },
+    crm_run_hint: { bn: "লগইন করে Dashboard খোলে ও সময় মাপে। ✕ দিয়ে বন্ধ।",
+      en: "Logs in, opens the Dashboard and times it. ✕ closes it." },
     crm_manual_sum: { bn: "▸ অথবা নিজে টার্মিনালে চালাও", en: "▸ or run it yourself in a terminal" },
     crm_need_users: { bn: "আগে username, password দাও", en: "add some username,password lines first" },
     crm_need_base: { bn: "আগে UMS ঠিকানা দাও", en: "fill in the UMS address first" },
@@ -257,9 +257,9 @@
     ago_day: { bn: "{n} দিন আগে", en: "{n} days ago" },
     conn_h: { bn: "সংযোগ", en: "Connection" }, conn_unchecked: { bn: "যাচাই করা হয়নি", en: "not checked" },
     base_l: { bn: "UMS ঠিকানা (Base URL)", en: "UMS address (Base URL)" }, test: { bn: "Test Connection", en: "Test Connection" }, save: { bn: "সেভ করুন", en: "Save" },
-    sess_hint: { bn: "এই ব্রাউজারে UMS-এ লগইন থাকা অবস্থায় চলবে (সেশন ব্যবহার করে)। আলাদা email/password লাগে না।", en: "Works while you are logged in to UMS in this browser (uses the session). No separate email/password needed." },
+    sess_hint: { bn: "UMS-এ লগইন থাকলেই চলবে — আলাদা ইমেইল/পাসওয়ার্ড লাগে না।", en: "Runs on your UMS login in this browser — no separate email/password." },
     verify_h: { bn: "কী মিলিয়ে দেখা হবে", en: "What to Reconciliation" },
-    in_hint: { bn: "Excel/CSV বা Google Sheet import করুন — Reg No ও StudentProgramId কলাম অটো ধরা পড়বে।", en: "Import an Excel/CSV file or a Google Sheet — the Reg No and StudentProgramId columns are auto-detected." },
+    in_hint: { bn: "Excel/CSV বা Google Sheet দাও — Reg ও Program ID কলাম নিজেই ধরবে।", en: "Give an Excel/CSV or a Google Sheet — Reg and Program ID columns are auto-detected." },
     import_btn: { bn: "⬆ Import Excel", en: "⬆ Import Excel" }, link_btn: { bn: "↧ Sheet Link", en: "↧ Sheet Link" },
     link_ph: { bn: "…অথবা Google Sheet লিংক", en: "…or a Google Sheet link" },
     paste_ph: { bn: "…অথবা এখানে পেস্ট করো — প্রতি লাইনে: Student Reg, Student Program ID", en: "…or paste here — one line each: Student Reg, Student Program ID" },
@@ -271,7 +271,7 @@
     pv_more: { bn: "দেখাচ্ছে {a}টি / মোট {b}টি", en: "showing {a} of {b}" }, pv_none: { bn: "কিছু মিলল না", en: "no match" },
     
     imp_dropped: { bn: "টি ডুপ্লিকেট বাদ", en: "duplicate(s) dropped" }, imp_will_run: { bn: "টি চলবে", en: "will run" }, imp_noreg: { bn: "টিতে Reg নেই", en: "without a Reg" }, imp_trim: { bn: "টিতে Reg ঘরে একাধিক সংখ্যা ছিল, প্রথমটা নেওয়া হয়েছে", en: "had more than one number in the Reg cell — first one used" },
-    imp_checking: { bn: "কোন কলামে কী, UMS-এ মিলিয়ে দেখা হচ্ছে…", en: "checking with UMS which column is which…" },
+    imp_checking: { bn: "কোন কলাম Reg, UMS-এ যাচাই হচ্ছে…", en: "checking with UMS which column is the Reg…" },
     imp_swap: { bn: "কলাম উল্টো ছিল — Reg আর Student PID বদলে নেওয়া হয়েছে", en: "columns were the wrong way round — Reg and Student PID swapped back" },
     rr_run: { bn: "টি আবার চালাও", en: "to re-run" }, rr_none: { bn: "কিছু নেই", en: "nothing here" }, rr_busy: { bn: "চলছে…", en: "running…" },
     settings_h: { bn: "সেটিংস ও রান", en: "Settings & Run" }, tol_l: { bn: "গ্রহণযোগ্য পার্থক্য", en: "Tolerance" }, conc_l: { bn: "একসাথে কয়টি ছাত্র", en: "Students at once" },
@@ -325,8 +325,8 @@
        is saved, that the page is a button rather than part of it, and where it lands if no
        folder was chosen. The reasons behind each are in the README, which is where a reason
        gets read — under a toggle it is just small grey type nobody finishes. */
-    save_hint: { bn: "report.xlsx — দুই ট্যাব (সমস্যা, ঠিক আছে), ফিল্টার যা-ই থাক পুরো রান। HTML চাইলে ⬇ HTML Report। ফোল্ডার না বাছলে Downloads-এ যাবে।",
-      en: "report.xlsx — two tabs (problems, matched), the whole run whatever the filter says. For a page, press ⬇ HTML Report. Without a folder it goes to Downloads." },
+    save_hint: { bn: "report.xlsx — দুই ট্যাব (সমস্যা / ঠিক আছে)। HTML পেজ চাইলে ⬇ HTML Report। ফোল্ডার না বাছলে Downloads-এ যায়।",
+      en: "report.xlsx — two tabs (problems / matched). For a page, ⬇ HTML Report. No folder → Downloads." },
     save_failed: { bn: "সেভ করা গেল না", en: "could not save" },
     p_saving: { bn: "ফল সেভ করা হচ্ছে…", en: "saving the results…" },
     list_capped: { bn: "নিচে প্রথম {a} টি দেখানো হচ্ছে · মোট {b} টি — পুরোটা HTML / Excel রিপোর্টে আছে", en: "showing the first {a} of {b} below — the HTML and Excel reports carry them all" },
@@ -339,7 +339,7 @@
 
     /* ---- two-server mode ---- */
     srv_mode: { bn: "দুই সার্ভার মেলাও (Expected ↔ Actual)", en: "Compare two servers (Expected ↔ Actual)" },
-    srv_hint: { bn: "একই Reg + StudentProgramId দুই সার্ভারে খুলে প্রতিটা সারির প্রতিটা ঘর মিলিয়ে দেখা হবে। দুই সার্ভারেই লগইন থাকতে হবে।", en: "Opens the same Reg + StudentProgramId on both servers and compares every cell of every row. You must be logged in to both." },
+    srv_hint: { bn: "একই ছাত্রকে দুই সার্ভারে খুলে ঘরে-ঘরে মিলিয়ে দেখে। দুই সার্ভারেই লগইন লাগবে।", en: "Opens the same student on both servers and compares cell by cell. Log in to both." },
     s_base_l: { bn: "Expected URL (যেটাকে ঠিক ধরা হচ্ছে)", en: "Expected URL (the reference)" },
     base_act_l: { bn: "Actual URL (যেটা যাচাই হবে)", en: "Actual URL (the one being checked)" },
     e_pw_both: { bn: "কোনো সার্ভারেই Program Wise পাওয়া গেল না (ভুল reg/spid?)", en: "No Program Wise on either server (wrong reg/spid?)" },
