@@ -38,7 +38,11 @@
     bar.appendChild(x);
     document.body.appendChild(bar);
   }
+  var lastCheck = 0;
   function check() {
+    var now = Date.now();
+    if (now - lastCheck < 60000) return;   // don't hammer GitHub — at most once a minute
+    lastCheck = now;
     var cur = running(); if (!cur) return;
     try {
       fetch(MANIFEST_URL, { cache: "no-store" })
@@ -51,5 +55,8 @@
   if (typeof document !== "undefined" && document.addEventListener) {
     if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", check);
     else check();
+    /* re-check when the tool tab comes back to the foreground, so a page left open for a while still
+       notices a newer build without a manual refresh */
+    document.addEventListener("visibilitychange", function () { if (document.visibilityState === "visible") check(); });
   }
 })();
