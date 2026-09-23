@@ -169,6 +169,9 @@
   /* the run row: pin the Count/pool label boxes to the control height so the number inputs line up
      exactly with the একজন একজন/একসাথে toggle beside them */
   #pgAdm .row-actions > label{height:var(--ctl-h);margin:0}
+  /* Start / Stop / Fetch Data buttons sit on rows full of --ctl-h controls — pin them to the same
+     height (the default .btn padding makes them taller) and centre the label vertically */
+  #pgAdm .row-actions > .btn{height:var(--ctl-h);padding:0 18px;display:inline-flex;align-items:center;justify-content:center}
   #pgAdm .seg button{padding:6px 13px}
   /* equal-width options: three columns of the same size regardless of label length */
   .segeq{display:grid;grid-auto-flow:column;grid-auto-columns:1fr}
