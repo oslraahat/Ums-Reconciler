@@ -592,7 +592,8 @@
         if (mrNo) parts.push(t("adm_r_mr") + " #" + mrNo);
         if (r.payId) parts.push(t("adm_r_id") + " " + r.payId);
         const money = function (v) { return "৳" + Number(v).toLocaleString("en-US"); };
-        if (r.paid != null) parts.push(t("adm_r_paid") + " " + money(r.paid));
+        const paid = (r.paid != null) ? r.paid : (base.received !== "" ? parseInt(base.received, 10) : null);   // fallback to the amount we asked to pay
+        if (paid != null && !isNaN(paid)) parts.push(t("adm_r_paid") + " " + money(paid));
         if (r.due != null && r.due > 0) parts.push(t("adm_r_due") + " " + money(r.due));
         admOutLine("  " + parts.join(" · "));
         if (r.timing) admOutLine("  ⏱ " + r.timing);   // per-step ms, to see where Headless spends time

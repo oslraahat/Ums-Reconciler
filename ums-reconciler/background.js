@@ -228,9 +228,22 @@ async function admDriver(p) {
        "paid" is what the form accepted in #receivedAmount, "due" its remaining-amount field */
     const numOf = function (el) { if (!el) return null; const raw = (el.value != null && el.value !== "" ? el.value : el.textContent) || ""; const n = parseFloat(String(raw).replace(/,/g, "").replace(/[^0-9.]/g, "")); return isFinite(n) ? n : null; };
     const firstNum = function (sels) { for (const s of sels) { const n = numOf($(s)); if (n != null) return n; } return null; };
+    /* fallback for forms whose fields aren't among the ids above: find the number whose id/name or
+       nearest label text matches the hint (due/total/…) */
+    const byHint = function (rx) {
+      const els = document.querySelectorAll("input,span,td,strong,b,div,label");
+      for (let i = 0; i < els.length; i++) {
+        const el = els[i]; if (!el.offsetParent) continue;
+        const key = ((el.id || "") + " " + (el.name || "") + " " + (el.getAttribute && (el.getAttribute("data-bind") || el.getAttribute("aria-label") || "") || "")).toLowerCase();
+        if (rx.test(key)) { const n = numOf(el); if (n != null) return n; }
+      }
+      return null;
+    };
     const paidVal = numOf($("#receivedAmount"));
-    const totalVal = firstNum(["#netPayable", "#NetPayable", "#netReceivable", "#NetReceivable", "#totalPayable", "#TotalPayable", "#totalAmount", "#TotalAmount", "#payableAmount", "#PayableAmount", "#grandTotal", "#GrandTotal"]);
+    let totalVal = firstNum(["#netPayable", "#NetPayable", "#netReceivable", "#NetReceivable", "#totalPayable", "#TotalPayable", "#totalAmount", "#TotalAmount", "#payableAmount", "#PayableAmount", "#grandTotal", "#GrandTotal"]);
+    if (totalVal == null) totalVal = byHint(/(net|total|payable|receivable|grand)/);
     let dueVal = firstNum(["#dueAmount", "#DueAmount", "#due", "#Due", "#remainingAmount", "#RemainingAmount", "#duePayment", "#DuePayment"]);
+    if (dueVal == null) dueVal = byHint(/(due|remaining|balance)/);
     if (dueVal == null && totalVal != null && paidVal != null) dueVal = Math.max(0, totalVal - paidVal);
     _m("pay");
     const submit = $("#newAdmissionPaymentSubmitBtn") || $("#admissionPaymentSubmitBtn"); if (!submit) throw new Error("Submit বাটন নেই"); submit.click();
