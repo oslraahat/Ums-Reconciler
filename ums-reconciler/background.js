@@ -189,7 +189,7 @@ async function admBrowserRun(p) {
     await bgSleep(500);   // let any client-side redirect settle before injecting
     const info = await getTab(tabId);
     if (!info) { admRunTab = null; return { ok: false, message: "ট্যাব বন্ধ হয়ে গেছে" }; }
-    if (/Account\/Login/i.test(info.url || "")) return { ok: false, message: "ওই সার্ভারে লগইন নেই — আগে ব্রাউজারে লগইন করো" };
+    if (/Account\/Login/i.test(info.url || "")) return { ok: false, message: "🔒 লগইন নেই — প্রথমে ওই UMS সার্ভারে ব্রাউজারে লগইন করুন, তারপর আবার চেষ্টা করুন" };
     const cur0 = await getTab(tabId);
     if (cur0 && RECEIPT_RE.test(cur0.url || "")) { const id = receiptId(cur0.url); if (id) return { ok: true, payId: id, url: cur0.url }; }
     /* ONE injection only — no retry: the driver clicks the real Submit near the end, and a lost result

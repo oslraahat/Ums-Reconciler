@@ -122,7 +122,7 @@
       r = await fetch(url, { method: "POST", credentials: "include", headers: headers, body: body.toString() });
     } catch (e) { throw new Error("fetch ব্যর্থ (" + ((e && e.message) || e) + ") → " + url); }
     const txt = await r.text();
-    if (/Account\/Login/i.test(r.url || "") || /name=["']?Password["']?/i.test(txt.slice(0, 4000))) throw new Error("not logged in (" + path.split("/").pop() + ")");
+    if (/Account\/Login/i.test(r.url || "") || /name=["']?Password["']?/i.test(txt.slice(0, 4000))) throw new Error("🔒 লগইন নেই — প্রথমে ওই UMS সার্ভারে ব্রাউজারে লগইন করুন, তারপর আবার চেষ্টা করুন");
     if (/PermissionDenied|Permission Denied/i.test(txt.slice(0, 2000))) throw new Error("PermissionDenied — " + path.split("/").pop() + " (token/অনুমতি)");
     /* UMS answers a rejected action with a styled HTML page titled Warning/Error instead of JSON —
        pull the readable message out of it (a genuine HTML payload like a DuePayment receipt has no
@@ -137,7 +137,7 @@
     try { r = await fetch(url, { credentials: "include" }); }
     catch (e) { throw new Error("fetch ব্যর্থ (" + ((e && e.message) || e) + ") → " + url); }
     const txt = await r.text();
-    if (/Account\/Login/i.test(r.url || "")) throw new Error("not logged in — আগে ব্রাউজারে ওই সার্ভারে লগইন করো");
+    if (/Account\/Login/i.test(r.url || "")) throw new Error("🔒 লগইন নেই — প্রথমে ওই UMS সার্ভারে ব্রাউজারে লগইন করুন, তারপর আবার চেষ্টা করুন");
     return new DOMParser().parseFromString(txt, "text/html");
   }
   /* the money receipt is a base64 PDF in #moneyReceiptData; decode it, inflate each FlateDecode content

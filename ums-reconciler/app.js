@@ -152,7 +152,7 @@
     adm_par: { bn: "একসাথে", en: "All at once" },
     adm_intro: { bn: "⟳ Fetch Data চাপো, dropdown বেছে নাও, মোবাইল ও সংখ্যা দিয়ে ▶ Run। ⚠ আসল admission তৈরি হয় — টেস্ট সার্ভারে চালাও।",
       en: "Press ⟳ Fetch Data, pick the dropdowns, give the mobile and count, then ▶ Run. ⚠ Creates real admissions — use a test server." },
-    adm_base_l: { bn: "UMS ঠিকানা", en: "UMS address" },
+    adm_base_l: { bn: "UMS Address", en: "UMS Address" },
     adm_mobile_l: { bn: "Mobile Number", en: "Mobile Number" },
     adm_prog_l: { bn: "Program", en: "Program" },
     adm_amount_l: { bn: "Amount", en: "Amount" },
