@@ -91,6 +91,7 @@
   let lang = "bn";
   const DICT = {
     subtitle: { bn: "Program Wise ⇄ Course Wise — Registration No. ও StudentProgramId দিন, রান চাপুন, রিপোর্ট পান", en: "Program Wise ⇄ Course Wise — enter Registration No. & StudentProgramId, run, get the report" },
+    upd_btn: { bn: "↻ আপডেট", en: "↻ Update" },
     p_eased: { bn: "সার্ভার চাপে — একসাথে {n}টি", en: "server under strain — {n} at a time" },
     dl_failed: { bn: "রিপোর্টটা বানানো গেল না — ফিল্টার বেছে (যেমন Total Problem) আবার চেষ্টা করো, বা শিটটা ভাগ করে চালাও", en: "the report could not be built — choose a filter (Total Problem, say) and try again, or run the sheet in parts" },
     tab_all: { bn: "ফলাফল", en: "Result" },
