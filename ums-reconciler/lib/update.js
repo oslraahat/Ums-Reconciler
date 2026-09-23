@@ -95,8 +95,9 @@
     return out;
   }
 
-  /* write each file into the folder, creating sub-folders (menus/…, lib/…) as needed */
-  async function writeAll(root, files) {
+  /* write each file into the folder, creating sub-folders (menus/…, lib/…) as needed.
+     onStep(done,total) lets the caller show progress so a slow write doesn't look frozen. */
+  async function writeAll(root, files, onStep) {
     for (var i = 0; i < files.length; i++) {
       var parts = files[i].path.split("/"), dir = root;
       for (var j = 0; j < parts.length - 1; j++) dir = await dir.getDirectoryHandle(parts[j], { create: true });
@@ -104,6 +105,7 @@
       var w = await fh.createWritable();
       await w.write(files[i].bytes);
       await w.close();
+      if (onStep) onStep(i + 1, files.length);
     }
   }
 
@@ -130,9 +132,10 @@
       var resp = await fetch(ZIP_URL, { cache: "no-store" });
       if (!resp.ok) throw new Error("ডাউনলোড ব্যর্থ (" + resp.status + ")");
       var buf = await resp.arrayBuffer();
-      setBtn("⏳ লিখছি…", true);
+      setBtn("⏳ খুলছি…", true);
       var files = await unzipExtension(buf);
-      await writeAll(dir, files);
+      setBtn("⏳ লিখছি… 0/" + files.length, true);
+      await writeAll(dir, files, function (done, total) { setBtn("⏳ লিখছি… " + done + "/" + total, true); });
       var banner = document.getElementById("updBanner"); if (banner) try { banner.remove(); } catch (e) {}
       setBtn("✓ হয়ে গেছে", true);
       var doReload = self.confirm ? confirm("আপডেট হয়ে গেছে (v" + (latest || "?") + ")। এখন extension reload দেব? (reload-এর পর এই পেজটা আবার খুলতে হতে পারে)") : true;
