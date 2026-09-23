@@ -160,7 +160,10 @@
   /* Tolerance and Parallel hold two or three characters, so they take the smaller share; the save
      cell needs room for a toggle and a button side by side, and no more than that — it used to take
      a third of the row and leave 93px of nothing after the Folder button. */
-  .g4{grid-template-columns:minmax(120px,.7fr) minmax(130px,.7fr) minmax(240px,1fr) minmax(200px,1.1fr);align-items:start}
+  .g4{grid-template-columns:minmax(120px,.7fr) minmax(130px,.7fr) minmax(240px,1fr) minmax(200px,1.1fr);align-items:start;gap:10px}
+  /* The settings row is short controls; a smaller label and column gap tighten it without
+     changing the inputs' own height (--ctl-h), which the run buttons align to. */
+  .g4 label{font-size:11px}
   /* Start/Pause/Stop live in the last column so they sit at the right edge; the negative margin
      lifts them level with the inputs, which carry a label above. */
   .runbtns{grid-column:4;align-self:start;display:grid;grid-template-columns:1fr 1fr;gap:8px;
