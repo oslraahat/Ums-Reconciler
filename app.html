@@ -432,6 +432,7 @@
   .connGrid{grid-template-columns:1fr auto auto;align-items:end;gap:10px}
   .connGrid.two{grid-template-columns:1fr 1fr auto auto}
   .connGrid > div{min-width:0}
+  #srvHint::after{content:" · ";color:var(--mut)}   /* separator, only when the two-server hint is shown */
   /* the Connection row kept compact — shorter inputs/buttons than the settings row (which layout.js
      pins), so the two URLs + Test + Save sit on one tidy line */
   #connGrid label{margin-bottom:3px;font-size:11px}
@@ -547,8 +548,7 @@
         <div><button class="btn g" id="testConn" data-i18n="test">Test Connection</button></div>
         <div><button class="btn g" id="saveCfg" data-i18n="save">সেভ করুন</button></div>
       </div>
-      <div class="hint" id="srvHint" style="display:none" data-i18n="srv_hint">একই Reg + StudentProgramId দুই সার্ভারে খুলে প্রতিটা সারির প্রতিটা ঘর মিলিয়ে দেখা হবে। দুই সার্ভারেই লগইন থাকতে হবে।</div>
-      <div class="hint" data-i18n="sess_hint">এই ব্রাউজারে UMS-এ লগইন থাকা অবস্থায় চলবে (সেশন ব্যবহার করে)। আলাদা email/password লাগে না।</div>
+      <div class="hint"><span id="srvHint" style="display:none" data-i18n="srv_hint">একই ছাত্রকে দুই সার্ভারে খুলে ঘরে-ঘরে মিলিয়ে দেখে। দুই সার্ভারেই লগইন লাগবে।</span><span data-i18n="sess_hint">UMS-এ লগইন থাকলেই চলবে — আলাদা ইমেইল/পাসওয়ার্ড লাগে না।</span></div>
     </div>
 
     <div class="card">
