@@ -97,9 +97,20 @@ async function admDriver(p) {
   };
   const noBlock = function () { return waitFor(function () { return !document.querySelector(".blockOverlay,.blockUI"); }, 20000); };
   const setSel = function (sel, val) { const el = $(sel); if (!el) return false; el.value = val; el.dispatchEvent(new Event("change", { bubbles: true })); return true; };
+  /* pick the option whose visible text matches — used for Student Class, whose option VALUE is a
+     numeric id, not the word "Admission", so setting the value to "Admission" would select nothing */
+  const setSelByText = function (sel, re) {
+    const el = $(sel); if (!el) return false;
+    const opt = Array.prototype.find.call(el.options, function (o) { return re.test(o.textContent || ""); });
+    if (!opt || !opt.value) return false;
+    el.value = opt.value; el.dispatchEvent(new Event("change", { bubbles: true })); return true;
+  };
   const hasOpts = function (sel) { const s = $(sel); return s && s.options.length > 1; };
   try {
-    setSel("#StudentClass", "Admission"); await noBlock();
+    await waitFor(function () { return hasOpts("#StudentClass"); }, 10000);
+    if (!setSelByText("#StudentClass", /admission/i)) setSel("#StudentClass", "Admission");
+    if (!($("#StudentClass") && $("#StudentClass").value)) throw new Error("Student Class সেট হলো না (option এলো না?)");
+    await noBlock();
     if (!await waitFor(function () { return hasOpts("#Program"); }, 40000)) throw new Error("Program এলো না");
     setSel("#Program", String(p.program)); await noBlock();
     if (!await waitFor(function () { return hasOpts("#Session"); }, 30000)) throw new Error("Session এলো না");
@@ -118,39 +129,49 @@ async function admDriver(p) {
     if (hasOpts("#AttachedPhysicalBranch") && p.physBranch) setSel("#AttachedPhysicalBranch", String(p.physBranch));
     await waitFor(function () { return document.querySelector(".course-name-check"); }, 15000);
     const ids = (p.courseIds || []).map(String);
+    const subjDbg = [];
+    /* Make the course's subject ticks match what validation wants. The form pre-checks MORE than the
+       maximum (e.g. 6 when only 4 are allowed) and then Next is refused ("Maximum subject … is 4,
+       please remove at least 2"). Keep the compulsory (readonly) ones, then aim for the count the
+       form itself selected but clamped to [min, max], one per subject group — CHECK the wanted and
+       UNCHECK the rest. Run this AFTER the batch is chosen: selecting a batch re-renders the course
+       and re-checks every subject, which would undo an earlier pass. */
+    async function pickSubjects(cid, cb) {
+      await waitFor(function () { return document.querySelector(".course-" + cid + "-subjects,[class*='course-" + cid + "-subjects']"); }, 6000);
+      let subs = Array.prototype.slice.call(document.querySelectorAll(".course-" + cid + "-subjects"));
+      if (!subs.length) subs = Array.prototype.slice.call(document.querySelectorAll("[class*='course-" + cid + "-subjects']"));
+      if (!subs.length) { subjDbg.push(cid + ":subs0"); return; }
+      const isRO = function (s) { return s.readOnly || s.hasAttribute("readonly") || s.disabled; };
+      const grp = function (s) { const g = s.getAttribute("data-group-no"); return g && g !== "0" ? g : null; };
+      const minSub = parseInt((cb && cb.getAttribute("data-officeminsub")) || "0", 10) || 0;
+      const maxSub = parseInt((cb && cb.getAttribute("data-maximumsubject")) || "0", 10) || subs.length;
+      const nowChecked = subs.filter(function (s) { return s.checked; }).length;
+      const target = Math.max(minSub, Math.min(maxSub, nowChecked || maxSub));   // keep about what the form picked, but within [min,max]
+      const want = new Set(), groupUsed = {};
+      subs.forEach(function (s) { if (isRO(s)) { want.add(s); const g = grp(s); if (g) groupUsed[g] = 1; } });   // compulsory first
+      const tryAdd = function (s) {
+        if (want.size >= target || want.has(s) || isRO(s)) return;
+        const g = grp(s); if (g) { if (groupUsed[g]) return; groupUsed[g] = 1; }
+        want.add(s);
+      };
+      subs.forEach(function (s) { if (want.size < target && s.checked) tryAdd(s); });   // prefer the form's own picks
+      subs.forEach(function (s) { if (want.size < target) tryAdd(s); });                // then any others
+      subs.forEach(function (s) { if (isRO(s)) return; const on = want.has(s); if (s.checked !== on) s.click(); });
+      /* final safety: if compulsory alone still exceed the max, drop the last non-readonly extras */
+      let checked = subs.filter(function (s) { return s.checked; });
+      for (let i = checked.length - 1; i >= 0 && subs.filter(function (s) { return s.checked; }).length > maxSub; i--) { if (!isRO(checked[i])) checked[i].click(); }
+      await noBlock();
+      subjDbg.push(cid + ":chk" + subs.filter(function (s) { return s.checked; }).length + "/" + subs.length + " min" + minSub + " max" + maxSub);
+    }
     for (const cid of ids) {
       const cb = document.querySelector(".course-name-check.course-" + cid) || Array.prototype.find.call(document.querySelectorAll(".course-name-check"), function (c) { const m = (c.className || "").match(/course-(\d+)/); return m && m[1] === cid; });
       if (cb && !cb.checked) cb.click();
       await noBlock();
-      /* Make the course's subject ticks match what validation wants — the form often pre-checks MORE
-         than allowed (over the maximum, or several in one group), and then Next silently won't move
-         to the Payment step. Build the exact wanted set like HTTP's admPickSubjects does — every
-         compulsory (readonly) subject, then fill up to the minimum preferring ones already checked,
-         one per group, never past the maximum — then CHECK the wanted and UNCHECK the rest (leaving
-         the readonly/compulsory ones as the form set them). */
-      await waitFor(function () { return document.querySelector(".course-" + cid + "-subjects"); }, 6000);
-      const subs = Array.prototype.slice.call(document.querySelectorAll(".course-" + cid + "-subjects"));
-      if (subs.length) {
-        const minSub = parseInt((cb && cb.getAttribute("data-officeminsub")) || "0", 10) || 0;
-        const maxSub = parseInt((cb && cb.getAttribute("data-maximumsubject")) || "0", 10) || subs.length;
-        const isRO = function (s) { return s.readOnly || s.hasAttribute("readonly"); };
-        const grp = function (s) { const g = s.getAttribute("data-group-no"); return g && g !== "0" ? g : null; };
-        const want = new Set(), groupUsed = {};
-        subs.forEach(function (s) { if (isRO(s)) { want.add(s); const g = grp(s); if (g) groupUsed[g] = 1; } });   // compulsory
-        const tryAdd = function (s) {
-          if (want.size >= maxSub || want.has(s) || isRO(s)) return;
-          const g = grp(s); if (g) { if (groupUsed[g]) return; groupUsed[g] = 1; }
-          want.add(s);
-        };
-        subs.forEach(function (s) { if (want.size < minSub && s.checked) tryAdd(s); });   // fill to min, keeping the form's own picks first
-        subs.forEach(function (s) { if (want.size < minSub) tryAdd(s); });                // then any others
-        subs.forEach(function (s) { if (isRO(s)) return; const on = want.has(s); if (s.checked !== on) s.click(); });   // apply: uncheck the extras
-        await noBlock();
-      }
       for (const cls of [".batch-day-course-" + cid, ".batch-time-course-" + cid, ".batch-course-" + cid]) {
         const ok = await waitFor(function () { const s = $(cls); return s && Array.prototype.some.call(s.options, function (o) { return o.value.trim(); }); }, 9000);
         if (ok) { const s = $(cls); const opt = Array.prototype.find.call(s.options, function (o) { return o.value.trim(); }); s.value = opt.value; s.dispatchEvent(new Event("change", { bubbles: true })); await noBlock(); }
       }
+      await pickSubjects(cid, cb);   // after the batch, so its re-render doesn't re-check everything
     }
     if ($("#Name")) $("#Name").value = p.name;
     if ($("#MobNumber")) $("#MobNumber").value = p.mobile;
@@ -177,11 +198,12 @@ async function admDriver(p) {
     if (!await waitFor(function () { const el = $("#receivedAmount"); return el && el.offsetParent; }, 20000)) {
       /* say WHY Next didn't advance: the validation messages, or failing that the fields the form
          flagged invalid (jQuery validate marks them .input-validation-error) */
-      const msgs = Array.prototype.map.call(document.querySelectorAll("#boardInfoErrorMessage,.field-validation-error,.validation-summary-errors,.text-danger,.alert-danger"), function (n) { return (n.textContent || "").replace(/\s+/g, " ").trim(); }).filter(Boolean);
+      const msgs = Array.prototype.map.call(document.querySelectorAll("#boardInfoErrorMessage,.field-validation-error,.validation-summary-errors,.text-danger,.alert-danger,.toast-message,.toast-error,.toast,.swal2-html-container,.swal2-title,[id*='ubjectError'],[id*='ourseError']"), function (n) { return (n.textContent || "").replace(/\s+/g, " ").trim(); }).filter(Boolean);
       const bad = Array.prototype.map.call(document.querySelectorAll(".input-validation-error"), function (n) { return n.id || n.name || (n.className || "").split(" ")[0]; }).filter(Boolean);
-      let why = msgs.join(" · ").slice(0, 160);
+      let why = Array.from(new Set(msgs)).join(" · ").slice(0, 180);
       if (!why && bad.length) why = "খালি/ভুল ফিল্ড: " + bad.slice(0, 8).join(", ");
-      throw new Error("Payment ধাপে গেল না" + (why ? " — " + why : " (ফর্ম কোনো কারণ দেখায়নি)"));
+      const dbg = subjDbg.length ? " [subj " + subjDbg.join(", ") + "]" : "";
+      throw new Error("Payment ধাপে গেল না" + (why ? " — " + why : " (ফর্ম কোনো কারণ দেখায়নি)") + dbg);
     }
     if ($("#receivedAmount") && p.received != null && p.received !== "") { $("#receivedAmount").value = p.received; $("#receivedAmount").dispatchEvent(new Event("input", { bubbles: true })); $("#receivedAmount").dispatchEvent(new Event("change", { bubbles: true })); }
     /* Next Receiving Date is required when there's a due — the form validation blocks Submit without it */
