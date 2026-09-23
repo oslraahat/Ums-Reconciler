@@ -164,32 +164,37 @@ function getTab(id) { return new Promise(function (r) { chrome.tabs.get(id, func
 const RECEIPT_RE = /GenerateMoneyReciept|GenerateCoursewiseMoneyReciept/i;
 function receiptId(url) { const m = url && url.match(/[?&](?:id|studentPaymentIdList)=(\d+)/); return m ? m[1] : ""; }
 
-/* one tab is reused for a whole run (opened once, navigated per admission, closed at the end) so
-   Browser/Headless don't open a new tab for every student */
-let admRunTab = null, admRunWin = null;
+/* one tab/window per concurrency slot is reused for a whole run (opened once, navigated per
+   admission, closed at the end) — so Browser/Headless don't open a new tab for every student, and
+   several admissions can run at once (the pool / "একসাথে" count), each isolated in its own slot */
+const admSlots = {};   // slot -> { tabId, winId }
 async function admEnsureTab(p, url) {
-  if (admRunTab != null && await getTab(admRunTab)) { await chrome.tabs.update(admRunTab, { url: url }); return admRunTab; }
+  const slot = p.slot || 0;
+  const cur = admSlots[slot];
+  if (cur && cur.tabId != null && await getTab(cur.tabId)) { await chrome.tabs.update(cur.tabId, { url: url }); return cur.tabId; }
   if (p.show === false) {
     /* Headless — a minimized window kept off-screen. Chrome has no true off-screen/invisible tab, so
        "hidden" means minimized: it lives in the taskbar, not on the desktop, and never steals focus.
        The event-driven driver (MutationObserver, not setTimeout) is not throttled when minimized, so
-       it still runs at full speed. The window is reused for the whole run, so it opens at most once. */
-    admRunWin = await chrome.windows.create({ url: url, focused: false, state: "minimized" });
-    admRunTab = admRunWin && admRunWin.tabs && admRunWin.tabs[0] && admRunWin.tabs[0].id;
-    try { await chrome.windows.update(admRunWin.id, { state: "minimized", focused: false }); } catch (e) {}
-    return admRunTab;
+       it still runs at full speed. Each slot keeps its window for the whole run (opens at most once). */
+    const win = await chrome.windows.create({ url: url, focused: false, state: "minimized" });
+    const tabId = win && win.tabs && win.tabs[0] && win.tabs[0].id;
+    try { await chrome.windows.update(win.id, { state: "minimized", focused: false }); } catch (e) {}
+    admSlots[slot] = { tabId: tabId, winId: win.id };
+    return tabId;
   }
   /* Browser — a normal tab in the current window, in front */
   const tb = await chrome.tabs.create({ url: url, active: true });
-  admRunTab = tb.id; admRunWin = null;
-  return admRunTab;
+  admSlots[slot] = { tabId: tb.id, winId: null };
+  return tb.id;
 }
-async function admCloseRun() {
-  try {
-    if (admRunWin != null) await chrome.windows.remove(admRunWin.id);
-    else if (admRunTab != null) await chrome.tabs.remove(admRunTab);
-  } catch (e) {}
-  admRunTab = null; admRunWin = null;
+async function admCloseRun(slot) {
+  const keys = slot == null ? Object.keys(admSlots) : [String(slot)];
+  for (const k of keys) {
+    const s = admSlots[k]; if (!s) continue;
+    try { if (s.winId != null) await chrome.windows.remove(s.winId); else if (s.tabId != null) await chrome.tabs.remove(s.tabId); } catch (e) {}
+    delete admSlots[k];
+  }
 }
 
 async function admBrowserRun(p) {
@@ -198,9 +203,9 @@ async function admBrowserRun(p) {
     const tabId = await admEnsureTab(p, url);
     if (tabId == null) return { ok: false, message: "ট্যাব খুলল না" };
     await waitTabComplete(tabId, 30000);
-    await bgSleep(500);   // let any client-side redirect settle before injecting
+    await bgSleep(250);   // let any client-side redirect settle before injecting
     const info = await getTab(tabId);
-    if (!info) { admRunTab = null; admRunWin = null; return { ok: false, message: "ট্যাব বন্ধ হয়ে গেছে" }; }
+    if (!info) { delete admSlots[p.slot || 0]; return { ok: false, message: "ট্যাব বন্ধ হয়ে গেছে" }; }
     if (/Account\/Login/i.test(info.url || "")) return { ok: false, message: "🔒 লগইন নেই — আগে এই সার্ভারে ব্রাউজারে লগইন করুন: " + (p.base || "(UMS Address খালি)") + " — তারপর আবার চেষ্টা করুন" };
     const cur0 = await getTab(tabId);
     if (cur0 && RECEIPT_RE.test(cur0.url || "")) { const id = receiptId(cur0.url); if (id) return { ok: true, payId: id, url: cur0.url }; }
@@ -231,5 +236,5 @@ async function admBrowserRun(p) {
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === "admBrowser") { admBrowserRun(msg.params || {}).then(sendResponse); return true; }
-  if (msg && msg.type === "admBrowserClose") { admCloseRun().then(function () { sendResponse({ ok: true }); }); return true; }
+  if (msg && msg.type === "admBrowserClose") { admCloseRun(msg.slot).then(function () { sendResponse({ ok: true }); }); return true; }
 });

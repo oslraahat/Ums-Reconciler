@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "UMS Reconciler",
-  "version": "13.87.1",
+  "version": "13.88.0",
   "description": "Verifies that Course Wise payment distribution matches the Program Wise totals on *.osl.team (matched per MRN/CRN, column by column), and compares the same student across two UMS servers cell by cell. Editable base URLs, pop-out window, Google Sheet import.",
   "icons": {
     "16": "icon16.png",

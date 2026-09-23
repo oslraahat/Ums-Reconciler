@@ -558,13 +558,13 @@
       instName: inst.name, instId: inst.id, courseIds: courseIds, mobile: mobile,
       received: ($("admAmount").value || "").trim(), show: admRunModeVal !== "headless" };
     const count = admCount();
-    admOutLine("→ " + count + " admission · " + t(admRunModeVal === "headless" ? "adm_headless_l" : "adm_browser_l"));
-    const t0 = Date.now(); let ok = 0, fail = 0;
-    for (let i = 0; i < count && !admStopFlag; i++) {
-      await admWaitIfPaused(); if (admStopFlag) break;
-      const n = i + 1;
+    const pool = Math.max(1, Math.min(admPool(), count));   // "একসাথে": run this many at once, each in its own tab/window (slot)
+    admOutLine("→ " + count + " admission · " + t(admRunModeVal === "headless" ? "adm_headless_l" : "adm_browser_l") + (pool > 1 ? " · " + pool + " " + t("adm_pool_n") : ""));
+    const t0 = Date.now(); let ok = 0, fail = 0, next = 0;
+    /* one admission, run in the given slot's tab/window; logs its own result line */
+    async function admOne(n, slot) {
       try {
-        const params = Object.assign({}, base, { name: admName() });
+        const params = Object.assign({}, base, { name: admName(), slot: slot });
         const r = await new Promise(function (resolve) { chrome.runtime.sendMessage({ type: "admBrowser", params: params }, function (resp) { resolve(resp || { ok: false, message: chrome.runtime.lastError ? chrome.runtime.lastError.message : "সাড়া নেই" }); }); });
         if (!r || !r.ok) throw new Error((r && r.message) || "ব্যর্থ");
         let branch = "", mrNo = "", regNo = "", roll = "";
@@ -586,7 +586,18 @@
         admOutLine("  " + parts.join(" · "));
       } catch (e) { fail++; admOutLine("  ✗ #" + n + "/" + count + " — " + ((e && e.message) || e)); }
     }
-    try { await new Promise(function (res) { chrome.runtime.sendMessage({ type: "admBrowserClose" }, function () { res(); }); }); } catch (e) {}   // close the reused tab/window
+    /* a fixed number of workers (= pool), each pulling the next admission until they run out; each
+       worker owns one slot, so a slot's tab/window is reused and never used by two at the same time */
+    async function admWorker(slot) {
+      while (!admStopFlag) {
+        await admWaitIfPaused(); if (admStopFlag) break;
+        const i = next++; if (i >= count) break;
+        await admOne(i + 1, slot);
+      }
+    }
+    const workers = []; for (let s = 0; s < pool; s++) workers.push(admWorker(s));
+    await Promise.all(workers);
+    try { await new Promise(function (res) { chrome.runtime.sendMessage({ type: "admBrowserClose" }, function () { res(); }); }); } catch (e) {}   // close every slot's tab/window
     admOutLine("── " + ok + " ok · " + fail + " failed of " + (ok + fail) + " · " + ((Date.now() - t0) / 1000).toFixed(1) + "s" + (admStopFlag ? " (stopped)" : ""));
   }
   /* flag a field red until it is next focused/typed in, so a validation miss is visible on the field */
