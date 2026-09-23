@@ -131,35 +131,36 @@ async function admDriver(p) {
     const ids = (p.courseIds || []).map(String);
     const subjDbg = [];
     /* Make the course's subject ticks match what validation wants. The form pre-checks MORE than the
-       maximum (e.g. 6 when only 4 are allowed) and then Next is refused ("Maximum subject … is 4,
-       please remove at least 2"). Keep the compulsory (readonly) ones, then aim for the count the
-       form itself selected but clamped to [min, max], one per subject group — CHECK the wanted and
-       UNCHECK the rest. Run this AFTER the batch is chosen: selecting a batch re-renders the course
-       and re-checks every subject, which would undo an earlier pass. */
+       maximum (e.g. all 6 when only 4 are allowed) and then Next is refused ("Maximum subject … is 4,
+       please remove at least 2"). Mirror HTTP's admPickSubjects: take the compulsory/checked ones
+       FIRST but stop at the maximum — even a readonly subject beyond the cap gets dropped (readonly
+       only blocks typing, not (un)ticking a checkbox; only a disabled one truly can't change) — then
+       fill up to the minimum, one per subject group. Runs AFTER the batch is chosen, because picking
+       a batch re-renders the course and re-checks every subject, undoing an earlier pass. */
     async function pickSubjects(cid, cb) {
       await waitFor(function () { return document.querySelector(".course-" + cid + "-subjects,[class*='course-" + cid + "-subjects']"); }, 6000);
       let subs = Array.prototype.slice.call(document.querySelectorAll(".course-" + cid + "-subjects"));
       if (!subs.length) subs = Array.prototype.slice.call(document.querySelectorAll("[class*='course-" + cid + "-subjects']"));
       if (!subs.length) { subjDbg.push(cid + ":subs0"); return; }
-      const isRO = function (s) { return s.readOnly || s.hasAttribute("readonly") || s.disabled; };
       const grp = function (s) { const g = s.getAttribute("data-group-no"); return g && g !== "0" ? g : null; };
+      const setChk = function (s, on) {   // click to (un)tick; if that didn't take, force it and fire change
+        if (s.disabled) return; if (s.checked === on) return;
+        s.click();
+        if (s.checked !== on) { s.checked = on; s.dispatchEvent(new Event("change", { bubbles: true })); }
+      };
       const minSub = parseInt((cb && cb.getAttribute("data-officeminsub")) || "0", 10) || 0;
       const maxSub = parseInt((cb && cb.getAttribute("data-maximumsubject")) || "0", 10) || subs.length;
       const nowChecked = subs.filter(function (s) { return s.checked; }).length;
-      const target = Math.max(minSub, Math.min(maxSub, nowChecked || maxSub));   // keep about what the form picked, but within [min,max]
+      const target = Math.max(minSub, Math.min(maxSub, nowChecked || maxSub));   // aim at what the form picked, clamped to [min,max]
       const want = new Set(), groupUsed = {};
-      subs.forEach(function (s) { if (isRO(s)) { want.add(s); const g = grp(s); if (g) groupUsed[g] = 1; } });   // compulsory first
-      const tryAdd = function (s) {
-        if (want.size >= target || want.has(s) || isRO(s)) return;
+      const tryTake = function (s) {
+        if (want.size >= target || want.has(s)) return;
         const g = grp(s); if (g) { if (groupUsed[g]) return; groupUsed[g] = 1; }
         want.add(s);
       };
-      subs.forEach(function (s) { if (want.size < target && s.checked) tryAdd(s); });   // prefer the form's own picks
-      subs.forEach(function (s) { if (want.size < target) tryAdd(s); });                // then any others
-      subs.forEach(function (s) { if (isRO(s)) return; const on = want.has(s); if (s.checked !== on) s.click(); });
-      /* final safety: if compulsory alone still exceed the max, drop the last non-readonly extras */
-      let checked = subs.filter(function (s) { return s.checked; });
-      for (let i = checked.length - 1; i >= 0 && subs.filter(function (s) { return s.checked; }).length > maxSub; i--) { if (!isRO(checked[i])) checked[i].click(); }
+      subs.forEach(function (s) { if (s.checked) tryTake(s); });     // keep the form's own picks first, but capped at target
+      subs.forEach(function (s) { if (want.size < target) tryTake(s); });   // fill up to the minimum with the rest
+      subs.forEach(function (s) { setChk(s, want.has(s)); });        // apply: uncheck every extra, even a readonly one
       await noBlock();
       subjDbg.push(cid + ":chk" + subs.filter(function (s) { return s.checked; }).length + "/" + subs.length + " min" + minSub + " max" + maxSub);
     }
