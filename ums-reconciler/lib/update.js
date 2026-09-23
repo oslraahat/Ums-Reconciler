@@ -23,7 +23,7 @@
   }
   function isEn() { try { return self.APP && self.APP.getLang && self.APP.getLang() === "en"; } catch (e) { return false; } }
   function L(bn, en) { return isEn() ? en : bn; }
-  function idleLabel() { try { if (self.APP && self.APP.t) return self.APP.t("upd_btn"); } catch (e) {} return L("↓ আপডেট", "↓ Update"); }
+  function idleLabel() { try { if (self.APP && self.APP.t) return self.APP.t("upd_btn"); } catch (e) {} return L("⬇ আপডেট", "⬇ Update"); }
 
   function reloadExt() { try { if (chrome.runtime && chrome.runtime.reload) chrome.runtime.reload(); } catch (e) {} }
   function downloadZip() {
@@ -60,6 +60,31 @@
     document.body.appendChild(p);
   }
 
+  /* One-click auto-update via the native host (the CRM load-test host — it runs outside Chrome, so it
+     CAN write the extension folder). If the host isn't installed / fails, fall back to the panel. */
+  var HOST = "com.umsreconciler.crmloadtest";
+  function setBtn(txt, dis) { var b = document.getElementById("updBtn"); if (b) { b.textContent = txt; b.disabled = !!dis; } }
+  function stageText(s) {
+    var bn = { download: "নামছে…", extract: "খুলছে…", write: "লিখছে…" }, en = { download: "Downloading…", extract: "Extracting…", write: "Installing…" };
+    return L(bn[s] || "…", en[s] || "…");
+  }
+  function autoUpdate(cur) {
+    var done = false;
+    function fallback() { setBtn(idleLabel(), false); showPanel(latestVer || cur, cur); }
+    try {
+      setBtn(L("⏳ আপডেট হচ্ছে…", "⏳ Updating…"), true);
+      var port = chrome.runtime.connectNative(HOST);
+      port.onMessage.addListener(function (msg) {
+        if (!msg) return;
+        if (msg.type === "updateOut") setBtn("⏳ " + stageText(msg.stage), true);
+        else if (msg.type === "updated") { done = true; try { port.disconnect(); } catch (e) {} setBtn(L("✓ হয়ে গেছে — reload", "✓ Done — reloading"), true); setTimeout(function () { try { if (chrome.runtime.reload) chrome.runtime.reload(); } catch (e) {} }, 500); }
+        else if (msg.type === "error") { done = true; try { port.disconnect(); } catch (e) {} if (self.alert) alert(L("আপডেট হলো না: ", "Update failed: ") + (msg.text || "")); fallback(); }
+      });
+      port.onDisconnect.addListener(function () { if (!done) fallback(); });   // host missing → manual panel
+      port.postMessage({ action: "update" });
+    } catch (e) { fallback(); }
+  }
+
   var lastCheck = 0, hasUpdate = false, latestVer = "";
   function check() {
     var now = Date.now();
@@ -84,7 +109,7 @@
 
   function init() {
     var b = document.getElementById("updBtn");
-    if (b) b.addEventListener("click", function () { if (hasUpdate) showPanel(latestVer, running()); else check(); });
+    if (b) b.addEventListener("click", function () { if (hasUpdate) autoUpdate(running()); else check(); });
     check();
   }
   if (typeof document !== "undefined" && document.addEventListener) {
