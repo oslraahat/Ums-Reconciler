@@ -26,7 +26,12 @@ const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
 
-const APP = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+/* The worksheet writer (xesc/cl/FILL_STYLE/LINK_STYLE/rowXml/sheetChunks/sheetXml) moved to
+   lib/xlsx.js and app.js keeps thin references, so the source lift() reads is xlsx.js concatenated
+   BEFORE app.js — name-based extraction finds the real definition before the thin ref. buildRaw and
+   the buildHtml checks stay in app.js and are still found there. */
+const APP = fs.readFileSync(path.join(__dirname, "..", "lib", "xlsx.js"), "utf8") + "\n" +
+  fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
 
 let fail = 0;
 const check = (name, ok, extra) => {

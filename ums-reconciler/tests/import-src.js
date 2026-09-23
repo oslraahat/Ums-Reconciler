@@ -19,7 +19,11 @@
 const fs = require("fs");
 const path = require("path");
 
-const APP = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+/* sheetsOf/unzip/readXlsx moved to lib/xlsx.js (app.js keeps thin references), so the source read
+   here is xlsx.js concatenated BEFORE app.js — name-based extraction then finds the real function
+   before the thin `const foo = self.XLSX.foo` ref, and the regex checks still see the moved code. */
+const APP = fs.readFileSync(path.join(__dirname, "..", "lib", "xlsx.js"), "utf8") + "\n" +
+  fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
 
 let fail = 0;
 const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  " : "FAIL  ") + name + (!ok && extra ? "   " + extra : "")); };

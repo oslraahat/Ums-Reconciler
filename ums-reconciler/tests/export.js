@@ -10,7 +10,11 @@ const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
 
-const APP = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+/* The xlsx/zip engine moved to lib/xlsx.js and app.js keeps thin `const foo = self.XLSX.foo`
+   references, so the source the lift helpers and the regex checks read is xlsx.js concatenated
+   BEFORE app.js — that way name-based extraction finds the real `function foo` before the thin ref. */
+const APP = fs.readFileSync(path.join(__dirname, "..", "lib", "xlsx.js"), "utf8") + "\n" +
+  fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
 const g = {};
 new Function("self", fs.readFileSync(path.join(__dirname, "..", "reconcile.js"), "utf8"))(g);
 const U = g.UMSREC;

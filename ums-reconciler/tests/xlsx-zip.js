@@ -16,7 +16,11 @@ const fs = require("fs");
 const path = require("path");
 const zlib = require("zlib");
 
-const APP = fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
+/* The zip/worksheet writer moved to lib/xlsx.js (app.js keeps thin references), so the source the
+   src()/line() helpers read is xlsx.js concatenated BEFORE app.js — name-based extraction then
+   finds the real `function foo` there before app.js's thin `const foo = self.XLSX.foo`. */
+const APP = fs.readFileSync(path.join(__dirname, "..", "lib", "xlsx.js"), "utf8") + "\n" +
+  fs.readFileSync(path.join(__dirname, "..", "app.js"), "utf8");
 
 let fail = 0;
 const check = (name, ok, extra) => {

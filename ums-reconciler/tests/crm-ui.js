@@ -186,7 +186,8 @@ const TMP = fs.mkdtempSync(path.join(os.tmpdir(), "crmui-"));
   const at = s.lastIndexOf("</body>");
   fs.writeFileSync(path.join(TMP, "a.html"), s.slice(0, at) + DRIVE);
   fs.mkdirSync(path.join(TMP, "menus", "adm"), { recursive: true }); fs.mkdirSync(path.join(TMP, "menus", "crm"), { recursive: true });
-  ["reconcile.js", "app.js", "menus/adm/adm.js", "menus/crm/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
+  fs.mkdirSync(path.join(TMP, "lib"), { recursive: true });   // the xlsx/zip engine app.html now loads before the menus
+  ["reconcile.js", "lib/xlsx.js", "app.js", "menus/adm/adm.js", "menus/crm/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
 }
 let waiting = null;
 const srv = http.createServer((q, r) => {

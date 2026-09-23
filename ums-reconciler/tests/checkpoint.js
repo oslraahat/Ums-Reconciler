@@ -252,7 +252,8 @@ const page = (drive) => {
 fs.writeFileSync(path.join(TMP, "a.html"), page(DRIVE(PHASE_A)));
 fs.writeFileSync(path.join(TMP, "b.html"), page(DRIVE(PHASE_B)));
 fs.mkdirSync(path.join(TMP, "menus", "adm"), { recursive: true }); fs.mkdirSync(path.join(TMP, "menus", "crm"), { recursive: true });
-["reconcile.js", "app.js", "menus/adm/adm.js", "menus/crm/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
+fs.mkdirSync(path.join(TMP, "lib"), { recursive: true });   // the xlsx/zip engine app.html now loads before the menus
+["reconcile.js", "lib/xlsx.js", "app.js", "menus/adm/adm.js", "menus/crm/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
 
 let waiting = null;   // the runner’s hand out, waiting for whichever page load is in flight
 const pings = [];     // …and what the page said before it got there, for when it never does
