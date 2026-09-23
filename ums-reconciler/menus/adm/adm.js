@@ -51,6 +51,12 @@
   function admCount() { return Math.max(1, Math.min(1000, parseInt($("admCount").value, 10) || 1)); }
   function admPool() { return Math.max(1, Math.min(20, parseInt($("admPool").value, 10) || 1)); }
   function admBaseUrl() { return (($("admBase") && $("admBase").value) || "").trim().replace(/\/+$/, ""); }
+  /* say WHICH server needs the login, so the fix is obvious — and so a login on the wrong server
+     (right person, wrong UMS Address) shows up as a mismatch instead of a blank "not logged in" */
+  function admLoginMsg() {
+    const b = admBaseUrl();
+    return "🔒 লগইন নেই — আগে এই সার্ভারে ব্রাউজারে লগইন করুন: " + (b || "(UMS Address খালি)") + " — তারপর আবার চেষ্টা করুন";
+  }
   function admSetConn(state) {
     admConnState = state || null;
     const el = $("admConn"); if (!el) return;
@@ -122,7 +128,7 @@
       r = await fetch(url, { method: "POST", credentials: "include", headers: headers, body: body.toString() });
     } catch (e) { throw new Error("fetch ব্যর্থ (" + ((e && e.message) || e) + ") → " + url); }
     const txt = await r.text();
-    if (/Account\/Login/i.test(r.url || "") || /name=["']?Password["']?/i.test(txt.slice(0, 4000))) throw new Error("🔒 লগইন নেই — প্রথমে ওই UMS সার্ভারে ব্রাউজারে লগইন করুন, তারপর আবার চেষ্টা করুন");
+    if (/Account\/Login/i.test(r.url || "") || /name=["']?Password["']?/i.test(txt.slice(0, 4000))) throw new Error(admLoginMsg());
     if (/PermissionDenied|Permission Denied/i.test(txt.slice(0, 2000))) throw new Error("PermissionDenied — " + path.split("/").pop() + " (token/অনুমতি)");
     /* UMS answers a rejected action with a styled HTML page titled Warning/Error instead of JSON —
        pull the readable message out of it (a genuine HTML payload like a DuePayment receipt has no
@@ -137,7 +143,7 @@
     try { r = await fetch(url, { credentials: "include" }); }
     catch (e) { throw new Error("fetch ব্যর্থ (" + ((e && e.message) || e) + ") → " + url); }
     const txt = await r.text();
-    if (/Account\/Login/i.test(r.url || "")) throw new Error("🔒 লগইন নেই — প্রথমে ওই UMS সার্ভারে ব্রাউজারে লগইন করুন, তারপর আবার চেষ্টা করুন");
+    if (/Account\/Login/i.test(r.url || "")) throw new Error(admLoginMsg());
     return new DOMParser().parseFromString(txt, "text/html");
   }
   /* the money receipt is a base64 PDF in #moneyReceiptData; decode it, inflate each FlateDecode content
