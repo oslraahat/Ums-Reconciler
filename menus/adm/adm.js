@@ -674,7 +674,11 @@
       const fee = await admPost("/Student/Admission/CalculateCourseFee", { format: "json", studentViewModelJson: feeJson, previousStudentId: 0, bookingId: 0 });
       if (fee && fee.IsSuccess === false) throw new Error("[fee] " + (Array.isArray(fee.Message) ? (fee.Message[0] && fee.Message[0].ErrorMessage) : fee.Message));
       const net = intOf(fee && fee.NetReceivableAmount), totalFee = intOf(fee && fee.TotalCourseFee), receivable = intOf(fee && fee.ReceivableAmount);
-      if (!net) admOutLine("  ⚠ fee net=0 — " + (fee && typeof fee === "object" ? "keys: " + Object.keys(fee).join(",") + " · " + JSON.stringify(fee).slice(0, 300) : String(fee).slice(0, 300)));
+      /* Never admit on a bad fee. A flaky CalculateCourseFee (an HTML/500 body, an unexpected shape,
+         or an unresolved Branch/Campus giving 0) would otherwise mint REAL zero-fee records `count`
+         times. If the net receivable didn't come back as a real number, abort the whole run here —
+         before any NewStudentAdmission POST. */
+      if (!net) throw new Error("fee হিসাব আসেনি (net=0) — admission বাতিল। Branch/Campus আবার সিলেক্ট করো বা সার্ভার দেখো · " + (fee && typeof fee === "object" ? "keys: " + Object.keys(fee).join(",") + " · " + JSON.stringify(fee).slice(0, 200) : String(fee).slice(0, 200)));
       const netAfter = Math.max(0, net - totalSpDiscount);
       let received = (amount !== "") ? Math.min(parseInt(amount, 10) || 0, netAfter) : netAfter; if (received < 0) received = 0;
       const specialDiscounts = Object.keys(discOf).filter(function (k) { return discOf[k] > 0; }).map(function (k) { return { CourseId: k, DiscountAmount: discOf[k] }; });

@@ -344,13 +344,17 @@ async function admBrowserRun(p) {
   try {
     const tabId = await admEnsureTab(p, url);
     if (tabId == null) return { ok: false, message: "ট্যাব খুলল না" };
+    /* Wait until the tab is actually ON the admission form. A REUSED slot may still be showing the
+       PREVIOUS student's receipt for a moment after tabs.update(url), and waitTabComplete can resolve
+       on that stale page — reading the receipt then would report the previous student's id as THIS
+       one's success (wrong Reg/Roll, and this student never admitted). So wait for the form (or a
+       login redirect) URL first, and drop the old "already on a receipt → done" short-circuit. */
+    await waitTabUrl(tabId, /NewStudentAdmission|Account\/Login/i, 30000);
     await waitTabComplete(tabId, 30000);
     await bgSleep(250);   // let any client-side redirect settle before injecting
     const info = await getTab(tabId);
     if (!info) { delete admSlots[p.slot || 0]; return { ok: false, message: "ট্যাব বন্ধ হয়ে গেছে" }; }
     if (/Account\/Login/i.test(info.url || "")) return { ok: false, message: "🔒 লগইন নেই — আগে এই সার্ভারে ব্রাউজারে লগইন করুন: " + (p.base || "(UMS Address খালি)") + " — তারপর আবার চেষ্টা করুন" };
-    const cur0 = await getTab(tabId);
-    if (cur0 && RECEIPT_RE.test(cur0.url || "")) { const id = receiptId(cur0.url); if (id) return { ok: true, payId: id, url: cur0.url }; }
     /* ONE injection only — no retry: the driver clicks the real Submit near the end, and a lost result
        usually means it already submitted and the tab navigated. Re-running would create a DUPLICATE real
        admission. On any loss, wait to see if the receipt appeared (submit went through) before failing. */

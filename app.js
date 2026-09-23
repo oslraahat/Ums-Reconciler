@@ -1623,7 +1623,7 @@
     const d = detectCols(all);
     /* the probe is a network round-trip; say what the wait is for rather than leaving the last
        import's counts on screen, which would read as this import's result */
-    if (!d.hdr) $("impNote").textContent = t("imp_checking");
+    if (!d.regHdr) $("impNote").textContent = t("imp_checking");   // the Reg column is a positional guess → swapCheck will verify
     const flip = await swapCheck(d.hdr ? all.slice(1) : all, d);
     if (flip) { d.reg = flip.reg; d.val = flip.val; }
     const data = d.hdr ? all.slice(1) : all;

@@ -21,7 +21,7 @@
 
   function money(v) {
     if (v == null) return 0;
-    let s = String(v).replace(/[,\s৳]/g, "").trim();
+    let s = String(v).replace(/−/g, "-").replace(/[,\s৳]/g, "").trim();   // normalise a typographic minus (−) to ASCII, or a negative reads as 0
     if (s === "" || s === "-" || s === "--" || /^n\/?a$/i.test(s)) return 0;
     const neg = /^\(.*\)$/.test(s);
     const n = parseFloat(s.replace(/[()]/g, ""));
