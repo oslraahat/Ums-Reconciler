@@ -45,7 +45,8 @@ if not exist "%SRC%\manifest.json" (
 )
 
 echo  [3/4] Updating files...
-robocopy "%SRC%" "%DEST%" /MIR /NFL /NDL /NJH /NJS /NC /NS /NP >nul
+rem /E copies+overwrites but never deletes, so a partial source can't wipe the folder
+robocopy "%SRC%" "%DEST%" /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NC /NS /NP >nul
 rem robocopy: exit code 8+ = real error (0-7 are normal)
 if errorlevel 8 goto :fail
 
