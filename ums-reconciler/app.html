@@ -183,17 +183,21 @@
   #run{background:linear-gradient(90deg,#0ea968,#37d18b);color:#04220f}
   #pause:not(:disabled){background:#ffb454;color:#3a2606;border-color:#ffb454}
   #stop:not(:disabled){background:#ff6b7d;color:#fff;border-color:#ff6b7d}
-  /* New Admission Stop: full red while a run is going (Start becomes Pause/Resume), a faded
-     "partial" red when idle/disabled — always with black text so the label stays readable */
-  #admStop{color:#111}
-  #admStop:not(:disabled){background:#ff6b7d;border-color:#ff6b7d}
+  /* New Admission Stop:
+       running  → solid red, near-black text (≈7:1, reads well on both themes)
+       idle     → a faded "partial" red that stays legible: a light-red text on a red-tinted
+                  fill for the dark theme (black text goes muddy on translucent red over the dark
+                  card), and a dark-red text on a pale-red fill for the light theme */
+  #admStop:not(:disabled){background:#ff6b7d;color:#1a1a1a;border-color:#ff6b7d}
   #admStop:not(:disabled):hover{background:#ff5468;border-color:#ff5468}
-  #admStop:disabled{opacity:1;background:rgba(255,107,125,.3);border-color:rgba(255,107,125,.55);color:#111;cursor:default}
-  /* Fetch Data: a soft, muted yellow with black text — clearly yellow but easy on the eyes */
-  #admLoad{background:#e3c766;color:#1a1a1a;border:1px solid #cbab4a}
-  #admLoad:hover{background:#ecd079;border-color:#cbab4a}
-  body.light #admLoad{background:#eccf6e;border-color:#c9a63c}
-  body.light #admLoad:hover{background:#f2d886}
+  #admStop:disabled{opacity:1;cursor:default;background:rgba(255,107,125,.14);border-color:rgba(255,107,125,.42);color:#ff9aa6}
+  body.light #admStop:disabled{background:#fbe4e7;border-color:#f1bcc2;color:#b23347}
+  /* Fetch Data: a clean amber accent with near-black text — reads as a deliberate button on the
+     dark card without glaring, and holds its contrast on the light card too */
+  #admLoad{background:#e6b23c;color:#201608;border:1px solid #c6941f;font-weight:800}
+  #admLoad:hover{background:#efbe4e;border-color:#c6941f}
+  body.light #admLoad{background:#ecb833;border-color:#bf8b13}
+  body.light #admLoad:hover{background:#f3c551}
   .hint{font-size:12px;color:var(--mut);margin-top:8px}
   .ok{color:var(--ok)}.no{color:var(--no)}.warn{color:var(--warn)}.info{color:var(--info)}.mut{color:var(--mut)}
   .note{background:#12162400;border:1px dashed var(--line);border-radius:10px;padding:10px 12px;margin-top:12px;font-size:13px;color:var(--mut);text-align:center}
