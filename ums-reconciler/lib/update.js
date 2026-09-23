@@ -27,7 +27,7 @@
       "font:600 13px/1.45 system-ui,'Segoe UI','Noto Sans Bengali',sans-serif;padding:10px 44px 10px 16px;" +
       "display:flex;gap:10px;align-items:center;justify-content:center;text-align:center;box-shadow:0 -2px 14px rgba(0,0,0,.3)";
     var msg = document.createElement("span");
-    msg.textContent = "🔔 নতুন আপডেট আছে — v" + latest + " (তুমি v" + cur + "-এ)। নতুন কোড নিয়ে extension টা reload দাও।";
+    msg.textContent = "🔔 নতুন আপডেট আছে — v" + latest + " (তুমি v" + cur + "-এ)। update.bat চালাও, তারপর chrome://extensions-এ গিয়ে extension টা Reload দাও।";
     bar.appendChild(msg);
     var x = document.createElement("button");
     x.textContent = "✕";
