@@ -641,6 +641,7 @@
     if (!admLoaded) { admOutLine(t("adm_need_load")); return; }
     const mobile = ($("admMobile").value || "").trim();
     if (!mobile) { admOutLine(t("adm_need_mobile")); admBadField("admMobile"); return; }
+    admRememberMobile(mobile);   // keep it in the suggestions for next time
     if (!admTickedCourseIds().length) {
       admOutLine(t("adm_need_course"));
       const box = $("admCourseBox");
@@ -798,8 +799,29 @@
       const dl = $("admApprDl"); if (dl) dl.innerHTML = ((r && r.returnList) || []).slice(0, 20).map(function (x) { return '<option value="' + (x.Text || "").replace(/"/g, "&quot;") + '">'; }).join("");
     } catch (e) {}
   }
+  /* Mobile Number suggestions: a real <datalist> of numbers used before — reliable (selecting one
+     sets the field, unlike the browser's flaky tel-autofill) and remembered across sessions. */
+  function admFillMobileDl(list) {
+    const dl = $("admMobileDl"); if (!dl) return;
+    dl.innerHTML = (list || []).map(function (m) { return '<option value="' + String(m).replace(/"/g, "&quot;") + '">'; }).join("");
+  }
+  function admLoadMobiles() {
+    try { chrome.storage.local.get("admMobiles", function (o) { admFillMobileDl((o && o.admMobiles) || []); }); } catch (e) {}
+  }
+  function admRememberMobile(m) {
+    m = String(m || "").trim(); if (!m) return;
+    try {
+      chrome.storage.local.get("admMobiles", function (o) {
+        let list = (o && o.admMobiles) || [];
+        list = [m].concat(list.filter(function (x) { return x !== m; })).slice(0, 15);   // most-recent first, deduped, capped
+        try { chrome.storage.local.set({ admMobiles: list }); } catch (e) {}
+        admFillMobileDl(list);
+      });
+    } catch (e) {}
+  }
   function admOnShow() {
     const b = $("admBase"); if (b && !b.value) b.value = "https://ums-4.osl.team";
+    admLoadMobiles();
     admTestConn();
   }
 
