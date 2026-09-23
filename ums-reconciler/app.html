@@ -169,6 +169,9 @@
   /* the run row: pin the Count/pool label boxes to the control height so the number inputs line up
      exactly with the একজন একজন/একসাথে toggle beside them */
   #pgAdm .row-actions > label{height:var(--ctl-h);margin:0}
+  /* Count / pool grow with what's typed: "1" is narrow, "10000" widens — field-sizing:content
+     sizes the box to its value; min/max keep it from collapsing or running away */
+  #admCount,#admPool{field-sizing:content;width:auto;min-width:2.5ch;max-width:10ch}
   /* Start / Stop / Fetch Data buttons sit on rows full of --ctl-h controls — pin them to the same
      height (the default .btn padding makes them taller) and centre the label vertically */
   #pgAdm .row-actions > .btn{height:var(--ctl-h);padding:0 18px;display:inline-flex;align-items:center;justify-content:center}
@@ -713,14 +716,14 @@
             <span style="flex:1;min-width:8px"></span>
             <label style="display:inline-flex;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);font-weight:600">
               <span data-i18n="adm_count_l">Count</span>
-              <input id="admCount" type="number" min="1" max="10000" value="1" style="width:82px;height:var(--ctl-h)"></label>
+              <input id="admCount" type="number" min="1" max="10000" value="1" style="height:var(--ctl-h)"></label>
             <div class="seg" style="height:var(--ctl-h)">
               <button type="button" id="admSeq" class="on" data-i18n="adm_seq">একজন একজন</button>
               <button type="button" id="admPar" data-i18n="adm_par">একসাথে</button>
             </div>
             <label id="admPoolWrap" style="display:none;align-items:center;gap:7px;font-size:12.5px;color:var(--mut);font-weight:600" data-title="adm_pool_l" title="একসাথে কতগুলো চলবে">
               <span data-i18n="adm_pool_n">কয়টা</span>
-              <input id="admPool" type="number" min="1" max="20" value="3" style="width:66px;height:var(--ctl-h)"></label>
+              <input id="admPool" type="number" min="1" max="20" value="3" style="height:var(--ctl-h)"></label>
           </div>
           <span class="hint" data-i18n="adm_run_hint" style="display:block;margin:6px 0 0"></span>
           <pre class="crmout" id="admOut" style="display:none"></pre>
