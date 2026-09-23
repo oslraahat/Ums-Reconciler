@@ -244,6 +244,11 @@
     if (el) el.classList.toggle("min", minimized);
     if (mini) mini.classList.toggle("on", minimized);
   }
+  /* the Batch page can turn the Single Reconcile button off (its "singleOn" setting, default on) */
+  function applySingle(on) {
+    const b = document.getElementById("umsrec-verify");
+    if (b) b.style.display = (on === false) ? "none" : "";
+  }
   function setMin(val) {
     applyMin(val);
     if (!ctxAlive()) return;
@@ -435,6 +440,7 @@
       try {
         if (changes.enabled) applyEnabled(changes.enabled.newValue !== false);
         if (changes.minimized) applyMin(changes.minimized.newValue === true);
+        if (changes.singleOn) applySingle(changes.singleOn.newValue !== false);
         if (changes.appTol && changes.appTol.newValue != null) tol = changes.appTol.newValue;
         refreshStatus();
       } catch (e) {}
@@ -445,9 +451,10 @@
   const onSearchPage = /\/Student\/Payment\/PaymentHistory(?:$|[/?])/i.test(location.pathname);
   if (onDataPage || onSearchPage) {
     buildPanel();
-    chrome.storage.local.get(["enabled", "minimized", "appTol", "tolMigrated"], function (o) {
+    chrome.storage.local.get(["enabled", "minimized", "appTol", "tolMigrated", "singleOn"], function (o) {
       applyMin(o.minimized === true); // default: বড় করা
       applyEnabled(o.enabled !== false); // default: running
+      applySingle(o.singleOn !== false); // default: Single Reconcile shown
       // baseUrl/conc belong to the Batch page only — reading them here once threw a strict-mode
       // ReferenceError that killed this whole callback, so nothing was ever captured.
       // 1 was the old default and it hides exactly the ৳1 row-wise differences — drop it once here

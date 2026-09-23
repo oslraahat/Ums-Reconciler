@@ -259,6 +259,7 @@
     base_l: { bn: "UMS ঠিকানা (Base URL)", en: "UMS address (Base URL)" }, test: { bn: "Test Connection", en: "Test Connection" }, save: { bn: "সেভ করুন", en: "Save" },
     sess_hint: { bn: "UMS-এ লগইন থাকলেই চলবে — আলাদা ইমেইল/পাসওয়ার্ড লাগে না।", en: "Runs on your UMS login in this browser — no separate email/password." },
     verify_h: { bn: "কী মিলিয়ে দেখা হবে", en: "What to Reconciliation" },
+    single_l: { bn: "Single Reconcile", en: "Single Reconcile" },
     in_hint: { bn: "Excel/CSV বা Google Sheet দাও — Reg ও Program ID কলাম নিজেই ধরবে।", en: "Give an Excel/CSV or a Google Sheet — Reg and Program ID columns are auto-detected." },
     import_btn: { bn: "⬆ Import Excel", en: "⬆ Import Excel" }, link_btn: { bn: "↧ Sheet Link", en: "↧ Sheet Link" },
     link_ph: { bn: "…অথবা Google Sheet লিংক", en: "…or a Google Sheet link" },
@@ -2503,6 +2504,14 @@
       $("srvSw").checked = srvMode;
       $("srvSw").addEventListener("change", function () { setSrvMode(this.checked); testConn(); });
     }
+    /* Single Reconcile on/off — the in-page panel (content.js) reads this "singleOn" setting and
+       shows or hides its Single Reconcile button. Default on. */
+    if ($("singleSw")) {
+      $("singleSw").addEventListener("change", function () {
+        try { chrome.storage.local.set({ singleOn: this.checked }); } catch (e) {}
+        if (this.parentNode) this.parentNode.classList.toggle("on", this.checked);
+      });
+    }
     applySrvMode();
     /* Painted from the settings that are already loaded, not from the folder handle: the handle
        arrives later, or never (IndexedDB can be unavailable), and until it did the switch read OFF
@@ -2703,8 +2712,9 @@
     getLang: function () { return lang; }, getBaseUrl: function () { return baseUrl; }
   });
 
-  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page", "crmBase", "admBase"], function (o) { if (o.manualOk) manualOk = o.manualOk;
+  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page", "crmBase", "admBase", "singleOn"], function (o) { if (o.manualOk) manualOk = o.manualOk;
     saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
+    if ($("singleSw")) { const on = o.singleOn !== false; $("singleSw").checked = on; if ($("singleSw").parentNode) $("singleSw").parentNode.classList.toggle("on", on); }
     showPage((o.page === "crm" || o.page === "adm") ? o.page : "pay");
     if (o.crmBase && $("crmBase")) $("crmBase").value = o.crmBase;
     if ($("admBase")) $("admBase").value = o.admBase || "https://ums-4.osl.team";
