@@ -99,8 +99,9 @@
           if (latest && newer(latest, cur) > 0) {
             hasUpdate = true; latestVer = latest;
             var b = document.getElementById("updBtn");
-            if (b) { b.style.display = "inline-flex"; b.textContent = idleLabel(); b.title = L("নতুন আপডেট — v" + latest, "New update — v" + latest); }
-            showPanel(latest, cur);
+            if (b) { b.style.display = "inline-flex"; b.textContent = idleLabel(); b.title = L("নতুন আপডেট — v" + latest + " — ক্লিক করে আপডেট করো", "New update — v" + latest + " — click to update"); }
+            /* just reveal the button; clicking it auto-updates via the host (and only falls back to the
+               manual panel if the host isn't installed) — no auto-popping manual instructions */
           }
         })
         .catch(function () {});
