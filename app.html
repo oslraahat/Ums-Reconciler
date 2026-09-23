@@ -134,7 +134,7 @@
   .ch{display:flex;align-items:center;gap:10px;margin-bottom:9px;flex-wrap:wrap}
   .ch .n{width:22px;height:22px;border-radius:8px;background:var(--accent);color:#fff;display:flex;align-items:center;justify-content:center;font-weight:700;font-size:12px}
   .ch h2{margin:0;font-size:14px;font-weight:700}
-  .ch .badge{background:rgba(124,108,255,.16);color:#bcb2ff;font-size:12px;font-weight:700;padding:3px 10px;border-radius:7px;font-variant-numeric:tabular-nums}
+  .ch .badge{background:rgba(124,108,255,.16);color:#bcb2ff;font-size:11.5px;font-weight:700;padding:2px 8px;border-radius:7px;font-variant-numeric:tabular-nums}
   /* Three of these carry a sentence rather than a count: the two connection states and the
      progress line, which now runs to a clock, three phase times and a rate. They get room above
      and below; the corner is the same 7px on all four, because the count outgrew a pill too —
@@ -428,9 +428,14 @@
   /* One address or two, with the buttons on the end. The second field takes an equal share rather
      than sitting under the first, and min-width:0 lets both actually shrink — grid items refuse to
      go below their content width without it, so a long URL would push the buttons off the card. */
-  .connGrid{grid-template-columns:1fr auto auto;align-items:end}
+  .connGrid{grid-template-columns:1fr auto auto;align-items:end;gap:10px}
   .connGrid.two{grid-template-columns:1fr 1fr auto auto}
   .connGrid > div{min-width:0}
+  /* the Connection row kept compact — shorter inputs/buttons than the settings row (which layout.js
+     pins), so the two URLs + Test + Save sit on one tidy line */
+  #connGrid label{margin-bottom:3px;font-size:11px}
+  #connGrid input{height:34px;padding:0 11px;font-size:13px}
+  #connGrid .btn{height:34px;padding:0 15px;font-size:13px;display:inline-flex;align-items:center}
   /* Narrow: an address gets the full width and the two buttons share the row under them —
      stacking all four left the card a column of full-width blocks. */
   @media (max-width:860px){
