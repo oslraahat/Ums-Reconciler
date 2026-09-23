@@ -734,7 +734,15 @@
     if ($("admSeq")) $("admSeq").classList.toggle("on", !par);
     if ($("admPoolWrap")) $("admPoolWrap").style.display = par ? "inline-flex" : "none";
   }
-  function admStop() { admStopFlag = true; admOutLine("⏹ থামানো হচ্ছে…"); }
+  /* one Stop is enough: further clicks while it's already stopping would just spam the log. In
+     Browser/Headless the admissions already in flight (up to the pool count) can't be aborted
+     mid-form safely, so they finish first — say so, and disable the button so it isn't hammered. */
+  function admStop() {
+    if (admStopFlag) return;
+    admStopFlag = true;
+    if ($("admStop")) $("admStop").disabled = true;
+    admOutLine(admBrowserMode ? "⏹ থামানো হচ্ছে… (চলমানগুলো শেষ হয়ে থামবে)" : "⏹ থামানো হচ্ছে…");
+  }
   async function admInstSearch() {
     const q = (($("admInst") && $("admInst").value) || "").trim(); if (q.length < 2) return;
     try {
