@@ -65,6 +65,15 @@ chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(function () {
   try { chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [8801] }); } catch (e) {}
 });
 
+/* Don't leave a Headless admission window parked off-screen. It's normally closed when the run ends
+   (admCloseRun), but if the tool tab is closed mid-run — or the worker goes idle — the window can
+   linger invisibly on the admission form. onSuspend fires only when the service worker is going idle,
+   i.e. no run is actively messaging, so anything still open in admSlots at that point is an orphan:
+   close it. (A run in progress keeps the worker alive, so this never closes an active window.) */
+chrome.runtime.onSuspend && chrome.runtime.onSuspend.addListener(function () {
+  try { admCloseRun(); } catch (e) {}
+});
+
 /* ───────────────────────── New Admission · Browser mode ─────────────────────────
    The HTTP mode (in app.js) posts the admission directly. Browser mode instead opens the real
    admission form in a tab and drives it visibly — the page's own JavaScript does the cascades, fee
