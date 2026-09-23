@@ -15,7 +15,7 @@
   var REPO = "oslraahat/Ums-Reconciler";
   var BRANCH = "development";
   var MANIFEST_URL = "https://raw.githubusercontent.com/" + REPO + "/" + BRANCH + "/ums-reconciler/manifest.json";
-  var ZIP_URL = "https://github.com/" + REPO + "/archive/refs/heads/" + BRANCH + ".zip";
+  var ZIP_URL = "https://codeload.github.com/" + REPO + "/zip/refs/heads/" + BRANCH;   // final URL, no github.com redirect
   var ZIP_ROOT = "Ums-Reconciler-" + BRANCH + "/ums-reconciler/";   // the folder inside the archive we want
 
   function running() { try { return chrome.runtime.getManifest().version; } catch (e) { return ""; } }
