@@ -16,6 +16,10 @@
             every scrolling box on the dark theme. */
          color-scheme:dark; }
   *{box-sizing:border-box}
+  /* let people copy the text — menus, titles and button labels. Browsers make <button> text
+     unselectable by default; opt back in so it can be copied (the copy-icon .cpy and status chips
+     stay unselectable on purpose). */
+  button,.btn,.tbtn,.nav button,.seg button,h1,h2,label{-webkit-user-select:text;user-select:text}
   body{margin:0;background:var(--bg);color:var(--text);
        font:14px/1.5 system-ui,"Segoe UI",Roboto,"Noto Sans Bengali",sans-serif}
   /* Stays where it is while the page moves under it. The background is a solid gradient and
