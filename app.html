@@ -433,6 +433,8 @@
   .connGrid.two{grid-template-columns:1fr 1fr auto auto}
   .connGrid > div{min-width:0}
   #srvHint::after{content:" · ";color:var(--mut)}   /* separator, only when the two-server hint is shown */
+  /* CRM Run / Close Browser kept compact */
+  #crmRun,#crmStop{height:34px;padding:0 16px;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
   /* the Connection row kept compact — shorter inputs/buttons than the settings row (which layout.js
      pins), so the two URLs + Test + Save sit on one tidy line */
   #connGrid label{margin-bottom:3px;font-size:11px}
