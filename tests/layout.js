@@ -55,7 +55,7 @@ check("…with the folder button beside the toggle, on one line",
   /* it has to match what an input actually comes out as: padding + border, top and bottom */
   const inp = (HTML.match(/input,select,textarea\{([^}]*)\}/) || [])[1] || "";
   check("…and it is the height an input really is",
-    /padding:10px 12px/.test(inp) && /border:1px/.test(inp) && /--ctl-h:41px/.test(HTML),
+    /padding:8px 12px/.test(inp) && /border:1px/.test(inp) && /--ctl-h:37px/.test(HTML),
     inp.slice(0, 60));
 }
 
