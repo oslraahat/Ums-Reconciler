@@ -18,7 +18,7 @@ const path = require("path");
 const { execFileSync } = require("child_process");
 
 const HOST_NAME = "com.umsreconciler.crmloadtest";
-const DEFAULT_EXT = "afegmmahmenmcbbfemdcogahagadclkg";   // the id this was built against
+const DEFAULT_EXT = "nckmmnajiljhljgalonghmllifnbokdk";   // fixed by manifest "key" — stable regardless of the unpacked folder path
 const HERE = __dirname;
 const MANIFEST = path.join(HERE, HOST_NAME + ".json");
 const LAUNCHER = path.join(HERE, "run.bat");
