@@ -49,6 +49,9 @@ rem /E copies+overwrites but never deletes, so a partial source can't wipe the f
 robocopy "%SRC%" "%DEST%" /E /R:1 /W:1 /NFL /NDL /NJH /NJS /NC /NS /NP >nul
 rem robocopy: exit code 8+ = real error (0-7 are normal)
 if errorlevel 8 goto :fail
+rem also refresh the native host (crm-loadtest source), keeping its installed node_modules
+set "HOSTSRC=%TMP%\Ums-Reconciler-%BRANCH%\crm-loadtest"
+if exist "%HOSTSRC%\host\host.js" if exist "%~dp0crm-loadtest\" robocopy "%HOSTSRC%" "%~dp0crm-loadtest" /E /R:1 /W:1 /XD "%~dp0crm-loadtest\node_modules" /NFL /NDL /NJH /NJS /NC /NS /NP >nul
 
 echo  [4/4] Cleaning up...
 rmdir /s /q "%TMP%" 2>nul

@@ -69,18 +69,25 @@
     return L(bn[s] || "…", en[s] || "…");
   }
   function autoUpdate(cur) {
-    var done = false;
-    function fallback() { setBtn(idleLabel(), false); showPanel(latestVer || cur, cur); }
+    var done = false, timer = null, port = null;
+    function stop() { done = true; if (timer) { clearTimeout(timer); timer = null; } try { if (port) port.disconnect(); } catch (e) {} }
+    function fallback() { if (done && !port) return; stop(); setBtn(idleLabel(), false); showPanel(latestVer || cur, cur); }
+    /* A working host answers with an updateOut/updated/error quickly. A STALE host (installed before
+       this action existed) has no "update" case, so it silently opens a browser and never replies or
+       disconnects — which would hang the button forever. So we arm a watchdog: no recognised reply in
+       time → disconnect (that also kills any stray host/browser) and fall back to the manual panel. */
+    function arm(ms) { if (timer) clearTimeout(timer); timer = setTimeout(function () { if (!done) fallback(); }, ms); }
     try {
       setBtn(L("⏳ আপডেট হচ্ছে…", "⏳ Updating…"), true);
-      var port = chrome.runtime.connectNative(HOST);
+      port = chrome.runtime.connectNative(HOST);
+      arm(15000);   // stale/missing host gives nothing back — bail after 15s
       port.onMessage.addListener(function (msg) {
         if (!msg) return;
-        if (msg.type === "updateOut") setBtn("⏳ " + stageText(msg.stage), true);
-        else if (msg.type === "updated") { done = true; try { port.disconnect(); } catch (e) {} setBtn(L("✓ হয়ে গেছে — reload", "✓ Done — reloading"), true); setTimeout(function () { try { if (chrome.runtime.reload) chrome.runtime.reload(); } catch (e) {} }, 500); }
-        else if (msg.type === "error") { done = true; try { port.disconnect(); } catch (e) {} if (self.alert) alert(L("আপডেট হলো না: ", "Update failed: ") + (msg.text || "")); fallback(); }
+        if (msg.type === "updateOut") { setBtn("⏳ " + stageText(msg.stage), true); arm(90000); }   // actively working — allow time per stage
+        else if (msg.type === "updated") { stop(); setBtn(L("✓ হয়ে গেছে — reload", "✓ Done — reloading"), true); setTimeout(function () { try { if (chrome.runtime.reload) chrome.runtime.reload(); } catch (e) {} }, 500); }
+        else if (msg.type === "error") { stop(); if (self.alert) alert(L("আপডেট হলো না: ", "Update failed: ") + (msg.text || "")); setBtn(idleLabel(), false); showPanel(latestVer || cur, cur); }
       });
-      port.onDisconnect.addListener(function () { if (!done) fallback(); });   // host missing → manual panel
+      port.onDisconnect.addListener(function () { if (!done) { done = true; if (timer) clearTimeout(timer); setBtn(idleLabel(), false); showPanel(latestVer || cur, cur); } });   // host missing → manual panel
       port.postMessage({ action: "update" });
     } catch (e) { fallback(); }
   }
