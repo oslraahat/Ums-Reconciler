@@ -255,7 +255,7 @@ if (at < 0) throw new Error("app.html has no </body> to inject the driver before
 fs.writeFileSync(path.join(TMP, "a.html"), s.slice(0, at) + DRIVE + s.slice(at));
 fs.mkdirSync(path.join(TMP, "menus", "adm"), { recursive: true }); fs.mkdirSync(path.join(TMP, "menus", "crm"), { recursive: true });
 fs.mkdirSync(path.join(TMP, "lib"), { recursive: true });   // the xlsx/zip engine app.html now loads before the menus
-["reconcile.js", "lib/xlsx.js", "lib/import.js", "app.js", "menus/adm/adm.js", "menus/crm/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
+["reconcile.js", "lib/xlsx.js", "lib/import.js", "lib/update.js", "app.js", "menus/adm/adm.js", "menus/crm/crm.js"].forEach((f) => fs.copyFileSync(path.join(ROOT, f), path.join(TMP, f)));
 
 let waiting = null;
 const pings = [];
