@@ -33,8 +33,8 @@ check("there is a separate night-on layout, also 5 columns", tracksOn.length ===
 /* the save cell (4th) is sized to its content in both layouts, so it never stretches empty */
 check("the save cell fits its content, not a fixed share",
   tracks[3] === "max-content" && tracksOn[3] === "max-content", tracks[3] + " / " + tracksOn[3]);
-check("…in which the night cell is the widest, to fit the times on one line",
-  /minmax\(370px,1\.7fr\)/.test(g4on), g4on);
+check("…in which the night cell has the widest min, to fit the times on one line",
+  /minmax\(360px,1fr\)/.test(g4on), g4on);
 {
   const off = tracks[2], on = tracksOn[2];
   const min = (t) => parseFloat((/minmax\((\d+)px/.exec(t) || [0, 0])[1]);
@@ -44,11 +44,13 @@ check("…in which the night cell is the widest, to fit the times on one line",
    night cell (two times + a count) and the run buttons need more. The exact fractions have been
    tuned more than once, so what is checked is the ordering, not the numbers. */
 {
-  /* the save track (3) is content-sized, so it carries no fr — the two short number fields are
-     compared against the fr-bearing tracks: the night cell (2) and the run buttons (4) */
+  /* Students-at-once (track 1) is the elastic field — it carries the largest fr, so the row's spare
+     width flows to it as things reflow. The save track (3) is content-sized and carries no fr. */
   const fr = tracks.map(function (t) { return parseFloat((/([\d.]+)fr/.exec(t) || [0, 0])[1]); });
-  check("…with the two short number fields taking a smaller share than the flexible ones",
-    fr[0] < fr[2] && fr[1] < fr[2] && fr[0] < fr[4] && fr[1] < fr[4], fr.join(" / "));
+  const frOn = tracksOn.map(function (t) { return parseFloat((/([\d.]+)fr/.exec(t) || [0, 0])[1]); });
+  check("Students-at-once takes the largest share, off and on",
+    fr[1] > fr[0] && fr[1] > fr[2] && fr[1] > fr[4] &&
+    frOn[1] > frOn[0] && frOn[1] > frOn[2] && frOn[1] > frOn[4], fr.join(" / ") + "  |  " + frOn.join(" / "));
 }
 
 const kids = (HTML.match(/<div class="grid g4"[^>]*>([\s\S]*?)\n      <\/div>/) || [])[1] || "";

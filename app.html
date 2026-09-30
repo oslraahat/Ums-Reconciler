@@ -169,8 +169,11 @@
   /* The save cell is sized to its content (max-content): with "Save the results" alone it stays
      snug, and grows only when the folder icon appears — no empty stretch inside the pill either way,
      and the space it frees goes to the fr tracks. */
-  .g4{grid-template-columns:minmax(96px,.7fr) minmax(118px,.85fr) minmax(150px,.9fr) max-content minmax(150px,1fr);align-items:start;gap:9px}
-  .g4.night-on{grid-template-columns:minmax(62px,.4fr) minmax(80px,.5fr) minmax(370px,1.7fr) max-content minmax(138px,.95fr)}
+  /* Students-at-once carries the largest fr, so it is the elastic field: it takes (and gives back)
+     the row's spare width as anything else grows or the toggle reflows — the others stay near their
+     content size. */
+  .g4{grid-template-columns:minmax(88px,.4fr) minmax(120px,1.6fr) minmax(148px,.6fr) max-content minmax(150px,.8fr);align-items:start;gap:9px}
+  .g4.night-on{grid-template-columns:minmax(62px,.4fr) minmax(92px,1.2fr) minmax(360px,1fr) max-content minmax(138px,.8fr)}
   .g4 > div > label{margin-bottom:3px}
   /* The settings row is short controls; a smaller label and column gap tighten it without
      changing the inputs' own height (--ctl-h), which the run buttons align to. */
@@ -451,12 +454,14 @@
   /* night-window controls — its own grid column, under the "রাতে বেশি" label (so top-aligned with
      the inputs in the other columns). Toggle + both times + count stay on ONE line (nowrap). */
   .nightrow{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;white-space:nowrap;margin-top:0;font-size:12px;color:var(--mut)}
-  .nightrow #nightCfg{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap}
+  /* even, sensible spacing around the "–" and "→" separators */
+  .nightrow #nightCfg{display:inline-flex;align-items:center;gap:7px;flex-wrap:nowrap}
   /* same height as the Tolerance / Students inputs (--ctl-h) so the row reads as one set of fields */
-  .nightrow input[type=time],.nightrow input[type=number]{height:var(--ctl-h);box-sizing:border-box;padding:0 6px;font-size:13px;flex:0 0 auto}
-  /* wide enough for the locale "12:00 AM" plus the picker icon — 94px clipped the AM to "A" */
-  .nightrow input[type=time]{width:116px}
-  .nightrow input[type=number]{width:56px}
+  .nightrow input[type=time],.nightrow input[type=number]{height:var(--ctl-h);box-sizing:border-box;padding:0 5px;font-size:13px;flex:0 0 auto}
+  /* just enough for the locale "12:00 AM" and the picker icon — wider left a gap between the value
+     and the clock icon; narrower clipped the "AM" to "A" */
+  .nightrow input[type=time]{width:106px}
+  .nightrow input[type=number]{width:54px}
   .nightrow .srvsw{min-height:var(--ctl-h)}   /* the toggle pill matches that height too */
   /* CRM Run / Close Browser kept compact */
   #crmRun,#crmStop{height:34px;padding:0 16px;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
