@@ -20,6 +20,14 @@
   // tol 0 like the CLI: at 1 the near() test swallows exactly the ৳1 row-wise differences we are
   // hunting for. Still editable in Settings if a run needs slack.
   let baseUrl = "https://ums-5.osl.team", conc = 25, tol = 0;
+  /* Time-based "Students at once": within the night window [nightFrom, nightTo) (minutes of the day)
+     the run uses nightConc instead of conc — so a long run can widen itself while the server is empty
+     at night and narrow again by day, without anyone at the keyboard. */
+  let nightOn = false, nightFrom = 0, nightTo = 360, nightConc = 100;   // 00:00–06:00 → 100, by default
+  function nightClamp(v) { return Math.max(1, Math.min(300, parseInt(v, 10) || 1)); }
+  function inNightWindow() { const d = new Date(), cur = d.getHours() * 60 + d.getMinutes(); return nightFrom <= nightTo ? (cur >= nightFrom && cur < nightTo) : (cur >= nightFrom || cur < nightTo); }
+  function effConc() { return (nightOn && inNightWindow()) ? nightClamp(nightConc) : conc; }   // the ceiling right now
+  function maxConc() { return nightOn ? Math.max(conc, nightClamp(nightConc)) : conc; }         // most workers the run may ever need
   /* Two-server mode. baseUrl is the Expected (reference) server and baseUrl2 the Actual one being
      checked; srvMode says which question a run is answering — one server's two views against each
      other, or one page across two servers. Off by default: the single-server run is what this page
@@ -76,14 +84,16 @@
   let live = 0, liveAt = 0;
   function pace() {
     const now = Date.now();
+    const ceil = (typeof effConc === "function") ? effConc() : conc;   // time-based ceiling: conc by day, nightConc inside the night window
+    if (live > ceil) { live = Math.max(2, ceil); liveAt = now; return; }   // the window just closed (day) — come back down
     if (pressure > 3) {
       if (now - liveAt < 4000) return;
       liveAt = now;
       live = Math.max(2, Math.floor(live * 0.7));
-    } else if (pressure === 0 && live < conc) {
+    } else if (pressure === 0 && live < ceil) {
       if (now - liveAt < 12000) return;
       liveAt = now;
-      live = Math.min(conc, live + Math.max(1, Math.round(conc / 10)));
+      live = Math.min(ceil, live + Math.max(1, Math.round(ceil / 10)));
     }
   }
 
@@ -276,6 +286,7 @@
     imp_swap: { bn: "কলাম উল্টো ছিল — Reg আর Student PID বদলে নেওয়া হয়েছে", en: "columns were the wrong way round — Reg and Student PID swapped back" },
     rr_run: { bn: "টি আবার চালাও", en: "to re-run" }, rr_none: { bn: "কিছু নেই", en: "nothing here" }, rr_busy: { bn: "চলছে…", en: "running…" },
     settings_h: { bn: "সেটিংস ও রান", en: "Settings & Run" }, tol_l: { bn: "গ্রহণযোগ্য পার্থক্য", en: "Tolerance" }, conc_l: { bn: "একসাথে কয়টি ছাত্র", en: "Students at once" },
+    night_l: { bn: "রাতে বেশি (সার্ভার ফাঁকা)", en: "More at night (server free)" }, night_at: { bn: "একসাথে", en: "at once" },
     run_btn: { bn: "▶ Start", en: "▶ Start" },
     imp_row: { bn: "টি", en: "entries" }, imp_empty: { bn: "ফাইল খালি", en: "File empty" },
     imp_excel: { bn: "⏳ Excel পড়ছি…", en: "⏳ Reading Excel…" }, imp_excel_fail: { bn: "Excel পড়া গেল না", en: "Could not read Excel" },
@@ -1384,8 +1395,10 @@
        Including the pressure gauge: it is what the LAST run met, and a run started by hand — maybe
        hours later — should not begin already throttled by it. If the server is still struggling
        the first refusals say so within seconds. */
-    const workers = Math.min(Math.max(1, conc), students.length);
-    live = workers; liveAt = Date.now(); pressure = 0;
+    /* spawn enough workers for the widest the run may ever get (night ceiling if enabled); slot()
+       parks the ones past `live`, and live starts at the ceiling that applies right now */
+    const workers = Math.min(Math.max(1, maxConc()), students.length);
+    live = Math.min(effConc(), workers); liveAt = Date.now(); pressure = 0;
     /* Everything from here to the end runs inside a try, and the buttons come back in the finally.
 
        Start disables itself and enables Stop as its first act, and the line that undoes that sat
@@ -2519,6 +2532,14 @@
        is the folder name. */
     paintSaveRow();
     $("conc").addEventListener("input", function () { let v = parseInt(this.value, 10); if (isNaN(v)) return; conc = Math.max(1, Math.min(300, v)); if (v !== conc) this.value = conc; paintConc(); try { chrome.storage.local.set({ appConc: conc }); } catch (e) {} });
+    /* night-window "Students at once": persist and apply the time-based ceiling */
+    const hmToMin = function (s) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || "")); return m ? (Math.min(23, +m[1]) * 60 + Math.min(59, +m[2])) : 0; };
+    const saveNight = function () { try { chrome.storage.local.set({ nightOn: nightOn, nightFrom: nightFrom, nightTo: nightTo, nightConc: nightConc }); } catch (e) {} };
+    const showNightCfg = function () { const c = $("nightCfg"); if (c) c.style.display = nightOn ? "" : "none"; };
+    if ($("nightSw")) $("nightSw").addEventListener("change", function () { nightOn = this.checked; if (this.parentNode) this.parentNode.classList.toggle("on", nightOn); showNightCfg(); saveNight(); });
+    if ($("nightFrom")) $("nightFrom").addEventListener("input", function () { nightFrom = hmToMin(this.value); saveNight(); });
+    if ($("nightTo")) $("nightTo").addEventListener("input", function () { nightTo = hmToMin(this.value); saveNight(); });
+    if ($("nightConc")) $("nightConc").addEventListener("input", function () { let v = parseInt(this.value, 10); if (isNaN(v)) return; nightConc = Math.max(1, Math.min(300, v)); if (v !== nightConc) this.value = nightConc; saveNight(); });
     $("tol").addEventListener("input", function () { const v = parseFloat(this.value); tol = isNaN(v) ? 0 : Math.max(0, v); try { chrome.storage.local.set({ appTol: tol }); } catch (e) {} });
     /* "Carry on" is a run starting, and every reason Start has to ask for the folder first
        applies here twice over: a resumed run is one whose page was closed, which is exactly when
@@ -2715,7 +2736,13 @@
     getLang: function () { return lang; }, getBaseUrl: function () { return baseUrl; }
   });
 
-  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page", "crmBase", "admBase", "singleOn"], function (o) { if (o.manualOk) manualOk = o.manualOk;
+  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page", "crmBase", "admBase", "singleOn", "nightOn", "nightFrom", "nightTo", "nightConc"], function (o) { if (o.manualOk) manualOk = o.manualOk;
+    /* night-window "Students at once" — restore the toggle, times and count */
+    nightOn = o.nightOn === true; if (o.nightFrom != null) nightFrom = o.nightFrom; if (o.nightTo != null) nightTo = o.nightTo; if (o.nightConc != null) nightConc = o.nightConc;
+    (function () { const p = function (m) { return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
+      if ($("nightSw")) { $("nightSw").checked = nightOn; if ($("nightSw").parentNode) $("nightSw").parentNode.classList.toggle("on", nightOn); }
+      if ($("nightFrom")) $("nightFrom").value = p(nightFrom); if ($("nightTo")) $("nightTo").value = p(nightTo);
+      if ($("nightConc")) $("nightConc").value = nightConc; if ($("nightCfg")) $("nightCfg").style.display = nightOn ? "" : "none"; })();
     saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
     if ($("singleSw")) { const on = o.singleOn !== false; $("singleSw").checked = on; if ($("singleSw").parentNode) $("singleSw").parentNode.classList.toggle("on", on); }
     showPage((o.page === "crm" || o.page === "adm") ? o.page : "pay");

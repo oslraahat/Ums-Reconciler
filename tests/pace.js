@@ -122,7 +122,7 @@ function gauge(conc) {
   check("a worker waits for its slot before claiming a student",
     w.indexOf("await slot(n)") >= 0 && w.indexOf("await slot(n)") < w.indexOf("next++"), "worker()");
   check("the run starts at the number the user set",
-    /live = workers; liveAt = Date\.now\(\);/.test(APP), "startRun");
+    /live = Math\.min\(effConc\(\), workers\); liveAt = Date\.now\(\);/.test(APP), "startRun");
   /* If the run narrows and says nothing, the tool just looks slow and the reason is invisible. */
   check("a narrowed run says so on the progress line",
     /live < conc \? " · 🐢 " \+ t\("p_eased"\)/.test(APP), "prog()");

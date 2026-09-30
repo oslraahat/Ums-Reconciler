@@ -120,7 +120,7 @@ function waits(o) {
   /* ---- the gauge does not outlive its run ---- */
   {
     check("a new run starts from a clean pressure gauge",
-      /live = workers; liveAt = Date\.now\(\); pressure = 0;/.test(APP),
+      /live = Math\.min\(effConc\(\), workers\); liveAt = Date\.now\(\); pressure = 0;/.test(APP),
       "startRun");
   }
 

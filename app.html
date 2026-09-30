@@ -433,6 +433,10 @@
   .connGrid.two{grid-template-columns:1fr 1fr auto auto}
   .connGrid > div{min-width:0}
   #srvHint::after{content:" · ";color:var(--mut)}   /* separator, only when the two-server hint is shown */
+  /* night-window row (time-based Students-at-once) */
+  .nightrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:11px;font-size:12px;color:var(--mut)}
+  .nightrow input[type=time],.nightrow input[type=number]{width:auto;height:30px;padding:0 8px;font-size:12px}
+  .nightrow input[type=number]{width:64px}
   /* CRM Run / Close Browser kept compact */
   #crmRun,#crmStop{height:34px;padding:0 16px;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
   /* the Connection row kept compact — shorter inputs/buttons than the settings row (which layout.js
@@ -599,6 +603,14 @@
           <button class="btn g" id="pause" style="grid-column:2;grid-row:1" disabled>⏸ Pause</button>
           <button class="btn g" id="stop" style="grid-column:2;grid-row:2" disabled>⏹ Stop</button>
         </div>
+      </div>
+      <!-- time-based "students at once": widen the run inside a night window when the server is empty -->
+      <div class="nightrow">
+        <label class="srvsw"><input type="checkbox" id="nightSw"><i class="tg"></i><span data-i18n="night_l">রাতে বেশি (সার্ভার ফাঁকা)</span></label>
+        <span id="nightCfg" style="display:none">
+          <input type="time" id="nightFrom" value="00:00"> – <input type="time" id="nightTo" value="06:00">
+          → <input type="number" id="nightConc" min="1" max="300" value="100"> <span data-i18n="night_at">একসাথে</span>
+        </span>
       </div>
       <div class="hint"><span class="where" id="saveWhere"></span><span data-i18n="save_hint">report.xlsx — দুই ট্যাব (সমস্যা, ঠিক আছে), ফিল্টার যা-ই থাক পুরো রান।</span></div>
     </div>

@@ -104,7 +104,7 @@ check("…and it never falls below one", ceiling(1, false, "http/1.1", "") === 1
   /* the run's width comes from conc and pace(), and from nothing else */
   const run = src("startRun");
   check("the number of workers still comes from the user's setting alone",
-    /const workers = Math\.min\(Math\.max\(1, conc\), students\.length\);/.test(run) &&
+    /const workers = Math\.min\(Math\.max\(1, maxConc\(\)\), students\.length\);/.test(run) &&
     run.indexOf("realConc") < 0 && run.indexOf("HOST_LIMIT") < 0, "startRun");
   check("…and no protocol reading reaches the fetch path",
     src("fetchHtml").indexOf("Proto") < 0 && src("fetchHtml").indexOf("HOST_LIMIT") < 0, "fetchHtml");
