@@ -160,15 +160,20 @@
   /* Tolerance and Parallel hold two or three characters, so they take the smaller share; the save
      cell needs room for a toggle and a button side by side, and no more than that — it used to take
      a third of the row and leave 93px of nothing after the Folder button. */
-  .g4{grid-template-columns:minmax(120px,.7fr) minmax(130px,.7fr) minmax(240px,1fr) minmax(200px,1.1fr);align-items:start;gap:9px}
+  /* five columns now: Tolerance · একসাথে কয়টি ছাত্র · রাতে বেশি (its times) · রান শেষে · Run buttons.
+     The two number fields hold 2–3 digits so they take the smallest share; the night cell needs room
+     for two times and a count; the buttons keep enough width for ▶ Start / ⏸ Pause / ⏹ Stop. */
+  .g4{grid-template-columns:minmax(78px,.5fr) minmax(96px,.55fr) minmax(178px,1.15fr) minmax(140px,.85fr) minmax(150px,1fr);align-items:start;gap:9px}
   .g4 > div > label{margin-bottom:3px}
   /* The settings row is short controls; a smaller label and column gap tighten it without
      changing the inputs' own height (--ctl-h), which the run buttons align to. */
   .g4 label{font-size:11px}
   /* Start/Pause/Stop live in the last column so they sit at the right edge; the negative margin
      lifts them level with the inputs, which carry a label above. */
-  .runbtns{grid-column:4;align-self:start;display:grid;grid-template-columns:1fr 1fr;gap:8px;
+  .runbtns{grid-column:5;align-self:start;display:grid;grid-template-columns:1fr 1fr;gap:8px;
     align-items:start;margin-top:-24px}
+  /* the last column is narrower now, so the run buttons trim their padding/size to fit it */
+  .runbtns .btn{padding:9px 10px;font-size:13px}
   .btn{cursor:pointer;border:none;border-radius:10px;padding:11px 18px;font-weight:700;font-size:14px;
     box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;line-height:1.2;
     vertical-align:middle;font-family:inherit}
@@ -433,8 +438,9 @@
   .connGrid.two{grid-template-columns:1fr 1fr auto auto}
   .connGrid > div{min-width:0}
   #srvHint::after{content:" · ";color:var(--mut)}   /* separator, only when the two-server hint is shown */
-  /* night-window controls — nested in the "একসাথে কয়টি ছাত্র" grid column, under its input */
-  .nightrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--mut)}
+  /* night-window controls — its own grid column, under the "রাতে বেশি" label (so top-aligned with
+     the inputs in the other columns) */
+  .nightrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:0;font-size:12px;color:var(--mut)}
   .nightrow #nightCfg{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
   .nightrow input[type=time],.nightrow input[type=number]{width:auto;height:30px;padding:0 8px;font-size:12px}
   .nightrow input[type=number]{width:64px}
@@ -603,11 +609,13 @@
       <div class="ch"><span class="n">3</span><h2 data-i18n="settings_h">সেটিংস ও Run</h2></div>
       <div class="grid g4">
         <div><label data-i18n="tol_l">গ্রহণযোগ্য পার্থক্য</label><input id="tol" type="number" min="0" step="any" value="0"></div>
-        <div><label data-i18n="conc_l">একসাথে কয়টি ছাত্র</label><input id="conc" type="number" min="1" max="300" value="25" title="সর্বোচ্চ 300"><div class="cnote" id="concNote"></div>
-          <!-- night boost is a time-based extension of "একসাথে কয়টি ছাত্র", so it lives in the same
-               grid column, directly under the field it modifies (not as a stray full-width row below) -->
+        <div><label data-i18n="conc_l">একসাথে কয়টি ছাত্র</label><input id="conc" type="number" min="1" max="300" value="25" title="সর্বোচ্চ 300"><div class="cnote" id="concNote"></div></div>
+        <!-- night boost sits in its OWN column right after "একসাথে কয়টি ছাত্র": the column label
+             carries the meaning, so the switch itself is a bare toggle and the times follow it -->
+        <div>
+          <label data-i18n="night_l">রাতে বেশি (সার্ভার ফাঁকা)</label>
           <div class="nightrow">
-            <label class="srvsw"><input type="checkbox" id="nightSw"><i class="tg"></i><span data-i18n="night_l">রাতে বেশি (সার্ভার ফাঁকা)</span></label>
+            <label class="srvsw" data-title="night_l" title="রাতে বেশি (সার্ভার ফাঁকা)"><input type="checkbox" id="nightSw"><i class="tg"></i></label>
             <span id="nightCfg" style="display:none">
               <input type="time" id="nightFrom" value="00:00"> – <input type="time" id="nightTo" value="06:00">
               → <input type="number" id="nightConc" min="1" max="300" value="100"> <span data-i18n="night_at">একসাথে</span>

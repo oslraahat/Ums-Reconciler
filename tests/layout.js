@@ -1,13 +1,11 @@
-/* Start / Pause / Stop belong at the right edge of the settings row. The row is a four-column grid,
- * and it once held only three children, so without being told otherwise the buttons sat in column 3
- * and left column 4 empty — a gap on the right with the buttons floating in the middle. The spare
- * column now holds the save controls, which is why the buttons must still be PINNED to the last one
- * rather than simply landing there.
+/* Start / Pause / Stop belong at the right edge of the settings row. The row is a five-column grid
+ * (Tolerance · একসাথে কয়টি ছাত্র · রাতে বেশি · রান শেষে · buttons), and the buttons must be PINNED to
+ * the LAST column rather than simply landing there, or they float in the middle with a gap on the right.
  *
- * The catch: below 820px that grid collapses to a single column, and a hard `grid-column:4` there
- * would invent three empty implicit columns and push the buttons off on their own. So the rule
- * has to be undone in the same media query that collapses the grid — which is why this is a class
- * and not the inline style it started as.
+ * The catch: below 820px that grid collapses to a single column, and a hard `grid-column:5` there
+ * would invent empty implicit columns and push the buttons off on their own. So the rule has to be
+ * undone in the same media query that collapses the grid — which is why this is a class and not the
+ * inline style it started as.
  *
  *   node tests/layout.js
  */
@@ -23,22 +21,24 @@ const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  "
 /* ---- the row itself ---- */
 const g4 = (HTML.match(/\.g4\{([^}]*)\}/) || [])[1] || "";
 const tracks = ((/grid-template-columns:([^;]*)/.exec(g4) || [])[1] || "").match(/minmax\([^)]*\)|[\d.]+fr|auto/g) || [];
-check("the settings row is a 4-column grid", tracks.length === 4, tracks.join(" | "));
-/* Tolerance and Parallel hold two or three characters; an equal quarter each was width the save
-   controls needed to fit a toggle and a button on one line. The exact fractions have been tuned
-   more than once, so what is checked is the ordering, not the numbers. */
+check("the settings row is a 5-column grid", tracks.length === 5, tracks.join(" | "));
+/* Tolerance and একসাথে-কয়টি-ছাত্র hold two or three digits, so they take the smallest share; the
+   night cell (two times + a count) and the run buttons need more. The exact fractions have been
+   tuned more than once, so what is checked is the ordering, not the numbers. */
 {
   const fr = tracks.map(function (t) { return parseFloat((/([\d.]+)fr/.exec(t) || [0, 0])[1]); });
-  check("…with the two short fields taking a smaller share than the rest",
-    fr[0] < fr[2] && fr[1] < fr[2] && fr[0] < fr[3] && fr[1] < fr[3], fr.join(" / "));
+  check("…with the two short number fields taking a smaller share than the rest",
+    fr[0] < fr[2] && fr[1] < fr[2] && fr[0] < fr[3] && fr[1] < fr[3] && fr[0] < fr[4] && fr[1] < fr[4],
+    fr.join(" / "));
 }
 
 const kids = (HTML.match(/<div class="grid g4">([\s\S]*?)\n      <\/div>/) || [])[1] || "";
 const childDivs = (kids.match(/\n        <div[ >]/g) || []).length;
-check("every column is used now", childDivs === 4, childDivs + " children");
-/* the save controls are the third column, between Parallel and the run buttons */
-check("…the third being where a run's results go",
-  kids.indexOf('id="conc"') < kids.indexOf('id="saveSw"') &&
+check("every column is used now", childDivs === 5, childDivs + " children");
+/* order along the row: Tolerance · একসাথে কয়টি ছাত্র · রাতে বেশি (nightSw) · রান শেষে (saveSw) · buttons */
+check("…night after Students-at-once, save after night, buttons last",
+  kids.indexOf('id="conc"') < kids.indexOf('id="nightSw"') &&
+  kids.indexOf('id="nightSw"') < kids.indexOf('id="saveSw"') &&
   kids.indexOf('id="saveSw"') < kids.indexOf('class="runbtns"'), "app.html");
 check("…with the folder button beside the toggle, on one line",
   /id="saveSw"[\s\S]{0,300}?id="pickDir"/.test(kids) && /\.saverow\{[^}]*flex-wrap:nowrap/.test(HTML),
@@ -81,15 +81,16 @@ check("…with the folder button beside the toggle, on one line",
   check("the toggle fills what the button leaves",
     /\.saverow \.srvsw\{flex:1 1 auto;min-width:0\}/.test(HTML) &&
     /\.saverow \.btn\{flex:0 0 auto\}/.test(HTML), "app.html");
-  /* the column had a third of the row and its contents needed a quarter of it */
+  /* the save column holds only a toggle and a small folder icon now, so it takes a modest share —
+     not the third of the row it once did (which left 93px of nothing after the Folder button) */
   check("…and its column is no wider than they need",
-    /minmax\(240px,1fr\)/.test(HTML), (/\.g4\{[^}]*\}/.exec(HTML) || [""])[0]);
+    /minmax\(140px,\.85fr\)/.test(HTML), (/\.g4\{[^}]*\}/.exec(HTML) || [""])[0]);
 }
 
 /* ---- the buttons take the spare column ---- */
 const rb = (HTML.match(/\.runbtns\{([^}]*)\}/) || [])[1] || "";
 check("a .runbtns rule exists", !!rb, "not found");
-check("it sits in the last column", /grid-column:\s*4/.test(rb), rb);
+check("it sits in the last column", /grid-column:\s*5/.test(rb), rb);
 check("the three buttons are inside it",
   /<div class="runbtns">[\s\S]*?id="run"[\s\S]*?id="pause"[\s\S]*?id="stop"[\s\S]*?<\/div>/.test(HTML));
 check("Start spans both rows beside Pause and Stop",
