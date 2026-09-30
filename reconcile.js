@@ -115,6 +115,16 @@
     });
   }
 
+  /* Rows the UMS scheduler writes on its own are not real cashier activity: auto-inserted receipts,
+     and anything posted by the scheduler service account (liton@onnorokom.com). They carry dues that
+     do not fit the human-entered chain and only ever surface as noise, so they are dropped before any
+     rule sees them. The whole row is scanned, so it does not matter which column (User / Remarks /
+     Special Note) the marker landed in. */
+  function isAutoRow(cells) {
+    const blob = (Array.isArray(cells) ? cells.join(" ") : String(cells || "")).toLowerCase();
+    return blob.indexOf("liton@onnorokom.com") >= 0 || /auto\s+inserted\s+from\s+scheduler/.test(blob);
+  }
+
   /** kind = 'pw' | 'cw' — DOM twin of the CLI's parseTable() */
   function parseTable(table, kind) {
     if (!table) return { ok: false };
@@ -144,6 +154,7 @@
       if (/^no\s*data$/i.test(first)) { noData = true; continue; }
       if (cells.length < 4) continue;
       const vals = spread(cells, width);
+      if (isAutoRow(vals)) continue;   // scheduler / liton@onnorokom.com rows never enter any calculation
       const rec = {};
       Object.keys(cols).forEach(function (k) { rec[k] = vals[cols[k]] == null ? "" : vals[cols[k]]; });
       /* Every cell as the page printed it, aligned to header[]. The named fields above cover the
@@ -1742,7 +1753,7 @@
   g.UMSREC = {
     rawText: rawText, RAW_PW: RAW_PW, RAW_CW: RAW_CW,
     money: money, norm: norm, spread: spread, resolveCols: resolveCols,
-    PW_COLS: PW_COLS, CW_COLS: CW_COLS, parseTable: parseTable,
+    PW_COLS: PW_COLS, CW_COLS: CW_COLS, parseTable: parseTable, isAutoRow: isAutoRow,
     PW_HEAD_WORDS: PW_HEAD_WORDS, headScore: headScore,
     compare: compare, receiptWorthy: receiptWorthy, rowKey: rowKey, isCancel: isCancel,
     fmt: fmt, COMPARE: COMPARE, shortError: shortError, shortWarnings: shortWarnings, summary: summary,
