@@ -503,7 +503,9 @@
   .saverow .srvsw, .saverow .btn{min-height:var(--ctl-h)}
   /* The toggle takes whatever the button does not, so the row ends flush with the cell instead of
      trailing off into a gap — and a filled control beside two filled inputs reads as one of them. */
-  .saverow .srvsw{flex:1 1 auto;min-width:0}
+  /* the column is narrow, so let the toggle's label wrap inside the pill instead of forcing the row
+     wider than its cell — .srvsw is white-space:nowrap by default, which was pushing it past the border */
+  .saverow .srvsw{flex:1 1 auto;min-width:0;white-space:normal;line-height:1.2;overflow:hidden}
   .saverow .btn{flex:0 0 auto}
   .saverow .btn{padding:8px 12px;font-size:12px}
   /* pickDir sits INSIDE the .srvsw pill, so it must NOT take the row's full ctl-h — that height
