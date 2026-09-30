@@ -329,7 +329,6 @@
     save_l: { bn: "রান শেষে", en: "When the run ends" },
     save_run: { bn: "ফল সেভ করো", en: "Save the results" },
     save_pick: { bn: "কোথায় সেভ হবে — ফোল্ডার বাছো", en: "Where to save — choose a folder" },
-    save_pick_b: { bn: "📁", en: "📁" },
     save_folder: { bn: "প্রতি রানে তারিখ-সময়ের ফোল্ডার", en: "a dated folder per run" },
     save_downloads: { bn: "Downloads / UMS Reconciler / তারিখ-সময়ের ফোল্ডার", en: "Downloads / UMS Reconciler / a dated folder" },
     save_nopicker: { bn: "এই ব্রাউজার ফোল্ডার বাছতে দেয় না — Downloads-এ যাবে", en: "this browser cannot pick a folder — it will go to Downloads" },
