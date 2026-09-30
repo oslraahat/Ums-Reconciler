@@ -286,7 +286,7 @@
     imp_swap: { bn: "কলাম উল্টো ছিল — Reg আর Student PID বদলে নেওয়া হয়েছে", en: "columns were the wrong way round — Reg and Student PID swapped back" },
     rr_run: { bn: "টি আবার চালাও", en: "to re-run" }, rr_none: { bn: "কিছু নেই", en: "nothing here" }, rr_busy: { bn: "চলছে…", en: "running…" },
     settings_h: { bn: "সেটিংস ও রান", en: "Settings & Run" }, tol_l: { bn: "গ্রহণযোগ্য পার্থক্য", en: "Tolerance" }, conc_l: { bn: "একসাথে কয়টি ছাত্র", en: "Students at once" },
-    night_l: { bn: "রাতে বেশি (সার্ভার ফাঁকা)", en: "More at night (server free)" }, night_at: { bn: "একসাথে", en: "at once" },
+    night_l: { bn: "রাতে বেশি (সার্ভার ফাঁকা)", en: "More at night (server free)" },
     run_btn: { bn: "▶ Start", en: "▶ Start" },
     imp_row: { bn: "টি", en: "entries" }, imp_empty: { bn: "ফাইল খালি", en: "File empty" },
     imp_excel: { bn: "⏳ Excel পড়ছি…", en: "⏳ Reading Excel…" }, imp_excel_fail: { bn: "Excel পড়া গেল না", en: "Could not read Excel" },

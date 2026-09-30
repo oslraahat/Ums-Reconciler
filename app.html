@@ -163,7 +163,7 @@
   /* five columns now: Tolerance · একসাথে কয়টি ছাত্র · রাতে বেশি (its times) · রান শেষে · Run buttons.
      The two number fields hold 2–3 digits so they take the smallest share; the night cell needs room
      for two times and a count; the buttons keep enough width for ▶ Start / ⏸ Pause / ⏹ Stop. */
-  .g4{grid-template-columns:minmax(62px,.4fr) minmax(80px,.5fr) minmax(190px,1.3fr) minmax(116px,.62fr) minmax(138px,.95fr);align-items:start;gap:9px}
+  .g4{grid-template-columns:minmax(62px,.4fr) minmax(80px,.5fr) minmax(300px,1.9fr) minmax(116px,.62fr) minmax(138px,.95fr);align-items:start;gap:9px}
   .g4 > div > label{margin-bottom:3px}
   /* The settings row is short controls; a smaller label and column gap tighten it without
      changing the inputs' own height (--ctl-h), which the run buttons align to. */
@@ -439,11 +439,12 @@
   .connGrid > div{min-width:0}
   #srvHint::after{content:" · ";color:var(--mut)}   /* separator, only when the two-server hint is shown */
   /* night-window controls — its own grid column, under the "রাতে বেশি" label (so top-aligned with
-     the inputs in the other columns) */
-  .nightrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:0;font-size:12px;color:var(--mut)}
-  .nightrow #nightCfg{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
-  .nightrow input[type=time],.nightrow input[type=number]{width:auto;height:30px;padding:0 8px;font-size:12px}
-  .nightrow input[type=number]{width:64px}
+     the inputs in the other columns). Toggle + both times + count stay on ONE line (nowrap). */
+  .nightrow{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;white-space:nowrap;margin-top:0;font-size:12px;color:var(--mut)}
+  .nightrow #nightCfg{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap}
+  .nightrow input[type=time],.nightrow input[type=number]{height:30px;padding:0 7px;font-size:12px;flex:0 0 auto}
+  .nightrow input[type=time]{width:96px}
+  .nightrow input[type=number]{width:56px}
   /* CRM Run / Close Browser kept compact */
   #crmRun,#crmStop{height:34px;padding:0 16px;font-size:13px;display:inline-flex;align-items:center;justify-content:center}
   /* the Connection row kept compact — shorter inputs/buttons than the settings row (which layout.js
@@ -620,7 +621,7 @@
             <label class="srvsw" data-title="night_l" title="রাতে বেশি (সার্ভার ফাঁকা)"><input type="checkbox" id="nightSw"><i class="tg"></i></label>
             <span id="nightCfg" style="display:none">
               <input type="time" id="nightFrom" value="00:00"> – <input type="time" id="nightTo" value="06:00">
-              → <input type="number" id="nightConc" min="1" max="300" value="100"> <span data-i18n="night_at">একসাথে</span>
+              → <input type="number" id="nightConc" min="1" max="300" value="100">
             </span>
           </div>
         </div>
