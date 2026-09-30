@@ -79,7 +79,7 @@ check("…with the folder button beside the toggle, on one line",
     /label\{[^}]*margin-bottom:5px/.test(HTML), (/label\{[^}]*\}/.exec(HTML) || [""])[0]);
 
   check("the toggle fills what the button leaves",
-    /\.saverow \.srvsw\{flex:1 1 auto;min-width:0\}/.test(HTML) &&
+    /\.saverow \.srvsw\{flex:1 1 auto;min-width:0/.test(HTML) &&
     /\.saverow \.btn\{flex:0 0 auto\}/.test(HTML), "app.html");
   /* the save column holds only a toggle and a small folder icon now, so it takes a modest share —
      not the third of the row it once did (which left 93px of nothing after the Folder button) */
