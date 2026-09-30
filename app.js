@@ -113,7 +113,7 @@
     /* The number, in the units the box above is set in — "all of them" named nothing a reader
        could point at, and the protocol that explains it belongs with the rest of the explanation,
        in the tooltip. */
-    conc_real: { bn: "✓ {n} ছাত্র = {r}টি অনুরোধ একসাথে", en: "✓ {n} students = {r} requests at once" },
+    conc_real: { bn: "✓ {n} ছাত্র = {r}টি অনুরোধ", en: "✓ {n} students = {r} requests" },
     conc_capped: { bn: "⚠ {n} ছাত্র যাচ্ছে, {c} নয় — {r}টি অনুরোধ",
       en: "⚠ {n} students go at once, not {c} — {r} requests" },
     /* The one thing the tool cannot see: the other machines. Said in the tooltip because the

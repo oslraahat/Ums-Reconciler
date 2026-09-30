@@ -163,7 +163,7 @@
   /* five columns now: Tolerance · একসাথে কয়টি ছাত্র · রাতে বেশি (its times) · রান শেষে · Run buttons.
      The two number fields hold 2–3 digits so they take the smallest share; the night cell needs room
      for two times and a count; the buttons keep enough width for ▶ Start / ⏸ Pause / ⏹ Stop. */
-  .g4{grid-template-columns:minmax(62px,.4fr) minmax(96px,.55fr) minmax(190px,1.25fr) minmax(116px,.62fr) minmax(150px,1fr);align-items:start;gap:9px}
+  .g4{grid-template-columns:minmax(62px,.4fr) minmax(80px,.5fr) minmax(190px,1.3fr) minmax(116px,.62fr) minmax(138px,.95fr);align-items:start;gap:9px}
   .g4 > div > label{margin-bottom:3px}
   /* The settings row is short controls; a smaller label and column gap tighten it without
      changing the inputs' own height (--ctl-h), which the run buttons align to. */
@@ -172,8 +172,8 @@
      lifts them level with the inputs, which carry a label above. */
   .runbtns{grid-column:5;align-self:start;display:grid;grid-template-columns:1fr 1fr;gap:8px;
     align-items:start;margin-top:-24px}
-  /* the last column is narrower now, so the run buttons trim their padding/size to fit it */
-  .runbtns .btn{padding:9px 10px;font-size:13px}
+  /* the last column is narrow, so the run buttons trim their padding/size to fit it */
+  .runbtns .btn{padding:7px 8px;font-size:12px}
   .btn{cursor:pointer;border:none;border-radius:10px;padding:11px 18px;font-weight:700;font-size:14px;
     box-sizing:border-box;display:inline-flex;align-items:center;justify-content:center;line-height:1.2;
     vertical-align:middle;font-family:inherit}
