@@ -2507,10 +2507,18 @@
   function wire() {
     try { const v = chrome.runtime.getManifest().version; const el = $("ver"); if (el) el.textContent = "v" + v; } catch (e) {}
     $("base").value = baseUrl; $("conc").value = conc; $("tol").value = tol;
-    $("base").addEventListener("input", function () { baseUrl = this.value.trim() || "https://ums-5.osl.team"; });
+    /* Remember the last-used addresses on their own, without waiting for the Save button — so a
+       reload comes back to the server you were actually using, not the default. Debounced so it is
+       not written on every keystroke. */
+    let baseSaveT;
+    const persistBase = function () {
+      clearTimeout(baseSaveT);
+      baseSaveT = setTimeout(function () { try { chrome.storage.local.set({ baseUrl: baseUrl, baseUrl2: baseUrl2 }); } catch (e) {} }, 400);
+    };
+    $("base").addEventListener("input", function () { baseUrl = this.value.trim() || "https://ums-5.osl.team"; persistBase(); });
     if ($("base2")) {
       $("base2").value = baseUrl2;
-      $("base2").addEventListener("input", function () { baseUrl2 = this.value.trim() || "https://ums-41.osl.team"; });
+      $("base2").addEventListener("input", function () { baseUrl2 = this.value.trim() || "https://ums-41.osl.team"; persistBase(); });
     }
     if ($("srvSw")) {
       $("srvSw").checked = srvMode;
