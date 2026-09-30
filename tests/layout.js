@@ -112,13 +112,9 @@ check("a .runbtns rule exists", !!rb, "not found");
 check("it sits in the last column", /grid-column:\s*5/.test(rb), rb);
 check("the three buttons are inside it",
   /<div class="runbtns">[\s\S]*?id="run"[\s\S]*?id="pause"[\s\S]*?id="stop"[\s\S]*?<\/div>/.test(HTML));
-check("Start spans the top row, Pause and Stop share the row below",
-  /id="run"[^>]*grid-column:1\/3;grid-row:1/.test(HTML) && /id="pause"[^>]*grid-column:1;grid-row:2/.test(HTML) &&
+check("Start spans both rows beside Pause and Stop",
+  /id="run"[^>]*grid-column:1;grid-row:1\/3/.test(HTML) && /id="pause"[^>]*grid-column:2;grid-row:1/.test(HTML) &&
   /id="stop"[^>]*grid-column:2;grid-row:2/.test(HTML));
-/* all three are the same height so the group reads as one block, not a tall button and two short */
-check("the three buttons are one height (two equal rows)",
-  /\.runbtns\{[^}]*grid-template-rows:var\(--ctl-h\) var\(--ctl-h\)/.test(HTML) &&
-  /\.runbtns \.btn\{[^}]*height:100%/.test(HTML), rb);
 
 /* ---- and give it back when the row collapses ---- */
 const mq = (HTML.match(/@media \(max-width:820px\)\{[\s\S]*?\n\s*\.runbtns\{[^}]*\}[^}]*\}/) || [])[0] || "";
