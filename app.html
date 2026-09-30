@@ -499,6 +499,7 @@
   .saverow .srvsw{flex:1 1 auto;min-width:0}
   .saverow .btn{flex:0 0 auto}
   .saverow .btn{padding:8px 12px;font-size:12px}
+  #pickDir{padding:0 10px;font-size:15px}   /* the Folder as a compact icon inside the save toggle field */
   /* the folder path needs room, so it sits on the hint line where there is some */
   .where{font-weight:700;color:var(--text)}
   .where:not(:empty){display:block;margin-bottom:4px;overflow-wrap:anywhere}
@@ -595,7 +596,7 @@
           <label data-i18n="save_l">রান শেষে</label>
           <div class="saverow">
             <label class="srvsw"><input type="checkbox" id="saveSw"><i class="tg"></i><span data-i18n="save_run">ফল সেভ করো</span></label>
-            <button class="btn g" id="pickDir" data-i18n="save_pick_b" data-title="save_pick" disabled>📁 ফোল্ডার</button>
+            <button class="btn g" id="pickDir" data-i18n="save_pick_b" data-title="save_pick" disabled>📁</button>
           </div>
         </div>
         <div class="runbtns">
