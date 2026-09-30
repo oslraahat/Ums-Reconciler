@@ -166,8 +166,11 @@
   /* Two layouts, swapped by the "More at night" toggle (JS adds .night-on):
      OFF — the night cell is just a switch, so the row spreads back to comfortable widths (as before).
      ON  — the night cell grows to hold two times + a count on one line, the others give up the room. */
-  .g4{grid-template-columns:minmax(96px,.7fr) minmax(118px,.85fr) minmax(150px,.9fr) minmax(170px,1fr) minmax(150px,1fr);align-items:start;gap:9px;transition:grid-template-columns .15s ease}
-  .g4.night-on{grid-template-columns:minmax(62px,.4fr) minmax(80px,.5fr) minmax(280px,1.5fr) minmax(178px,1fr) minmax(138px,.95fr)}
+  /* The save cell is sized to its content (max-content): with "Save the results" alone it stays
+     snug, and grows only when the folder icon appears — no empty stretch inside the pill either way,
+     and the space it frees goes to the fr tracks. */
+  .g4{grid-template-columns:minmax(96px,.7fr) minmax(118px,.85fr) minmax(150px,.9fr) max-content minmax(150px,1fr);align-items:start;gap:9px}
+  .g4.night-on{grid-template-columns:minmax(62px,.4fr) minmax(80px,.5fr) minmax(280px,1.5fr) max-content minmax(138px,.95fr)}
   .g4 > div > label{margin-bottom:3px}
   /* The settings row is short controls; a smaller label and column gap tighten it without
      changing the inputs' own height (--ctl-h), which the run buttons align to. */
@@ -510,9 +513,9 @@
   .saverow .srvsw, .saverow .btn{min-height:var(--ctl-h)}
   /* The toggle takes whatever the button does not, so the row ends flush with the cell instead of
      trailing off into a gap — and a filled control beside two filled inputs reads as one of them. */
-  /* the column is sized to hold the label + folder on one line, so keep the pill on one line and
-     the same height as the inputs beside it */
-  .saverow .srvsw{flex:1 1 auto;min-width:0;white-space:nowrap;overflow:hidden}
+  /* the cell is max-content, so the pill hugs its own content (toggle + label + optional folder)
+     on one line instead of stretching — no empty space inside it when the folder is hidden */
+  .saverow .srvsw{flex:0 0 auto;white-space:nowrap}
   .saverow .btn{flex:0 0 auto}
   .saverow .btn{padding:8px 12px;font-size:12px}
   /* pickDir sits INSIDE the .srvsw pill, so it must NOT take the row's full ctl-h — that height

@@ -19,16 +19,20 @@ let fail = 0;
 const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  " : "FAIL  ") + name + (!ok && extra ? "   " + extra : "")); };
 
 /* ---- the row itself ---- */
+const TRACK = /minmax\([^)]*\)|[\d.]+fr|max-content|min-content|auto/g;
 const g4 = (HTML.match(/\.g4\{([^}]*)\}/) || [])[1] || "";
-const tracks = ((/grid-template-columns:([^;]*)/.exec(g4) || [])[1] || "").match(/minmax\([^)]*\)|[\d.]+fr|auto/g) || [];
+const tracks = ((/grid-template-columns:([^;]*)/.exec(g4) || [])[1] || "").match(TRACK) || [];
 check("the settings row is a 5-column grid", tracks.length === 5, tracks.join(" | "));
 
 /* Two layouts: the row reflows when "More at night" is toggled. The base .g4 is the OFF layout
    (night cell is just a switch, the other fields spread out); .g4.night-on widens the night cell to
    hold the times and pulls the others in. JS toggles the class — checked here so the two stay real. */
 const g4on = (HTML.match(/\.g4\.night-on\{([^}]*)\}/) || [])[1] || "";
-const tracksOn = ((/grid-template-columns:([^;]*)/.exec(g4on) || [])[1] || "").match(/minmax\([^)]*\)|[\d.]+fr|auto/g) || [];
+const tracksOn = ((/grid-template-columns:([^;]*)/.exec(g4on) || [])[1] || "").match(TRACK) || [];
 check("there is a separate night-on layout, also 5 columns", tracksOn.length === 5, tracksOn.join(" | "));
+/* the save cell (4th) is sized to its content in both layouts, so it never stretches empty */
+check("the save cell fits its content, not a fixed share",
+  tracks[3] === "max-content" && tracksOn[3] === "max-content", tracks[3] + " / " + tracksOn[3]);
 check("…in which the night cell is the widest, to fit the times on one line",
   /minmax\(280px,1\.5fr\)/.test(g4on), g4on);
 {
@@ -40,10 +44,11 @@ check("…in which the night cell is the widest, to fit the times on one line",
    night cell (two times + a count) and the run buttons need more. The exact fractions have been
    tuned more than once, so what is checked is the ordering, not the numbers. */
 {
+  /* the save track (3) is content-sized, so it carries no fr — the two short number fields are
+     compared against the fr-bearing tracks: the night cell (2) and the run buttons (4) */
   const fr = tracks.map(function (t) { return parseFloat((/([\d.]+)fr/.exec(t) || [0, 0])[1]); });
-  check("…with the two short number fields taking a smaller share than the rest",
-    fr[0] < fr[2] && fr[1] < fr[2] && fr[0] < fr[3] && fr[1] < fr[3] && fr[0] < fr[4] && fr[1] < fr[4],
-    fr.join(" / "));
+  check("…with the two short number fields taking a smaller share than the flexible ones",
+    fr[0] < fr[2] && fr[1] < fr[2] && fr[0] < fr[4] && fr[1] < fr[4], fr.join(" / "));
 }
 
 const kids = (HTML.match(/<div class="grid g4"[^>]*>([\s\S]*?)\n      <\/div>/) || [])[1] || "";
@@ -92,13 +97,13 @@ check("…with the folder button beside the toggle, on one line",
   check("…and that margin is really where it comes from",
     /label\{[^}]*margin-bottom:5px/.test(HTML), (/label\{[^}]*\}/.exec(HTML) || [""])[0]);
 
-  check("the toggle fills what the button leaves",
-    /\.saverow \.srvsw\{flex:1 1 auto;min-width:0/.test(HTML) &&
+  check("the toggle hugs its content instead of stretching",
+    /\.saverow \.srvsw\{flex:0 0 auto;white-space:nowrap\}/.test(HTML) &&
     /\.saverow \.btn\{flex:0 0 auto\}/.test(HTML), "app.html");
-  /* the save column holds only a toggle and a small folder icon now, so it takes a modest share —
-     not the third of the row it once did (which left 93px of nothing after the Folder button) */
-  check("…and its column is no wider than they need",
-    /minmax\(178px,1fr\)/.test(HTML), (/\.g4\{[^}]*\}/.exec(HTML) || [""])[0]);
+  /* the save cell is content-sized (max-content), so it never leaves an empty stretch inside the
+     pill — snug with the label alone, a touch wider when the folder icon shows */
+  check("…and its column is sized to its content",
+    tracks[3] === "max-content" && tracksOn[3] === "max-content", tracks[3] + " / " + tracksOn[3]);
 }
 
 /* ---- the buttons take the spare column ---- */
