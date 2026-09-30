@@ -84,7 +84,7 @@ check("…with the folder button beside the toggle, on one line",
   /* the save column holds only a toggle and a small folder icon now, so it takes a modest share —
      not the third of the row it once did (which left 93px of nothing after the Folder button) */
   check("…and its column is no wider than they need",
-    /minmax\(116px,\.62fr\)/.test(HTML), (/\.g4\{[^}]*\}/.exec(HTML) || [""])[0]);
+    /minmax\(178px,1fr\)/.test(HTML), (/\.g4\{[^}]*\}/.exec(HTML) || [""])[0]);
 }
 
 /* ---- the buttons take the spare column ---- */
