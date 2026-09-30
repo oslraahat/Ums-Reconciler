@@ -22,14 +22,14 @@ const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  "
 const TRACK = /minmax\([^)]*\)|[\d.]+fr|max-content|min-content|auto/g;
 const g4 = (HTML.match(/\.g4\{([^}]*)\}/) || [])[1] || "";
 const tracks = ((/grid-template-columns:([^;]*)/.exec(g4) || [])[1] || "").match(TRACK) || [];
-check("the settings row is a 5-column grid", tracks.length === 5, tracks.join(" | "));
+check("the settings row is a 6-track grid (5 fields + a spacer)", tracks.length === 6, tracks.join(" | "));
 
 /* Two layouts: the row reflows when "More at night" is toggled. The base .g4 is the OFF layout
    (night cell is just a switch, the other fields spread out); .g4.night-on widens the night cell to
    hold the times and pulls the others in. JS toggles the class — checked here so the two stay real. */
 const g4on = (HTML.match(/\.g4\.night-on\{([^}]*)\}/) || [])[1] || "";
 const tracksOn = ((/grid-template-columns:([^;]*)/.exec(g4on) || [])[1] || "").match(TRACK) || [];
-check("there is a separate night-on layout, also 5 columns", tracksOn.length === 5, tracksOn.join(" | "));
+check("there is a separate night-on layout, also 6 tracks", tracksOn.length === 6, tracksOn.join(" | "));
 /* the save cell (4th) is sized to its content in both layouts, so it never stretches empty */
 check("the save cell fits its content, not a fixed share",
   tracks[3] === "max-content" && tracksOn[3] === "max-content", tracks[3] + " / " + tracksOn[3]);
@@ -40,17 +40,17 @@ check("…in which the night cell has the widest min, to fit the times on one li
   const min = (t) => parseFloat((/minmax\((\d+)px/.exec(t) || [0, 0])[1]);
   check("…and the night cell grows from off to on", min(on) > min(off), min(off) + "px → " + min(on) + "px");
 }
-/* Tolerance and একসাথে-কয়টি-ছাত্র hold two or three digits, so they take the smallest share; the
-   night cell (two times + a count) and the run buttons need more. The exact fractions have been
-   tuned more than once, so what is checked is the ordering, not the numbers. */
+/* The 5th track is an empty flexible spacer: with the night cell collapsed it soaks up the row's
+   spare width so no real field balloons, and the buttons stay pinned right. The save track (3) is
+   content-sized and carries no fr. */
 {
-  /* Students-at-once (track 1) is the elastic field — it carries the largest fr, so the row's spare
-     width flows to it as things reflow. The save track (3) is content-sized and carries no fr. */
   const fr = tracks.map(function (t) { return parseFloat((/([\d.]+)fr/.exec(t) || [0, 0])[1]); });
   const frOn = tracksOn.map(function (t) { return parseFloat((/([\d.]+)fr/.exec(t) || [0, 0])[1]); });
-  check("Students-at-once takes the largest share, off and on",
-    fr[1] > fr[0] && fr[1] > fr[2] && fr[1] > fr[4] &&
-    frOn[1] > frOn[0] && frOn[1] > frOn[2] && frOn[1] > frOn[4], fr.join(" / ") + "  |  " + frOn.join(" / "));
+  check("the spacer (track 5) absorbs the slack in the off layout, so no field balloons",
+    fr[4] > fr[1] && fr[4] > fr[5] && fr[4] > fr[0], fr.join(" / "));
+  /* Students-at-once still flexes — a positive share above Tolerance — just not enough to balloon */
+  check("…while Students-at-once keeps a small share of its own, off and on",
+    fr[1] > 0 && fr[1] > fr[0] && frOn[1] > 0 && frOn[1] > frOn[0], fr.join(" / ") + "  |  " + frOn.join(" / "));
 }
 
 const kids = (HTML.match(/<div class="grid g4"[^>]*>([\s\S]*?)\n      <\/div>/) || [])[1] || "";
@@ -111,7 +111,7 @@ check("…with the folder button beside the toggle, on one line",
 /* ---- the buttons take the spare column ---- */
 const rb = (HTML.match(/\.runbtns\{([^}]*)\}/) || [])[1] || "";
 check("a .runbtns rule exists", !!rb, "not found");
-check("it sits in the last column", /grid-column:\s*5/.test(rb), rb);
+check("it sits in the last column", /grid-column:\s*6/.test(rb), rb);
 check("the three buttons are inside it",
   /<div class="runbtns">[\s\S]*?id="run"[\s\S]*?id="pause"[\s\S]*?id="stop"[\s\S]*?<\/div>/.test(HTML));
 check("Start spans both rows beside Pause and Stop",
