@@ -2542,8 +2542,15 @@
     /* night-window "Students at once": persist and apply the time-based ceiling */
     const hmToMin = function (s) { const m = /^(\d{1,2}):(\d{2})$/.exec(String(s || "")); return m ? (Math.min(23, +m[1]) * 60 + Math.min(59, +m[2])) : 0; };
     const saveNight = function () { try { chrome.storage.local.set({ nightOn: nightOn, nightFrom: nightFrom, nightTo: nightTo, nightConc: nightConc }); } catch (e) {} };
-    const showNightCfg = function () { const c = $("nightCfg"); if (c) c.style.display = nightOn ? "" : "none"; };
+    /* Show the times only when the toggle is on, and let the whole settings row reflow: off, the
+       night cell shrinks to just the switch and the other fields spread back to their former widths;
+       on, the grid widens the night cell (via .night-on) to fit the times on one line. */
+    const showNightCfg = function () {
+      const c = $("nightCfg"); if (c) c.style.display = nightOn ? "" : "none";
+      const g = $("setGrid"); if (g) g.classList.toggle("night-on", nightOn);
+    };
     if ($("nightSw")) $("nightSw").addEventListener("change", function () { nightOn = this.checked; if (this.parentNode) this.parentNode.classList.toggle("on", nightOn); showNightCfg(); saveNight(); });
+    showNightCfg();   // sync the row to the restored toggle state on load
     if ($("nightFrom")) $("nightFrom").addEventListener("input", function () { nightFrom = hmToMin(this.value); saveNight(); });
     if ($("nightTo")) $("nightTo").addEventListener("input", function () { nightTo = hmToMin(this.value); saveNight(); });
     if ($("nightConc")) $("nightConc").addEventListener("input", function () { let v = parseInt(this.value, 10); if (isNaN(v)) return; nightConc = Math.max(1, Math.min(300, v)); if (v !== nightConc) this.value = nightConc; saveNight(); });

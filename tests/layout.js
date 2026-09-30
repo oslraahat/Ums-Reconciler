@@ -22,6 +22,20 @@ const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  "
 const g4 = (HTML.match(/\.g4\{([^}]*)\}/) || [])[1] || "";
 const tracks = ((/grid-template-columns:([^;]*)/.exec(g4) || [])[1] || "").match(/minmax\([^)]*\)|[\d.]+fr|auto/g) || [];
 check("the settings row is a 5-column grid", tracks.length === 5, tracks.join(" | "));
+
+/* Two layouts: the row reflows when "More at night" is toggled. The base .g4 is the OFF layout
+   (night cell is just a switch, the other fields spread out); .g4.night-on widens the night cell to
+   hold the times and pulls the others in. JS toggles the class — checked here so the two stay real. */
+const g4on = (HTML.match(/\.g4\.night-on\{([^}]*)\}/) || [])[1] || "";
+const tracksOn = ((/grid-template-columns:([^;]*)/.exec(g4on) || [])[1] || "").match(/minmax\([^)]*\)|[\d.]+fr|auto/g) || [];
+check("there is a separate night-on layout, also 5 columns", tracksOn.length === 5, tracksOn.join(" | "));
+check("…in which the night cell is the widest, to fit the times on one line",
+  /minmax\(280px,1\.5fr\)/.test(g4on), g4on);
+{
+  const off = tracks[2], on = tracksOn[2];
+  const min = (t) => parseFloat((/minmax\((\d+)px/.exec(t) || [0, 0])[1]);
+  check("…and the night cell grows from off to on", min(on) > min(off), min(off) + "px → " + min(on) + "px");
+}
 /* Tolerance and একসাথে-কয়টি-ছাত্র hold two or three digits, so they take the smallest share; the
    night cell (two times + a count) and the run buttons need more. The exact fractions have been
    tuned more than once, so what is checked is the ordering, not the numbers. */
@@ -32,7 +46,7 @@ check("the settings row is a 5-column grid", tracks.length === 5, tracks.join(" 
     fr.join(" / "));
 }
 
-const kids = (HTML.match(/<div class="grid g4">([\s\S]*?)\n      <\/div>/) || [])[1] || "";
+const kids = (HTML.match(/<div class="grid g4"[^>]*>([\s\S]*?)\n      <\/div>/) || [])[1] || "";
 const childDivs = (kids.match(/\n        <div[ >]/g) || []).length;
 check("every column is used now", childDivs === 5, childDivs + " children");
 /* order along the row: Tolerance · একসাথে কয়টি ছাত্র · রাতে বেশি (nightSw) · রান শেষে (saveSw) · buttons */

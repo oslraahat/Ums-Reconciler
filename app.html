@@ -163,7 +163,11 @@
   /* five columns now: Tolerance · একসাথে কয়টি ছাত্র · রাতে বেশি (its times) · রান শেষে · Run buttons.
      The two number fields hold 2–3 digits so they take the smallest share; the night cell needs room
      for two times and a count; the buttons keep enough width for ▶ Start / ⏸ Pause / ⏹ Stop. */
-  .g4{grid-template-columns:minmax(62px,.4fr) minmax(80px,.5fr) minmax(280px,1.5fr) minmax(178px,1fr) minmax(138px,.95fr);align-items:start;gap:9px}
+  /* Two layouts, swapped by the "More at night" toggle (JS adds .night-on):
+     OFF — the night cell is just a switch, so the row spreads back to comfortable widths (as before).
+     ON  — the night cell grows to hold two times + a count on one line, the others give up the room. */
+  .g4{grid-template-columns:minmax(96px,.7fr) minmax(118px,.85fr) minmax(150px,.9fr) minmax(170px,1fr) minmax(150px,1fr);align-items:start;gap:9px;transition:grid-template-columns .15s ease}
+  .g4.night-on{grid-template-columns:minmax(62px,.4fr) minmax(80px,.5fr) minmax(280px,1.5fr) minmax(178px,1fr) minmax(138px,.95fr)}
   .g4 > div > label{margin-bottom:3px}
   /* The settings row is short controls; a smaller label and column gap tighten it without
      changing the inputs' own height (--ctl-h), which the run buttons align to. */
@@ -612,7 +616,7 @@
 
     <div class="card">
       <div class="ch"><span class="n">3</span><h2 data-i18n="settings_h">সেটিংস ও Run</h2></div>
-      <div class="grid g4">
+      <div class="grid g4" id="setGrid">
         <div><label data-i18n="tol_l">গ্রহণযোগ্য পার্থক্য</label><input id="tol" type="number" min="0" step="any" value="0"></div>
         <div><label data-i18n="conc_l">একসাথে কয়টি ছাত্র</label><input id="conc" type="number" min="1" max="300" value="25" title="সর্বোচ্চ 300"><div class="cnote" id="concNote"></div></div>
         <!-- night boost sits in its OWN column right after "একসাথে কয়টি ছাত্র": the column label
