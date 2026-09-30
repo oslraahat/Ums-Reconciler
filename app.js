@@ -2621,7 +2621,7 @@
          the run there will not be another one. */
       if (saveOnFinish && !dirHandle) pickDir();
     });
-    if ($("pickDir")) $("pickDir").addEventListener("click", pickDir);
+    if ($("pickDir")) $("pickDir").addEventListener("click", function (e) { e.preventDefault(); e.stopPropagation(); pickDir(); });   // it lives inside the save toggle's label — don't let its click flip the toggle
     $("html").addEventListener("click", exportHtml);
     $("xlsx").addEventListener("click", exportXlsx);
     $("raw").addEventListener("click", exportRaw);
