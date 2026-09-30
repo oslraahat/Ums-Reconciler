@@ -725,12 +725,12 @@
 
   function sortOrder(rows, side, errors) {
     const d = rows.map(function (r) { return toDate(r.date); });
-    /* On a tie the ledger's own convention settles it — Program Wise runs oldest→newest and
-       Course Wise newest→oldest. Three rows with one step each way is a genuine tie and also a
-       genuinely out-of-order table, so answering "cannot say" there would drop a real finding;
-       the convention is what the table was supposed to be doing in the first place.
+    /* On a tie the ledger's own convention settles it. Both ledgers now run oldest→newest (Course
+       Wise used to be newest→oldest and was flipped). Three rows with one step each way is a genuine
+       tie and also a genuinely out-of-order table, so answering "cannot say" there would drop a real
+       finding; the convention is what the table was supposed to be doing in the first place.
        A table of one date, or of none, produces no steps either way and so no findings. */
-    const asc = sortedWay(d, side !== "Course Wise");
+    const asc = sortedWay(d, true);
     const way = asc ? "পুরনো→নতুন" : "নতুন→পুরনো";
     for (let i = 1; i < d.length; i++) {
       if (d[i] == null || d[i - 1] == null) continue;
@@ -748,8 +748,10 @@
     }
   }
 
-  /* Course Wise টেবিলে যে সারিটা সবচেয়ে নিচে (সবচেয়ে পুরনো) সেখানকার ভুলটাই মূল।
-     ছবিতে ঐ একটাতেই দাগ পড়ে, remarks-ও ঐটার কথাই বলে — একসাথে সব দেখালে বোঝা যায় না। */
+  /* Course Wise টেবিলে সবচেয়ে পুরনো তারিখের সারির ভুলটাই মূল — তার ভুল বকেয়া পরের সব রসিদে বয়ে যায়।
+     ছবিতে ঐ একটাতেই দাগ পড়ে, remarks-ও ঐটার কথাই বলে — একসাথে সব দেখালে বোঝা যায় না।
+     Course Wise now runs oldest→newest, so the oldest is the earliest DATE (near the top), not the
+     bottom row it once was; picking by date holds whichever way the table happens to be sorted. */
   function markPrimary(cwRows, errors) {
     if (!errors.length) return;
     const at = function (e) {
@@ -758,8 +760,13 @@
           (!e.course || String(r.course || "").trim().startsWith(String(e.course).trim().slice(0, 25)));
       });
     };
-    let best = -1, pick = null;
-    errors.forEach(function (e) { const i = at(e); if (i > best) { best = i; pick = e; } });
+    let pick = null, bestT = Infinity, bestI = Infinity;
+    errors.forEach(function (e) {
+      const i = at(e);
+      const t = i >= 0 ? toDate(cwRows[i].date) : null;
+      const tt = (t == null) ? Infinity : t;          // undated errors sort last, then by position
+      if (tt < bestT || (tt === bestT && i >= 0 && i < bestI)) { bestT = tt; bestI = i; pick = e; }
+    });
     (pick || errors[0]).primary = true;
   }
 
@@ -769,8 +776,8 @@
     return m ? new Date(+m[3], +m[2] - 1, +m[1]).getTime() : null;
   }
 
-  /* The ledgers sort opposite ways (Program Wise old→new, Course Wise new→old).
-     Read the direction off the dates and always hand back old→new. */
+  /* Both ledgers now sort oldest→newest (Course Wise was flipped from new→old).
+     Read the direction off the dates and always hand back old→new; defaultAsc only decides ties. */
   function chronological(rows, defaultAsc) {
     /* The same counting, and it matters more here: this is not reporting anything, it is putting
        the rows in the order the due chain is read in. Backwards, and every link opens on the wrong
@@ -808,7 +815,7 @@
     };
 
     const chains = new Map();
-    chronological(rows, side === "Program Wise").forEach(function (r) {
+    chronological(rows, true).forEach(function (r) {   // both ledgers run oldest→newest now; ties fall back to ascending
       const gk = (groupOf(r) || "").trim();
       if (!gk || gk === "-") return;
       if (!chains.has(gk)) chains.set(gk, []);

@@ -97,15 +97,16 @@ check("…nor has a table with no dates at all",
 
      Answering "cannot say" here would drop a real finding: three rows with one step each way is
      an out-of-order table by anyone's reading. So the ledger's own convention settles it — the
-     order the table was supposed to be in — and the row that breaks THAT is the one named. */
+     order the table was supposed to be in — and the row that breaks THAT is the one named. Both
+     ledgers now run oldest→newest, so both name the same row. */
   const TIE = ["01/01/2025", "05/01/2025", "01/01/2025"];
   const e = [];
   sortOrder(rows(TIE), "Course Wise", e);
-  check("a tie is settled by the ledger's own convention",
-    e.length === 1 && e[0].key === "B", e.map(function (x) { return x.key; }).join(","));
+  check("a tie is settled by the oldest→newest convention",
+    e.length === 1 && e[0].key === "C", e.map(function (x) { return x.key; }).join(","));
   const e2 = [];
   sortOrder(rows(TIE), "Program Wise", e2);
-  check("…which runs the other way on the other ledger",
+  check("…the same way on both ledgers now",
     e2.length === 1 && e2[0].key === "C", e2.map(function (x) { return x.key; }).join(","));
   check("…and the due chain still falls back to the caller's default",
     order(TIE, true) === "ABC" && order(TIE, false) === "CBA",
