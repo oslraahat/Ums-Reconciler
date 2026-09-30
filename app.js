@@ -2282,7 +2282,7 @@
 
   function paintSaveRow() {
     const sw = $("saveSw"); if (sw) { sw.checked = saveOnFinish; if (sw.parentNode) sw.parentNode.classList.toggle("on", saveOnFinish); }
-    const btn = $("pickDir"); if (btn) btn.disabled = !saveOnFinish;
+    const btn = $("pickDir"); if (btn) { btn.disabled = !saveOnFinish; btn.style.display = saveOnFinish ? "" : "none"; }   // the Folder button belongs to the save flow — show it only when "save the results" is on
     const el = $("saveWhere");
     if (el) el.textContent = saveOnFinish
       ? (dirName ? "→ " + dirName + " / " + t("save_folder") : "→ " + t("save_downloads"))
