@@ -433,8 +433,9 @@
   .connGrid.two{grid-template-columns:1fr 1fr auto auto}
   .connGrid > div{min-width:0}
   #srvHint::after{content:" · ";color:var(--mut)}   /* separator, only when the two-server hint is shown */
-  /* night-window row (time-based Students-at-once) */
-  .nightrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:11px;font-size:12px;color:var(--mut)}
+  /* night-window controls — nested in the "একসাথে কয়টি ছাত্র" grid column, under its input */
+  .nightrow{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:8px;font-size:12px;color:var(--mut)}
+  .nightrow #nightCfg{display:inline-flex;align-items:center;gap:6px;flex-wrap:wrap}
   .nightrow input[type=time],.nightrow input[type=number]{width:auto;height:30px;padding:0 8px;font-size:12px}
   .nightrow input[type=number]{width:64px}
   /* CRM Run / Close Browser kept compact */
@@ -602,7 +603,17 @@
       <div class="ch"><span class="n">3</span><h2 data-i18n="settings_h">সেটিংস ও Run</h2></div>
       <div class="grid g4">
         <div><label data-i18n="tol_l">গ্রহণযোগ্য পার্থক্য</label><input id="tol" type="number" min="0" step="any" value="0"></div>
-        <div><label data-i18n="conc_l">একসাথে কয়টি ছাত্র</label><input id="conc" type="number" min="1" max="300" value="25" title="সর্বোচ্চ 300"><div class="cnote" id="concNote"></div></div>
+        <div><label data-i18n="conc_l">একসাথে কয়টি ছাত্র</label><input id="conc" type="number" min="1" max="300" value="25" title="সর্বোচ্চ 300"><div class="cnote" id="concNote"></div>
+          <!-- night boost is a time-based extension of "একসাথে কয়টি ছাত্র", so it lives in the same
+               grid column, directly under the field it modifies (not as a stray full-width row below) -->
+          <div class="nightrow">
+            <label class="srvsw"><input type="checkbox" id="nightSw"><i class="tg"></i><span data-i18n="night_l">রাতে বেশি (সার্ভার ফাঁকা)</span></label>
+            <span id="nightCfg" style="display:none">
+              <input type="time" id="nightFrom" value="00:00"> – <input type="time" id="nightTo" value="06:00">
+              → <input type="number" id="nightConc" min="1" max="300" value="100"> <span data-i18n="night_at">একসাথে</span>
+            </span>
+          </div>
+        </div>
         <!-- A run can take hours; at the end of one nobody wants to remember to press three
              buttons. An extension cannot write to its own folder, so the folder is picked once. -->
         <div>
@@ -616,14 +627,6 @@
           <button class="btn g" id="pause" style="grid-column:2;grid-row:1" disabled>⏸ Pause</button>
           <button class="btn g" id="stop" style="grid-column:2;grid-row:2" disabled>⏹ Stop</button>
         </div>
-      </div>
-      <!-- time-based "students at once": widen the run inside a night window when the server is empty -->
-      <div class="nightrow">
-        <label class="srvsw"><input type="checkbox" id="nightSw"><i class="tg"></i><span data-i18n="night_l">রাতে বেশি (সার্ভার ফাঁকা)</span></label>
-        <span id="nightCfg" style="display:none">
-          <input type="time" id="nightFrom" value="00:00"> – <input type="time" id="nightTo" value="06:00">
-          → <input type="number" id="nightConc" min="1" max="300" value="100"> <span data-i18n="night_at">একসাথে</span>
-        </span>
       </div>
       <div class="hint"><span class="where" id="saveWhere"></span><span data-i18n="save_hint">report.xlsx — দুই ট্যাব (সমস্যা, ঠিক আছে), ফিল্টার যা-ই থাক পুরো রান।</span></div>
     </div>
