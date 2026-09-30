@@ -2549,10 +2549,13 @@
     $("run").addEventListener("click", startPressed);
     measureTop();
     window.addEventListener("resize", measureTop);
-    $("navPay").addEventListener("click", function () { showPage("pay"); });
-    $("navCrm").addEventListener("click", function () { showPage("crm"); });
-    $("navCrmDash").addEventListener("click", function () { showPage("crm"); self.APP.crm.show("dash"); });
-    if ($("navAdm")) $("navAdm").addEventListener("click", function () { showPage("adm"); });
+    /* let the menu labels be selected and copied: if the click ended a text selection, don't
+       navigate (navigating would clear the selection before the person could copy it) */
+    const hasSel = function () { try { return !!(window.getSelection && String(window.getSelection()).trim()); } catch (e) { return false; } };
+    $("navPay").addEventListener("click", function () { if (hasSel()) return; showPage("pay"); });
+    $("navCrm").addEventListener("click", function () { if (hasSel()) return; showPage("crm"); });
+    $("navCrmDash").addEventListener("click", function () { if (hasSel()) return; showPage("crm"); self.APP.crm.show("dash"); });
+    if ($("navAdm")) $("navAdm").addEventListener("click", function () { if (hasSel()) return; showPage("adm"); });
     if ($("admRun")) $("admRun").addEventListener("click", self.APP.adm.run);
     if ($("admStop")) $("admStop").addEventListener("click", self.APP.adm.stop);
     if ($("admSeq")) $("admSeq").addEventListener("click", function () { self.APP.adm.setMode("sequential"); });
