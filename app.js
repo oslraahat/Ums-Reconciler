@@ -19,11 +19,11 @@
 
   // tol 0 like the CLI: at 1 the near() test swallows exactly the ৳1 row-wise differences we are
   // hunting for. Still editable in Settings if a run needs slack.
-  let baseUrl = "https://ums-5.osl.team", conc = 25, tol = 0;
+  let baseUrl = "https://ums-5.osl.team", conc = 10, tol = 0;
   /* Time-based "Students at once": within the night window [nightFrom, nightTo) (minutes of the day)
      the run uses nightConc instead of conc — so a long run can widen itself while the server is empty
      at night and narrow again by day, without anyone at the keyboard. */
-  let nightOn = false, nightFrom = 0, nightTo = 360, nightConc = 100;   // 00:00–06:00 → 100, by default
+  let nightOn = false, nightFrom = 0, nightTo = 360, nightConc = 25;   // 00:00–06:00 → 25, by default
   function nightClamp(v) { return Math.max(1, Math.min(300, parseInt(v, 10) || 1)); }
   function inNightWindow() { const d = new Date(), cur = d.getHours() * 60 + d.getMinutes(); return nightFrom <= nightTo ? (cur >= nightFrom && cur < nightTo) : (cur >= nightFrom || cur < nightTo); }
   function effConc() { return (nightOn && inNightWindow()) ? nightClamp(nightConc) : conc; }   // the ceiling right now

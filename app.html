@@ -641,7 +641,7 @@
       <div class="ch"><span class="n">3</span><h2 data-i18n="settings_h">সেটিংস ও Run</h2></div>
       <div class="grid g4" id="setGrid">
         <div><label data-i18n="tol_l">গ্রহণযোগ্য পার্থক্য</label><input id="tol" type="number" min="0" step="any" value="0"></div>
-        <div><label data-i18n="conc_l">একসাথে কয়টি ছাত্র</label><input id="conc" type="number" min="1" max="300" value="25" title="সর্বোচ্চ 300"><div class="cnote" id="concNote"></div></div>
+        <div><label data-i18n="conc_l">একসাথে কয়টি ছাত্র</label><input id="conc" type="number" min="1" max="300" value="10" title="সর্বোচ্চ 300"><div class="cnote" id="concNote"></div></div>
         <!-- night boost sits in its OWN column right after "একসাথে কয়টি ছাত্র": the column label
              carries the meaning, so the switch itself is a bare toggle and the times follow it -->
         <div>
@@ -650,7 +650,7 @@
             <label class="srvsw" data-title="night_l" title="রাতে বেশি (সার্ভার ফাঁকা)"><input type="checkbox" id="nightSw"><i class="tg"></i></label>
             <span id="nightCfg" style="display:none">
               <input type="time" id="nightFrom" value="00:00"> – <input type="time" id="nightTo" value="06:00">
-              → <input type="number" id="nightConc" min="1" max="300" value="100">
+              → <input type="number" id="nightConc" min="1" max="300" value="25">
             </span>
           </div>
         </div>
