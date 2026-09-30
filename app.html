@@ -170,7 +170,7 @@
      snug, and grows only when the folder icon appears — no empty stretch inside the pill either way,
      and the space it frees goes to the fr tracks. */
   .g4{grid-template-columns:minmax(96px,.7fr) minmax(118px,.85fr) minmax(150px,.9fr) max-content minmax(150px,1fr);align-items:start;gap:9px}
-  .g4.night-on{grid-template-columns:minmax(62px,.4fr) minmax(80px,.5fr) minmax(280px,1.5fr) max-content minmax(138px,.95fr)}
+  .g4.night-on{grid-template-columns:minmax(62px,.4fr) minmax(80px,.5fr) minmax(370px,1.7fr) max-content minmax(138px,.95fr)}
   .g4 > div > label{margin-bottom:3px}
   /* The settings row is short controls; a smaller label and column gap tighten it without
      changing the inputs' own height (--ctl-h), which the run buttons align to. */
@@ -451,9 +451,10 @@
   .nightrow{display:flex;align-items:center;gap:8px;flex-wrap:nowrap;white-space:nowrap;margin-top:0;font-size:12px;color:var(--mut)}
   .nightrow #nightCfg{display:inline-flex;align-items:center;gap:6px;flex-wrap:nowrap}
   /* same height as the Tolerance / Students inputs (--ctl-h) so the row reads as one set of fields */
-  .nightrow input[type=time],.nightrow input[type=number]{height:var(--ctl-h);box-sizing:border-box;padding:0 8px;font-size:13px;flex:0 0 auto}
-  .nightrow input[type=time]{width:94px}
-  .nightrow input[type=number]{width:54px}
+  .nightrow input[type=time],.nightrow input[type=number]{height:var(--ctl-h);box-sizing:border-box;padding:0 6px;font-size:13px;flex:0 0 auto}
+  /* wide enough for the locale "12:00 AM" plus the picker icon — 94px clipped the AM to "A" */
+  .nightrow input[type=time]{width:116px}
+  .nightrow input[type=number]{width:56px}
   .nightrow .srvsw{min-height:var(--ctl-h)}   /* the toggle pill matches that height too */
   /* CRM Run / Close Browser kept compact */
   #crmRun,#crmStop{height:34px;padding:0 16px;font-size:13px;display:inline-flex;align-items:center;justify-content:center}

@@ -34,7 +34,7 @@ check("there is a separate night-on layout, also 5 columns", tracksOn.length ===
 check("the save cell fits its content, not a fixed share",
   tracks[3] === "max-content" && tracksOn[3] === "max-content", tracks[3] + " / " + tracksOn[3]);
 check("…in which the night cell is the widest, to fit the times on one line",
-  /minmax\(280px,1\.5fr\)/.test(g4on), g4on);
+  /minmax\(370px,1\.7fr\)/.test(g4on), g4on);
 {
   const off = tracks[2], on = tracksOn[2];
   const min = (t) => parseFloat((/minmax\((\d+)px/.exec(t) || [0, 0])[1]);
