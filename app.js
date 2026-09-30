@@ -2750,9 +2750,11 @@
     getLang: function () { return lang; }, getBaseUrl: function () { return baseUrl; }
   });
 
-  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page", "crmBase", "admBase", "singleOn", "nightOn", "nightFrom", "nightTo", "nightConc"], function (o) { if (o.manualOk) manualOk = o.manualOk;
+  try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page", "crmBase", "admBase", "singleOn", "nightOn", "nightFrom", "nightTo", "nightConc", "nightConcMigrated"], function (o) { if (o.manualOk) manualOk = o.manualOk;
     /* night-window "Students at once" — restore the toggle, times and count */
-    nightOn = o.nightOn === true; if (o.nightFrom != null) nightFrom = o.nightFrom; if (o.nightTo != null) nightTo = o.nightTo; if (o.nightConc != null) nightConc = o.nightConc;
+    nightOn = o.nightOn === true; if (o.nightFrom != null) nightFrom = o.nightFrom; if (o.nightTo != null) nightTo = o.nightTo;
+    // 100 was the old default; move anyone still on it to the new 25 once, but keep any other choice
+    if (o.nightConc != null) { if (o.nightConc === 100 && !o.nightConcMigrated) { nightConc = 25; try { chrome.storage.local.set({ nightConc: 25, nightConcMigrated: true }); } catch (e) {} } else nightConc = o.nightConc; }
     (function () { const p = function (m) { return String(Math.floor(m / 60)).padStart(2, "0") + ":" + String(m % 60).padStart(2, "0"); };
       if ($("nightSw")) { $("nightSw").checked = nightOn; if ($("nightSw").parentNode) $("nightSw").parentNode.classList.toggle("on", nightOn); }
       if ($("nightFrom")) $("nightFrom").value = p(nightFrom); if ($("nightTo")) $("nightTo").value = p(nightTo);
