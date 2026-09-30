@@ -519,7 +519,7 @@
      trailing off into a gap — and a filled control beside two filled inputs reads as one of them. */
   /* the cell is max-content, so the pill hugs its own content (toggle + label + optional folder)
      on one line instead of stretching — no empty space inside it when the folder is hidden */
-  .saverow .srvsw{flex:0 0 auto;white-space:nowrap}
+  .saverow .srvsw{flex:0 0 auto;white-space:nowrap;padding-right:7px}   /* tighter on the folder-icon side */
   .saverow .btn{flex:0 0 auto}
   .saverow .btn{padding:8px 12px;font-size:12px}
   /* pickDir sits INSIDE the .srvsw pill, so it must NOT take the row's full ctl-h — that height
@@ -527,9 +527,10 @@
      stay centered within the pill instead of poking out above and below it. */
   /* it is a bare icon sitting inside the pill, so it drops the button's own border and fill — a box
      drawn around a box just adds a seam the eye catches. */
-  #pickDir{display:inline-flex;align-items:center;justify-content:center;padding:3px 6px;line-height:0;
+  #pickDir{display:inline-flex;align-items:center;justify-content:center;padding:3px 2px;line-height:0;
     min-height:0;align-self:center;flex:0 0 auto;border:0;background:transparent;color:#f7b500;
-    border-radius:7px;cursor:pointer;transition:color .12s,background .12s,transform .12s}
+    border-radius:7px;cursor:pointer;transition:color .12s,background .12s,transform .12s;
+    margin-left:-4px;margin-right:-3px}   /* pull the icon tight to the label, and closer to the pill's edge */
   #pickDir svg{display:block;transition:transform .12s}
   #pickDir:hover{background:rgba(247,181,0,.18);color:#ffc82c}
   #pickDir:hover svg{transform:scale(1.1)}
@@ -538,7 +539,10 @@
   #pickDir:disabled svg{transform:none}
   /* the folder path needs room, so it sits on the hint line where there is some */
   .where{font-weight:700;color:var(--text)}
-  .where:not(:empty){display:block;margin-bottom:4px;overflow-wrap:anywhere}
+  /* the folder line sits inline, so the report.xlsx hint reads right beside it on the same line
+     (a middot separates the two); the #pgPay .hint line-clamp keeps it to one line, hover expands */
+  .where:not(:empty){display:inline;overflow-wrap:anywhere}
+  .where:not(:empty)::after{content:"·";margin:0 6px;color:var(--mut);font-weight:400}
 </style>
 </head>
 <body>

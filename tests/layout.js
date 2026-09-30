@@ -98,7 +98,7 @@ check("…with the folder button beside the toggle, on one line",
     /label\{[^}]*margin-bottom:5px/.test(HTML), (/label\{[^}]*\}/.exec(HTML) || [""])[0]);
 
   check("the toggle hugs its content instead of stretching",
-    /\.saverow \.srvsw\{flex:0 0 auto;white-space:nowrap\}/.test(HTML) &&
+    /\.saverow \.srvsw\{flex:0 0 auto;white-space:nowrap/.test(HTML) &&
     /\.saverow \.btn\{flex:0 0 auto\}/.test(HTML), "app.html");
   /* the save cell is content-sized (max-content), so it never leaves an empty stretch inside the
      pill — snug with the label alone, a touch wider when the folder icon shows */
