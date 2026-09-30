@@ -34,23 +34,22 @@ check("there is a separate night-on layout, also 6 tracks", tracksOn.length === 
 check("the save cell fits its content, not a fixed share",
   tracks[3] === "max-content" && tracksOn[3] === "max-content", tracks[3] + " / " + tracksOn[3]);
 check("…in which the night cell has the widest min, to fit the times on one line",
-  /minmax\(360px,1fr\)/.test(g4on), g4on);
+  /minmax\(350px,0fr\)/.test(g4on), g4on);
 {
   const off = tracks[2], on = tracksOn[2];
   const min = (t) => parseFloat((/minmax\((\d+)px/.exec(t) || [0, 0])[1]);
   check("…and the night cell grows from off to on", min(on) > min(off), min(off) + "px → " + min(on) + "px");
 }
-/* The 5th track is an empty flexible spacer: with the night cell collapsed it soaks up the row's
-   spare width so no real field balloons, and the buttons stay pinned right. The save track (3) is
-   content-sized and carries no fr. */
+/* Only two tracks flex: Students-at-once (grows) and the empty spacer (5th, becomes a modest gap
+   before the save/buttons area). The fixed fields — Tolerance (0), Night (2), Buttons (5) — take 0fr
+   so they stay at content size and never balloon. The save track (3) is content-sized (max-content). */
 {
   const fr = tracks.map(function (t) { return parseFloat((/([\d.]+)fr/.exec(t) || [0, 0])[1]); });
   const frOn = tracksOn.map(function (t) { return parseFloat((/([\d.]+)fr/.exec(t) || [0, 0])[1]); });
-  check("the spacer (track 5) absorbs the slack in the off layout, so no field balloons",
-    fr[4] > fr[1] && fr[4] > fr[5] && fr[4] > fr[0], fr.join(" / "));
-  /* Students-at-once still flexes — a positive share above Tolerance — just not enough to balloon */
-  check("…while Students-at-once keeps a small share of its own, off and on",
-    fr[1] > 0 && fr[1] > fr[0] && frOn[1] > 0 && frOn[1] > frOn[0], fr.join(" / ") + "  |  " + frOn.join(" / "));
+  check("Students and the spacer flex; Tolerance, Night and Buttons are fixed (0fr)",
+    fr[1] > 0 && fr[4] > 0 && fr[0] === 0 && fr[2] === 0 && fr[5] === 0 &&
+    frOn[1] > 0 && frOn[4] > 0 && frOn[0] === 0 && frOn[2] === 0 && frOn[5] === 0,
+    fr.join(" / ") + "  |  " + frOn.join(" / "));
 }
 
 const kids = (HTML.match(/<div class="grid g4"[^>]*>([\s\S]*?)\n      <\/div>/) || [])[1] || "";
