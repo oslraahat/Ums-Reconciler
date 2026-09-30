@@ -502,7 +502,11 @@
   /* pickDir sits INSIDE the .srvsw pill, so it must NOT take the row's full ctl-h — that height
      belongs to sibling controls in .saverow. Overriding it back to content height lets the icon
      stay centered within the pill instead of poking out above and below it. */
-  #pickDir{padding:2px 9px;font-size:15px;line-height:1;min-height:0;align-self:center;margin-left:auto}   /* the Folder as a compact icon inside the save toggle label */
+  /* it is a bare icon sitting inside the pill, so it drops the button's own border and fill — a box
+     drawn around a box just adds a seam the eye catches. */
+  #pickDir{padding:2px 9px;font-size:15px;line-height:1;min-height:0;align-self:center;margin-left:auto;
+    border:0;background:transparent}
+  #pickDir:hover{background:transparent;border:0}
   /* the folder path needs room, so it sits on the hint line where there is some */
   .where{font-weight:700;color:var(--text)}
   .where:not(:empty){display:block;margin-bottom:4px;overflow-wrap:anywhere}
