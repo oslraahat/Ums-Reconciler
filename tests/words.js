@@ -24,12 +24,14 @@ const APP = fs.readFileSync(path.join(ROOT, "app.js"), "utf8");
 const HTML = fs.readFileSync(path.join(ROOT, "app.html"), "utf8");
 const CONTENT = fs.readFileSync(path.join(ROOT, "content.js"), "utf8");
 const PANEL = fs.readFileSync(path.join(ROOT, "panel.html"), "utf8");
-/* The New Admission and CRM menus moved to menus/adm/adm.js and menus/crm/crm.js; their t() calls and key
-   references live there now, so the usage/leftover checks scan all three files together. DICT
-   itself still lives in app.js and is parsed from APP alone. */
+/* The New Admission and CRM menus moved to menus/adm/adm.js and menus/crm/crm.js, and the update
+   helper lives in lib/update.js — their t() calls and key references live there now, so the
+   usage/leftover checks scan them together with app.js. DICT itself still lives in app.js and is
+   parsed from APP alone. */
 const SRC = APP + "\n"
   + fs.readFileSync(path.join(ROOT, "menus", "adm", "adm.js"), "utf8") + "\n"
-  + fs.readFileSync(path.join(ROOT, "menus", "crm", "crm.js"), "utf8");
+  + fs.readFileSync(path.join(ROOT, "menus", "crm", "crm.js"), "utf8") + "\n"
+  + fs.readFileSync(path.join(ROOT, "lib", "update.js"), "utf8");
 
 let fail = 0;
 const check = (name, ok, extra) => {

@@ -45,7 +45,7 @@ const REC = read("reconcile.js"), MANIFEST = read("manifest.json");
 /* The New Admission and CRM menus moved to menus/adm/adm.js and menus/crm/crm.js; their t() calls, key mentions
    and {placeholder} fills live there now, so the string usage/unused checks scan the three together.
    DICT itself is still parsed from app.js. */
-const SRC = APP + "\n" + read("menus/adm/adm.js") + "\n" + read("menus/crm/crm.js");
+const SRC = APP + "\n" + read("menus/adm/adm.js") + "\n" + read("menus/crm/crm.js") + "\n" + read("lib/update.js");
 
 /* ---------- everything parses ---------- */
 {
