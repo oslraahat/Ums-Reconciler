@@ -1766,9 +1766,15 @@
      within it when there is one, then Success / Error and the date-time — so a folder of them reads
      at a glance. Characters a filesystem refuses are stripped; with no imported file (paste / Google
      Sheet) it falls back to a fixed name. */
-  function sanitizeName(s) { return String(s || "").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim(); }
+  function sanitizeName(s) {
+    return String(s || "")
+      .replace(/^[\s📄↧✎⬆⬇]+/, "")            // drop the import-icon prefix (📄 file, ↧ sheet link, ✎ paste)
+      .replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim();
+  }
   function outBase() {
-    let base = sanitizeName((srcFile || "").replace(/\.[^.\s]+$/, ""));
+    /* Strip ONLY a real spreadsheet extension — not any trailing ".word", which would eat a sheet
+       named like "4.MPMC_MrOnly" (and a Google-Sheet import has no file extension at all). */
+    let base = sanitizeName((srcFile || "").replace(/\.(xlsx|xlsm|xls|csv)$/i, ""));
     const sheet = sanitizeName(srcSheet);
     if (sheet) base = base ? base + " - " + sheet : sheet;
     return base || "UMS Reconcile";
