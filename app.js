@@ -336,8 +336,8 @@
        is saved, that the page is a button rather than part of it, and where it lands if no
        folder was chosen. The reasons behind each are in the README, which is where a reason
        gets read — under a toggle it is just small grey type nobody finishes. */
-    save_hint: { bn: "report.xlsx — দুই ট্যাব (সমস্যা / ঠিক আছে)। HTML পেজ চাইলে ⬇ HTML Report। ফোল্ডার না বাছলে Downloads-এ যায়।",
-      en: "report.xlsx — two tabs (problems / matched). For a page, ⬇ HTML Report. No folder → Downloads." },
+    save_hint: { bn: "দুটি ফাইল — Success ও Error আলাদা (নাম: ইনপুট ফাইল/শিট + তারিখ-সময়)। HTML পেজ চাইলে ⬇ HTML Report। ফোল্ডার না বাছলে Downloads-এ যায়।",
+      en: "Two files — Success and Error, separately (named by input file / sheet + date-time). For a page, ⬇ HTML Report. No folder → Downloads." },
     save_failed: { bn: "সেভ করা গেল না", en: "could not save" },
     p_saving: { bn: "ফল সেভ করা হচ্ছে…", en: "saving the results…" },
     list_capped: { bn: "নিচে প্রথম {a} টি দেখানো হচ্ছে · মোট {b} টি — পুরোটা HTML / Excel রিপোর্টে আছে", en: "showing the first {a} of {b} below — the HTML and Excel reports carry them all" },
@@ -1058,7 +1058,8 @@
      in — comes straight back for exactly the run that has been going longest. */
   function ckMeta(done) {
     return { sig: ckKey, total: T.total, done: done, at: Date.now(), srv: srvMode,
-      url: baseUrl, url2: srvMode ? baseUrl2 : "", tol: tol, lang: lang, src: srcBase };
+      url: baseUrl, url2: srvMode ? baseUrl2 : "", tol: tol, lang: lang, src: srcBase,
+      file: srcFile, sheet: srcSheet };   // so a resumed run still names its files for the input
   }
   /* Every key this run owns, and only this run's: the sheet, the meta line, and the chunks. */
   function ckWipe(sig) {
@@ -1199,6 +1200,7 @@
     /* both facts: where the rows came from, and that this run was picked up rather than begun.
        A checkpoint written before the source travelled with it has only the second. */
     srcBase = got.meta.src || "";
+    srcFile = got.meta.file || ""; srcSheet = got.meta.sheet || "";   // keep the output-file naming across a resume
     importSrc = srcBase ? srcBase + "  ·  " + t("ck_src") : t("ck_src");
     students = buildStudents(entries);
     ["ok", "no", "cw", "zero", "nf", "err", "stu", "done"].forEach(function (k) { T[k] = 0; });
@@ -1745,12 +1747,25 @@
      were one string, and ckMeta() stored it — so a resumed run saved "…xlsx · an unfinished run"
      as its source, and resuming THAT wrote "…xlsx · an unfinished run · an unfinished run", once
      more for every time the run was picked up. srcBase is what travels; importSrc is what reads. */
-  let importSrc = "", srcBase = "";
+  let importSrc = "", srcBase = "", srcFile = "", srcSheet = "";
   function setSource(name, sheetName) {
+    srcFile = String(name || "").replace(/^📄\s*/, "").trim();   // raw, for the saved-file names
+    srcSheet = String(sheetName || "").trim();
     const bits = [];
     if (name) bits.push(name);
     if (sheetName) bits.push(t("src_sheet") + ": " + sheetName);
     importSrc = srcBase = bits.join("  ·  ");
+  }
+  /* The saved files are named for what fed the run: the input file (minus its extension), the sheet
+     within it when there is one, then Success / Error and the date-time — so a folder of them reads
+     at a glance. Characters a filesystem refuses are stripped; with no imported file (paste / Google
+     Sheet) it falls back to a fixed name. */
+  function sanitizeName(s) { return String(s || "").replace(/[\\/:*?"<>|]+/g, " ").replace(/\s+/g, " ").trim(); }
+  function outBase() {
+    let base = sanitizeName((srcFile || "").replace(/\.[^.\s]+$/, ""));
+    const sheet = sanitizeName(srcSheet);
+    if (sheet) base = base ? base + " - " + sheet : sheet;
+    return base || "UMS Reconcile";
   }
   /* shared/sheet/readXlsx moved to lib/xlsx.js (self.XLSX); readXlsx has its thin reference above. */
   /* The workbook a tab can be picked from, and what it holds. The File itself is kept rather
@@ -2231,10 +2246,20 @@
   async function runFiles() {
     const rows = flatRows(true);
     if (!rows.length) return [];
+    /* Two separate workbooks, not two tabs: all Error (what needs a person) and all Success — each
+       named for the input file + sheet, the outcome, and the date-time, so they are told apart at a
+       glance and never overwrite one another. Both are always written, even an empty one, so "0
+       errors" is itself on record. */
+    const bad = rows.filter(function (r) { return notOk(r.result); });
+    const ok = rows.filter(function (r) { return !notOk(r.result); });
+    const base = outBase(), ts = stamp();
+    const mk = async function (rs, word) {
+      return new Blob([await buildBook([xlsxTab(word + " (" + rs.length + ")", rs)])],
+        { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    };
     return [
-      /* two tabs — what needs a person first, then what came out clean. buildXlsx() (the ⬇
-         button) stays one tab, because there the filter has already chosen what the file is. */
-      { name: "report.xlsx", blob: new Blob([await buildBookSplit(rows)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }) }
+      { name: base + " - Error - " + ts + ".xlsx", blob: await mk(bad, t("tab_problem")) },
+      { name: base + " - Success - " + ts + ".xlsx", blob: await mk(ok, t("tab_ok")) }
     ];
   }
 

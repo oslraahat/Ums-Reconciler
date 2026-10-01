@@ -77,18 +77,17 @@ const line = (re) => (re.exec(APP) || [""])[0];
 
 /* ---------- the files ---------- */
 {
-  /* One file, holding the whole run: the archive is the copy nobody chose a filter for.
-     The page used to be written beside it and is not any more — it is the expensive half, tens of
-     megabytes to build and write at the end of a run over a hundred thousand rows, while the tab
-     is still all that stands between the work and its report. The workbook already carries every
-     row, in two tabs, problems first; ⬇ HTML Report makes a page in a second or two when one is
-     actually wanted. */
+  /* Two files, holding the whole run: all Error and all Success, split the way the Total Problem
+     tile splits the screen, so the half that needs a person opens on its own without filtering a
+     sheet of ninety thousand rows. Each is named for the input file + sheet, the outcome and the
+     date-time. The page is not written here — it is the expensive half (tens of megabytes over a
+     hundred thousand rows at the end of a run); ⬇ HTML Report makes one in a second when wanted. */
   const rf = src("runFiles");
-  check("the workbook is built from the same code the button uses",
-    /name: "report\.xlsx", blob: new Blob\(\[await buildBookSplit\(rows\)\]/.test(rf), "runFiles");
-  check("…and it is the only thing that lands in the folder",
-    (rf.match(/name: "/g) || []).length === 1,
-    (rf.match(/name: "[^"]*"/g) || []).join(", "));
+  check("the run saves two files — Error and Success, separately",
+    (rf.match(/name: base \+ "/g) || []).length === 2 &&
+    / - Error - " \+ ts \+ "\.xlsx"/.test(rf) && / - Success - " \+ ts \+ "\.xlsx"/.test(rf), "runFiles");
+  check("…each a single-tab workbook built by buildBook/xlsxTab",
+    /buildBook\(\[xlsxTab\(word \+/.test(rf), "runFiles");
   check("…the page is not built at the end of a run", !/buildHtml\(/.test(rf), "runFiles");
   /* but it must still be reachable — the button is now the only way to get one */
   check("…while the ⬇ HTML button still makes one",
@@ -99,13 +98,19 @@ const line = (re) => (re.exec(APP) || [""])[0];
   check("…and nothing at all when the run found nothing",
     /if \(!rows\.length\) return \[\];/.test(rf), "runFiles");
 
-  /* The saved workbook is the one nobody chose a filter for, so it makes the split itself: a tab
-     for what needs a person and a tab for what does not. The ⬇ button keeps one tab, because there
-     the filter has already decided what the file is about. tests/two-tabs.js opens both and reads
-     them back. */
-  check("the saved workbook splits itself in two, while the button's does not",
-    /buildBookSplit\(rows\)/.test(APP) && /return buildBook\(\[xlsxTab\(t\("tab_all"\), rows\)\]\);/.test(APP),
-    "app.js");
+  /* The split is the same one the Total Problem tile makes: notOk(result) → the Error file. */
+  check("the two files are split by notOk(result)",
+    /const bad = rows\.filter\(function \(r\) \{ return notOk\(r\.result\); \}\);/.test(rf) &&
+    /const ok = rows\.filter\(function \(r\) \{ return !notOk\(r\.result\); \}\);/.test(rf), "runFiles");
+  /* the filename carries what fed the run: input file (no extension) + sheet, via outBase() */
+  check("the file name is built from the input file and sheet",
+    /function outBase\(\)/.test(APP) && /base = outBase\(\), ts = stamp\(\)/.test(rf) &&
+    /return base \|\| "UMS Reconcile";/.test(APP), "outBase / runFiles");
+  check("…with filesystem-illegal characters stripped",
+    /function sanitizeName\(s\) \{[^}]*\[\\\\\/:\*\?"<>\|\]/.test(APP), "sanitizeName");
+  /* the ⬇ download button still writes one tab of whatever the filter selected */
+  check("…while the button's workbook stays one tab",
+    /return buildBook\(\[xlsxTab\(t\("tab_all"\), rows\)\]\);/.test(APP), "buildXlsx");
   /* the ⬇ button is untouched: there the filter has already said what the file is about */
   check("…while the download button still writes whatever the filter selected",
     /function exportHtml\(\) \{[^]*?buildHtml\(rows\)/.test(APP), "exportHtml");
@@ -202,7 +207,7 @@ const line = (re) => (re.exec(APP) || [""])[0];
      it lands when no folder was chosen. */
   check("…and stays short enough to be read", !!en && en[1].length < 200,
     en ? en[1].length + " characters" : "");
-  check("…saying what is saved", !!en && /report\.xlsx/.test(en[1]) && /two tabs/.test(en[1]), en ? en[1] : "");
+  check("…saying what is saved", !!en && /Success/.test(en[1]) && /Error/.test(en[1]), en ? en[1] : "");
   check("…that the page is a button", !!en && /HTML Report/.test(en[1]), en ? en[1] : "");
   check("…and where it goes without a folder", !!en && /Downloads/.test(en[1]), en ? en[1] : "");
   /* the reason it cannot simply write beside itself still has to be written down somewhere */

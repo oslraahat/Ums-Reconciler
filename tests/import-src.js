@@ -225,9 +225,12 @@ const RELS = '<?xml version="1.0"?><Relationships>' +
      have to be read together — a source that is displayed correctly and stored wrongly looks
      right once and wrong for ever after. */
   const ckMetaSrc = (/  function ckMeta\(done\) \{[\s\S]*?\n  \}/.exec(APP) || [""])[0];
-  const resume = (/srcBase = got\.meta\.src[^\n]*\n[^\n]*importSrc = [^;]+;|importSrc = got\.meta\.src[^;]+;/
+  /* ckMeta may carry more than the display source now (the input file/sheet for naming the saved
+     files travel too), so the resume capture spans to the importSrc line and the field match allows
+     a trailing comma. */
+  const resume = (/srcBase = got\.meta\.src[\s\S]*?importSrc = [^;]+;|importSrc = got\.meta\.src[^;]+;/
     .exec(APP) || [""])[0];
-  const field = (/src: (\w+) \};/.exec(ckMetaSrc) || [])[1];
+  const field = (/src: (\w+)[,}]/.exec(ckMetaSrc) || [])[1];
   check("ckMeta() is where the checkpoint's facts are written", !!ckMetaSrc, "app.js");
   check("…and it carries a source", !!field, "ckMeta");
   check("ckResume() rebuilds the note from it", !!resume, JSON.stringify(resume.slice(0, 50)));
