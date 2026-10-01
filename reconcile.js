@@ -829,15 +829,22 @@
       const list = [];
       rowsOfCourse.forEach(function (r) {
         const k = rowKey(r);
+        const d = money(r.prevStd) + money(r.booking) + money(r.special);   // discounts on this receipt's course row
         const last = list[list.length - 1];
-        if (last && last.__k === k) { last.currentDue = r.currentDue; return; }
+        if (last && last.__k === k) { last.currentDue = r.currentDue; last.disc += d; return; }
         list.push({ __k: k, date: r.date, mrn: r.mrn, crn: r.crn,
-          previousDue: r.previousDue, currentDue: r.currentDue });
+          previousDue: r.previousDue, currentDue: r.currentDue, disc: d });
       });
       for (let i = 1; i < list.length; i++) {
         const prev = list[i - 1], cur = list[i];
         const expected = money(prev.currentDue), actual = money(cur.previousDue);
         if (near(expected, actual)) continue;
+        /* A discount recorded on this receipt (Special / Prev.Std / Booking) can be taken off the
+           OUTSTANDING due, so the next Previous Due legitimately opens that much lower — UMS shows it
+           net of the write-off. reg 1959425 UDVASH Varsity Math: prior Current Due 4,319, Special
+           Discount 624, so Previous Due opens at 3,695. Only a DROP of exactly the discount counts;
+           §3.5 still checks the receipt's own arithmetic, so this cannot hide a changed amount. */
+        if (cur.disc > 0 && near(expected - cur.disc, actual)) continue;
         if (gapExplained(prev.__k, cur.__k)) continue;
         errors.push({
           key: rowKey(cur), field: side + ": Due-র ধারাবাহিকতা", ref: "ধারাবাহিকতা · আগের Current Due = পরের Previous Due", date: cur.date,

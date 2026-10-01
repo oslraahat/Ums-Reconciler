@@ -121,5 +121,33 @@ const CW_1960915 = [
   check("missing receipt BEFORE the break does not excuse it", chain(r).length > 0, lines(r) || "MISSED");
 }
 
+/* ---- a discount on the carried due is not a chain break ----
+   reg 1959425 UDVASH Varsity Math: the 04/01 receipt leaves 4,319 owed; the 12/03 receipt writes
+   624 of it off as a Special Discount, so UMS shows its Previous Due net at 3,695 (= 4,319 − 624).
+   That drop is explained by the discount on the receipt, so it must not be reported as a chain break
+   — while §3.5 still verifies the receipt's own arithmetic. */
+{
+  const pw = [
+    pwRow({ mrn: "A", date: "04/01/2022", receivable: "10,000", received: "5,681", currentDue: "4,319" }),
+    pwRow({ mrn: "B", date: "12/03/2022", income: "0", previousDue: "3,695", receivable: "3,695",
+      special: "624", received: "3,695" })
+  ];
+  const cw = [
+    cwRow({ mrn: "A", date: "04/01/2022", course: "UDVASH Varsity Math", receivable: "10,000",
+      grossReceived: "5,681", netReceived: "5,681", currentDue: "4,319" }),
+    cwRow({ mrn: "B", date: "12/03/2022", course: "UDVASH Varsity Math", previousDue: "3,695",
+      receivable: "3,695", special: "624", grossReceived: "3,695", netReceived: "3,695" })
+  ];
+  const r = U.compare(side(pw), side(cw), { tolerance: 0 });
+  check("a Special Discount on the carried due → no chain break",
+    chain(r).length === 0, lines(r) || "(none)");
+  /* but a drop that the discount does NOT account for is still a break */
+  const cw2 = [cw[0], cwRow({ mrn: "B", date: "12/03/2022", course: "UDVASH Varsity Math",
+    previousDue: "3,000", receivable: "3,000", special: "624", grossReceived: "3,000", netReceived: "3,000" })];
+  const r2 = U.compare(side([pw[0], pwRow({ mrn: "B", date: "12/03/2022", previousDue: "3,000",
+    receivable: "3,000", special: "624", received: "3,000" })]), side(cw2), { tolerance: 0 });
+  check("…but a drop bigger than the discount is still caught", chain(r2).length > 0, lines(r2) || "MISSED");
+}
+
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
 process.exit(fail ? 1 : 0);
