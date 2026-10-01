@@ -244,15 +244,12 @@ check("reordered columns are not a difference",
     pRow(reg || "1956423", nick, "1418021514", "Biology")];
   const empty = { ok: true, rows: [], header: [], cols: {}, totalRow: null, noData: true };
 
+  /* Name (and Mobile Number) may legitimately differ between the two servers, so a changed name is
+     NOT a finding — identity is matched on Roll (Reg). (User: match on Roll (Reg), not Name/Mobile.) */
   const nick = U.compareServers({ pw: empty, cw: mkP(four("Adiba Alam")) },
     { pw: empty, cw: mkP(four("Adiba")) }, { tolerance: 0 });
-  check("a changed nickname is reported once, not once per row",
-    nick.errors.length === 1, nick.errors.length + ": " + nick.errors.map((e) => e.field).join(","));
-  check("…saying how many rows carry it", /4 টি সারিতেই একই/.test(nick.errors[0].note), nick.errors[0].note);
-  check("…and both values", /Adiba Alam/.test(nick.errors[0].note) && /«Adiba»/.test(nick.errors[0].note),
-    nick.errors[0].note);
-  /* the receipt key is meaningless here — every receipt carries the same value */
-  check("…keyed to the student, not to a receipt", nick.errors[0].key === "ছাত্রের তথ্য", nick.errors[0].key);
+  check("a changed name alone is not reported — Name is not matched",
+    nick.errors.length === 0, nick.errors.map((e) => e.field).join(","));
 
   /* digits that are not an amount */
   const reg = U.compareServers({ pw: empty, cw: mkP(four("Adiba", "1956423")) },
@@ -276,13 +273,38 @@ check("reordered columns are not a difference",
   check("…and the money verdict outranks the changed name",
     U.classifyServers(both).code === "srvcell", U.classifyServers(both).code);
 
-  /* one row is nothing to collapse, and naming the receipt is more use than a count of one */
+  /* a name change on a single row is ignored too — Name is never matched, however many rows */
   const one = U.compareServers(
     { pw: empty, cw: mkP([pRow("1956423", "Adiba Alam", "1418021511", "Class 8 Full Course")]) },
     { pw: empty, cw: mkP([pRow("1956423", "Adiba", "1418021511", "Class 8 Full Course")]) },
     { tolerance: 0 });
-  check("a single-row table is not collapsed — the receipt is still named",
-    one.errors.length === 1 && /1418021511/.test(one.errors[0].key), one.errors[0].key);
+  check("a name change on a single row is ignored too", one.errors.length === 0,
+    one.errors.map((e) => e.field).join(","));
+
+  /* …but the Mobile Number is ignored the same way, while Roll (Reg) still has to match */
+  const MOB = ["Registration No.", "Roll", "Mobile Number", "Date", "Course", "MRN", "CRN", "Income",
+    "Consideration Amount", "Previous Due", "Receivable", "Gross Received", "Net Received", "Current Due"];
+  const mRow = (reg, roll, mob) => [reg, roll, mob, "12/01/2022", "Physics", "1418021511", "-",
+    "5,000", "-", "-", "5,000", "5,000", "5,000", "-"];
+  const mkM = (rows) => U.parseTable(table([tr(MOB.map((h) => td(h)))].concat(
+    rows.map((r) => tr(r.map((v) => td(v)))))), "cw");
+  const mob = U.compareServers(
+    { pw: empty, cw: mkM([mRow("2169426", "39210800053", "01700000000")]) },
+    { pw: empty, cw: mkM([mRow("2169426", "39210800053", "01888888888")]) }, { tolerance: 0 });
+  check("a changed Mobile Number alone is not reported", mob.errors.length === 0,
+    mob.errors.map((e) => e.field).join(","));
+  const rollDiff = U.compareServers(
+    { pw: empty, cw: mkM([mRow("2169426", "39210800053", "01700000000")]) },
+    { pw: empty, cw: mkM([mRow("2169426", "39210899999", "01700000000")]) }, { tolerance: 0 });
+  check("…but a changed Roll is reported — it is part of the identity that must match",
+    rollDiff.errors.length === 1 && rollDiff.errors[0].kind === "srvtext",
+    rollDiff.errors.map((e) => e.kind).join(","));
+  const regDiff = U.compareServers(
+    { pw: empty, cw: mkM([mRow("2169426", "39210800053", "01700000000")]) },
+    { pw: empty, cw: mkM([mRow("2169999", "39210800053", "01700000000")]) }, { tolerance: 0 });
+  check("…and so is a changed Registration No.",
+    regDiff.errors.length === 1 && regDiff.errors[0].kind === "srvtext",
+    regDiff.errors.map((e) => e.kind).join(","));
 }
 
 /* ---- a row that carried no money is not money going missing ----

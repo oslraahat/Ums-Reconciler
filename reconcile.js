@@ -1453,6 +1453,12 @@
     studentname: 1, mobilenumber: 1, mobile: 1, phone: 1, programsession: 1, session: 1,
     program: 1, branch: 1, campus: 1 };
   const isProfile = function (k) { return !!PROFILE_COLS[String(k).replace(/#\d+$/, "")]; };
+  /* In the two-server compare the student's Name and Mobile Number may legitimately differ between
+     Expected and Actual (edited, reformatted) and are NOT reported. Identity is matched on Roll and
+     Registration No., which are compared like any other column. (User: match on Roll (Reg), not on
+     Name / Mobile Number.) */
+  const SRV_IGNORE_COLS = { nickname: 1, name: 1, studentname: 1, mobilenumber: 1, mobile: 1, phone: 1 };
+  const isSrvIgnored = function (k) { return !!SRV_IGNORE_COLS[String(k).replace(/#\d+$/, "")]; };
   /* one value for the whole table, or null if it varies (the single-server structure() check is
      what reports a profile column that varies — here it just means there is nothing to collapse) */
   const oneValue = function (rows, col) {
@@ -1562,7 +1568,7 @@
     const shared = E.keys.filter(function (k) { return aSet[k]; });
     /* Split them: the payment columns are compared cell by cell, the table's own bookkeeping is
        counted and mentioned once. */
-    const dataCols = shared.filter(function (k) { return !isNotData(k); });
+    const dataCols = shared.filter(function (k) { return !isNotData(k) && !isSrvIgnored(k); });
     const posCols = shared.filter(isNotData);
     let posDiff = 0;
 
