@@ -115,27 +115,6 @@
     });
   }
 
-  /* A row the UMS scheduler wrote on its own — "Auto inserted from scheduler", or posted by the
-     scheduler service account (liton@onnorokom.com). The whole row is scanned, so it does not matter
-     which column (User / Remarks / Special Note) the marker landed in. */
-  function isAutoRow(cells) {
-    const blob = (Array.isArray(cells) ? cells.join(" ") : String(cells || "")).toLowerCase();
-    return blob.indexOf("liton@onnorokom.com") >= 0 || /auto\s+inserted\s+from\s+scheduler/.test(blob);
-  }
-  /* An INERT row carries no money and leaves the due unchanged — a pure placeholder. Only inert
-     scheduler rows are noise and get dropped; a scheduler row that applies a discount, takes a
-     payment or changes the due is a real transaction (the due chain is built from them) and is kept.
-     reg 1959425: the 624 Special Discount on UDVASH Varsity Math sits on an "Auto inserted from
-     scheduler" row — dropping every scheduler row broke the chain by 624. */
-  function isInertRow(r) {
-    if (!r) return false;
-    if (money(r.previousDue) !== money(r.currentDue)) return false;   // the due moved → real
-    const keys = ["income", "consideration", "received", "grossReceived", "netReceived",
-      "special", "prevStd", "booking", "dueAdjustment", "cashBack", "deducted"];
-    for (let i = 0; i < keys.length; i++) if (money(r[keys[i]]) !== 0) return false;
-    return true;
-  }
-
   /** kind = 'pw' | 'cw' — DOM twin of the CLI's parseTable() */
   function parseTable(table, kind) {
     if (!table) return { ok: false };
@@ -167,7 +146,6 @@
       const vals = spread(cells, width);
       const rec = {};
       Object.keys(cols).forEach(function (k) { rec[k] = vals[cols[k]] == null ? "" : vals[cols[k]]; });
-      if (isAutoRow(vals) && isInertRow(rec)) continue;   // drop ONLY inert scheduler placeholders; keep ones that move money / change the due
       /* Every cell as the page printed it, aligned to header[]. The named fields above cover the
          columns the rules care about; the server-to-server diff has to answer for the ones they do
          not (Payment Method, Remarks, User, Special Note, Branch …), and those have no home in
@@ -1797,7 +1775,7 @@
   g.UMSREC = {
     rawText: rawText, RAW_PW: RAW_PW, RAW_CW: RAW_CW,
     money: money, norm: norm, spread: spread, resolveCols: resolveCols,
-    PW_COLS: PW_COLS, CW_COLS: CW_COLS, parseTable: parseTable, isAutoRow: isAutoRow, isInertRow: isInertRow,
+    PW_COLS: PW_COLS, CW_COLS: CW_COLS, parseTable: parseTable,
     PW_HEAD_WORDS: PW_HEAD_WORDS, headScore: headScore,
     compare: compare, receiptWorthy: receiptWorthy, rowKey: rowKey, isCancel: isCancel,
     fmt: fmt, COMPARE: COMPARE, shortError: shortError, shortWarnings: shortWarnings, summary: summary,
