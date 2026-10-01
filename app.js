@@ -2606,7 +2606,7 @@
     // Clear empties the whole "What to Reconciliation" card — paste box, sheet link, the chosen
     // file, the preview and its search — so the next import starts from nothing.
     $("clearImp").addEventListener("click", function () {
-      entries = []; importSrc = srcBase = "";
+      entries = []; importSrc = srcBase = ""; srcFile = srcSheet = "";   // forget the output-file naming too
       clearSheetPicker();
       ["paste", "link", "pvSearch", "file"].forEach(function (id) {
         const el = $(id); if (el) el.value = "";
