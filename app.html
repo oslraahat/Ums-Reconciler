@@ -38,10 +38,11 @@
      force a check and see the result. When a newer build is found it gains .has: a clean amber action
      pill (amber is the standard "update available" cue) with a soft pulsing ring, going quiet on
      hover / while updating. */
-  #updBtn{display:inline-flex;align-items:center;gap:6px;border-radius:8px;font-weight:800}
-  #updBtn.has{background:#f2c94c;color:#3a2c05;border:1px solid #e0b53a;animation:updPulse 2.1s ease-in-out infinite}
-  #updBtn.has:hover{background:#f7d766;border-color:#e0b53a;animation:none}
-  #updBtn:disabled{opacity:.9;cursor:progress;animation:none}
+  #updBtn{display:inline-flex;align-items:center;gap:6px;border-radius:8px;font-weight:500;letter-spacing:.2px;
+    transition:background .12s,border-color .12s,color .12s}
+  #updBtn.has{background:#f6cf5a;color:#3a2c05;border:1px solid #e6bd45;box-shadow:0 1px 2px rgba(0,0,0,.12);animation:updPulse 2.1s ease-in-out infinite}
+  #updBtn.has:hover{background:#ffd967;border-color:#e6bd45;animation:none}
+  #updBtn:disabled{opacity:.92;cursor:progress;animation:none}
   @keyframes updPulse{0%,100%{box-shadow:0 0 0 0 rgba(242,201,76,0)}50%{box-shadow:0 0 0 4px rgba(242,201,76,.30)}}
   @media (prefers-reduced-motion:reduce){#updBtn.has{animation:none}}
   /* in-tool update panel (bottom bar): a clean, standard notice with the update steps and actions */
