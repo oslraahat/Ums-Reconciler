@@ -42,40 +42,59 @@ check("a cashier's own row is left alone",
   U.isAutoRow(["01/01/2025", "1", "100", "100", "rokeya@onnorokom.com", "manual"]) === false);
 check("an empty row is not a machine row", U.isAutoRow([]) === false);
 
-/* ---------- and parseTable drops them, keeping the rest ---------- */
+/* ---------- inert vs. meaningful ---------- */
+check("an inert row (due unchanged, no money) is inert",
+  U.isInertRow({ previousDue: "4319", currentDue: "4319" }) === true);
+check("…a discount that moves the due is NOT inert",
+  U.isInertRow({ previousDue: "4319", currentDue: "3695", special: "624" }) === false);
+check("…nor is a payment", U.isInertRow({ previousDue: "5000", currentDue: "0", netReceived: "5000" }) === false);
+check("…nor new income", U.isInertRow({ previousDue: "0", currentDue: "5000", income: "5000" }) === false);
+
+/* ---------- parseTable drops only INERT scheduler rows ---------- */
 {
-  const header = ["Date", "MRN", "CRN", "Income", "Receivable", "Current Due", "User", "Remarks"];
+  const header = ["Date", "MRN", "CRN", "Income", "Previous Due", "Receivable", "Special Discount",
+    "Net Received", "Current Due", "User", "Remarks"];
   const t = table(header, [
-    ["01/01/2025", "111", "", "100", "100", "0", "rokeya@onnorokom.com", "manual"],
-    ["02/01/2025", "222", "", "0", "6000", "6000", "system", "Auto inserted from scheduler"],
-    ["03/01/2025", "333", "", "0", "0", "0", "liton@onnorokom.com", "auto"]
+    ["01/01/2025", "111", "", "100", "0", "100", "", "100", "0", "rokeya@onnorokom.com", "manual"],
+    ["02/01/2025", "222", "", "0", "5000", "5000", "", "", "5000", "system", "Auto inserted from scheduler"],
+    ["03/01/2025", "333", "", "0", "5000", "5000", "624", "", "4376", "liton@onnorokom.com", "Auto inserted from scheduler"],
+    ["04/01/2025", "444", "", "0", "4376", "4376", "", "", "4376", "liton@onnorokom.com", "Auto inserted from scheduler"]
   ]);
   const out = U.parseTable(t, "pw");
-  check("parseTable keeps the one human receipt", out.ok && out.rows.length === 1,
-    out.ok ? "rows=" + out.rows.length : "not ok");
-  check("…and it is the human one", out.rows.length === 1 && out.rows[0].mrn === "111",
-    out.rows.map((r) => r.mrn).join(","));
-  check("neither scheduler nor liton survives to any rule",
-    out.rows.every((r) => r.mrn !== "222" && r.mrn !== "333"),
-    out.rows.map((r) => r.mrn).join(","));
+  const mrns = out.rows.map((r) => r.mrn);
+  check("the human row and the meaningful scheduler row survive", out.ok && mrns.join(",") === "111,333", mrns.join(","));
+  check("…the inert scheduler placeholders (222, 444) are dropped",
+    mrns.indexOf("222") < 0 && mrns.indexOf("444") < 0, mrns.join(","));
 }
 
-/* ---------- a chain that would break without the drop stays clean ---------- */
+/* ---------- a discount on a scheduler row keeps the chain intact ---------- */
 {
-  /* Course "A": due goes 0 → (scheduler pushes a bogus 6,000) → 0. With the scheduler row present
-     the chain reads 0≠6000 and 6000≠0, two errors; dropped, the two human receipts join 0→0. */
+  /* reg 1959425 UDVASH Varsity Math: the 624 Special Discount is on an "Auto inserted from scheduler"
+     row (4319 → 3695); it must be KEPT, or the chain reads 4319 → 3695 and reports a 624 break. */
   const cw = (o) => Object.assign({ date: "", course: "A", mrn: "", crn: "", income: "0",
     deducted: "0", consideration: "0", previousDue: "0", receivable: "0", prevStd: "0", booking: "0",
     special: "0", grossReceived: "0", dueAdjustment: "0", cashBack: "0", netReceived: "0",
     currentDue: "0", user: "", remarks: "" }, o);
-  const side = (rows) => ({ ok: true, rows, cols: {}, totalRow: null, noData: false });
-  const human = side([
-    cw({ date: "01/01/2025", mrn: "10", currentDue: "0", previousDue: "0" }),
-    cw({ date: "03/01/2025", mrn: "12", currentDue: "0", previousDue: "0" })
+  const header = ["Date", "Course", "MRN", "CRN", "Income", "Deducted Amount", "Consideration Amount",
+    "Previous Due", "Receivable", "Pre. Std. Discount", "Booking Discount", "Special Discount",
+    "Gross Received", "Due Adjustment Amount", "Cash Back Amount", "Net Received", "Current Due", "User"];
+  const row = (date, mrn, pd, sp, gr, nr, cd, user) =>
+    [date, "A", mrn, "", "0", "", "", pd, (pd === "-" ? "0" : pd), "", "", sp, gr, "", "", nr, cd, user];
+  const t = table(header, [
+    row("01/01/2022", "M1", "-", "", "681", "681", "4319", "nerob@x"),             // opens, closes 4319
+    row("02/02/2022", "M2", "4319", "", "", "", "4319", "liton@onnorokom.com"),   // inert scheduler carry → dropped
+    row("03/03/2022", "M3", "4319", "624", "", "", "3695", "liton@onnorokom.com"),// 624 Special Discount → KEPT
+    row("04/04/2022", "M4", "3695", "", "3695", "3695", "0", "nerob@x")           // pays 3695
   ]);
-  const r = U.compare(side([]), human, { tolerance: 0 });
-  check("the human-only chain reconciles clean", !r.errors.some((e) => /ধারাবাহিকতা/.test(e.field)),
-    r.errors.map((e) => e.field).join(" | "));
+  // the first row's income column: set so it closes at 4319 (income 5000, net 681 → due 4319)
+  const parsed = U.parseTable(t, "cw");
+  parsed.rows.forEach(function (r) { if (r.mrn === "M1") { r.income = "5000"; r.receivable = "5000"; } });
+  const side = (rows) => ({ ok: true, rows, cols: {}, totalRow: null, noData: false });
+  const r = U.compare(side([]), side(parsed.rows), { tolerance: 0 });
+  check("the 624-discount scheduler row survives", parsed.rows.some((x) => x.mrn === "M3"),
+    parsed.rows.map((x) => x.mrn).join(","));
+  check("…so the chain reads 4319 → 3695 via the discount, no break",
+    !r.errors.some((e) => /ধারাবাহিকতা/.test(e.field)), r.errors.map((e) => e.field).join(" | "));
 }
 
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
