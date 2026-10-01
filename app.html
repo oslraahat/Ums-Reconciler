@@ -40,6 +40,9 @@
      hover / while updating. */
   #updBtn{display:inline-flex;align-items:center;gap:6px;border-radius:8px;font-weight:500;
     transition:background .12s,border-color .12s,color .12s}
+  /* the "Up to Date" / "Check failed" flash after a manual check: a clear green tick / red warning */
+  #updBtn.ok{background:rgba(46,193,138,.18);color:#3ff0a8;border:1px solid rgba(46,193,138,.6)}
+  #updBtn.bad{background:rgba(255,107,125,.18);color:#ff9aa6;border:1px solid rgba(255,107,125,.6)}
   #updBtn.has{background:#f5b301;color:#2b2000;border:1px solid #d99e00;animation:updPulse 2.1s ease-in-out infinite}
   #updBtn.has:hover{background:#ffc21f;border-color:#d99e00;animation:none}
   #updBtn:disabled{opacity:.9;cursor:progress;animation:none}
