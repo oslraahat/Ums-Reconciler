@@ -48,12 +48,17 @@ function src(name) {
   check("a row missing on Actual → cw", of(["srvlost"]) === "cw", of(["srvlost"]));
   check("a row only on Actual → zero", of(["srvextra"]) === "zero", of(["srvextra"]));
   check("a page never read → nf", of(["srvside"]) === "nf", of(["srvside"]));
+  /* a row missing/extra that carries NO money is financially identical — not an error */
+  check("a moneyless missing row → ok", of(["srvempty"]) === "ok", of(["srvempty"]));
 
   /* the order matters: a student with several kinds gets filed under the worst one, because that
      is the one someone has to go and act on */
   check("unread page outranks everything", of(["srvside", "srvcell", "srvlost"]) === "nf");
   check("a missing row outranks a changed cell", of(["srvcell", "srvlost"]) === "cw");
   check("a changed cell outranks an extra row", of(["srvextra", "srvcell"]) === "no");
+  /* a moneyless row is the mildest — any real finding beside it outranks it */
+  check("a moneyless row never hides a money one", of(["srvempty", "srvcell"]) === "no" &&
+    of(["srvempty", "srvlost"]) === "cw" && of(["srvempty", "srvextra"]) === "zero");
   /* nothing may fall through to "ok" just because a kind was not listed — a finding nobody
      recognised must still count as a difference */
   check("an unknown finding is never filed as identical", of(["srvsomethingnew"]) === "no");

@@ -635,6 +635,12 @@
     if (has.srvlost) return "cw";
     if (has.srvcell || has.srvtext || has.srvcol) return "no";
     if (has.srvextra) return "zero";
+    /* a row missing (or extra) that carries NO money is financially identical — the servers agree on
+       every taka, only a moneyless row differs — so it is not a problem: filed clean, not as an error.
+       (classifyServers keeps the srvempty headline for the detail; this is just the tile/colour.)
+       Checked last, after every money finding, and only recognised kinds reach it — an unknown finding
+       still falls through to "no". */
+    if (has.srvempty) return "ok";
     return "no";
   }
   function statusOf(out) {
