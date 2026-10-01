@@ -2092,14 +2092,20 @@
   }
   /* async because compressing is: CompressionStream has no synchronous form. */
   /* one tab: a name and the rows that go on it */
-  function xlsxTab(name, rows) {
-    const header = srvMode
-      ? ["Status", "Student Reg", "Program Id", "Expected Link", "Actual Link", "Remarks", "Details"]
-      : ["Status", "Student Reg", "Program Id", "Payment History Link", "Remarks", "Details"];
+  /* noDetails drops the long "Details" listing column — the auto-saved Success/Error files leave it
+     out (the Remarks line is enough there); the ⬇ Excel Report button keeps it. The Link columns sit
+     before Remarks, so dropping the last column never shifts the link indexes. */
+  function xlsxTab(name, rows, noDetails) {
+    const base = srvMode
+      ? ["Status", "Student Reg", "Program Id", "Expected Link", "Actual Link", "Remarks"]
+      : ["Status", "Student Reg", "Program Id", "Payment History Link", "Remarks"];
+    const header = noDetails ? base : base.concat(["Details"]);
     const mat = rows.map(function (r) {
-      return srvMode
-        ? [r.status, r.reg, r.spid, r.link, r.link2, r.remarks, r.details]
-        : [r.status, r.reg, r.spid, r.link, r.remarks, r.details];
+      const cells = srvMode
+        ? [r.status, r.reg, r.spid, r.link, r.link2, r.remarks]
+        : [r.status, r.reg, r.spid, r.link, r.remarks];
+      if (!noDetails) cells.push(r.details);
+      return cells;
     });
     return { name: name, header: header, mat: mat,
       colors: rows.map(function (r) { return r.color; }),
@@ -2254,7 +2260,8 @@
     const ok = rows.filter(function (r) { return !notOk(r.result); });
     const base = outBase(), ts = stamp();
     const mk = async function (rs, word) {
-      return new Blob([await buildBook([xlsxTab(word + " (" + rs.length + ")", rs)])],
+      /* noDetails: the auto-saved files skip the long Details column — ⬇ Excel Report keeps it */
+      return new Blob([await buildBook([xlsxTab(word + " (" + rs.length + ")", rs, true)])],
         { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
     };
     return [

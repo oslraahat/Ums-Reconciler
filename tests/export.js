@@ -147,8 +147,9 @@ check("it is a zip", buf.slice(0, 4).toString("hex") === "504b0304", buf.slice(0
 check("Remarks is the on-screen line, not the internal listing",
   /remarks: x\.res\.detail \|\| ""/.test(APP) && !/remarks: x\.res\.detailFull/.test(APP), "app.js");
 check("the listing moves to its own Details column", /details: x\.res\.detailFull/.test(APP), "app.js");
-check("xlsx sends both columns",
-  /\[r\.status, r\.reg, r\.spid, r\.link, r\.remarks, r\.details\]/.test(APP));
+check("xlsx sends Remarks, and Details unless the tab drops it (noDetails)",
+  /\[r\.status, r\.reg, r\.spid, r\.link, r\.remarks\]/.test(APP) &&
+  /if \(!noDetails\) cells\.push\(r\.details\);/.test(APP));
 check("the HTML table has both columns", /<th>Remarks<\/th><th>Details<\/th>/.test(APP), "app.js");
 
 /* ---- and the sheet has to be readable once opened ---- */

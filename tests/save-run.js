@@ -88,6 +88,11 @@ const line = (re) => (re.exec(APP) || [""])[0];
     / - Error - " \+ ts \+ "\.xlsx"/.test(rf) && / - Success - " \+ ts \+ "\.xlsx"/.test(rf), "runFiles");
   check("…each a single-tab workbook built by buildBook/xlsxTab",
     /buildBook\(\[xlsxTab\(word \+/.test(rf), "runFiles");
+  /* the auto-saved files drop the long Details column (noDetails); the ⬇ Excel button keeps it */
+  check("…without the Details column (noDetails), while the button keeps it",
+    /xlsxTab\(word \+ " \(" \+ rs\.length \+ "\)", rs, true\)/.test(rf) &&
+    /return buildBook\(\[xlsxTab\(t\("tab_all"\), rows\)\]\);/.test(APP) &&
+    /function xlsxTab\(name, rows, noDetails\)/.test(APP), "runFiles / xlsxTab");
   check("…the page is not built at the end of a run", !/buildHtml\(/.test(rf), "runFiles");
   /* but it must still be reachable — the button is now the only way to get one */
   check("…while the ⬇ HTML button still makes one",
