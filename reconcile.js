@@ -846,6 +846,19 @@
            §3.5 still checks the receipt's own arithmetic, so this cannot hide a changed amount. */
         if (cur.disc > 0 && near(expected - cur.disc, actual)) continue;
         if (gapExplained(prev.__k, cur.__k)) continue;
+        /* The money is continuous if this receipt OPENS where some OTHER receipt in the course CLOSES
+           (allowing its own discount off the carried due). Then the receipts are merely out of order
+           — a mis-dated discount receipt dropped between two others — not money appearing or vanishing.
+           reg 1991339 Medical & Dental Full: 12,000 → (23/02 writes off 2,000) → 10,000 → 0; when the
+           23/02 receipt is ordered last, the chain would read 12,000→10,000, but 10,000 is exactly
+           where the 23/02 receipt closes, so it is linked, not broken. The row-order check reports a
+           genuine ordering fault on its own; §3.5 still checks each receipt's own arithmetic. */
+        const linkedElsewhere = list.some(function (o) {
+          if (o === cur) return false;
+          const close = money(o.currentDue);
+          return near(close, actual) || (cur.disc > 0 && near(close - cur.disc, actual));
+        });
+        if (linkedElsewhere) continue;
         errors.push({
           key: rowKey(cur), field: side + ": Due-র ধারাবাহিকতা", ref: "ধারাবাহিকতা · আগের Current Due = পরের Previous Due", date: cur.date,
           kind: "chain", delta: actual - expected, course: course, cancel: isCancel(cur),

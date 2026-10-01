@@ -149,5 +149,32 @@ const CW_1960915 = [
   check("…but a drop bigger than the discount is still caught", chain(r2).length > 0, lines(r2) || "MISSED");
 }
 
+/* ---- receipts out of order are not a chain break if the money still links up ----
+   reg 1991339 Medical & Dental Full: 12,000 → (a 23/02 receipt writes off 2,000) → 10,000 → 0. The
+   write-off receipt was dated late, so the chain ordered it last and read 12,000 → 10,000 directly.
+   But 10,000 is exactly where that receipt closes, so every opening still matches some closing — the
+   money is continuous, only the order is off (which the row-order check reports on its own). */
+{
+  const pw = [
+    pwRow({ mrn: "R1", date: "01/01/2025", income: "12,000", receivable: "12,000", currentDue: "12,000" }),
+    pwRow({ mrn: "R2", date: "09/09/2025", previousDue: "12,000", receivable: "12,000", special: "2,000", currentDue: "10,000" }),
+    pwRow({ mrn: "R3", date: "05/01/2025", previousDue: "10,000", receivable: "10,000", received: "10,000", currentDue: "0" })
+  ];
+  const cw = [
+    cwRow({ mrn: "R1", date: "01/01/2025", course: "Full", income: "12,000", receivable: "12,000", currentDue: "12,000" }),
+    cwRow({ mrn: "R2", date: "09/09/2025", course: "Full", previousDue: "12,000", receivable: "12,000", special: "2,000", currentDue: "10,000" }),
+    cwRow({ mrn: "R3", date: "05/01/2025", course: "Full", previousDue: "10,000", receivable: "10,000", grossReceived: "10,000", netReceived: "10,000", currentDue: "0" })
+  ];
+  const r = U.compare(side(pw), side(cw), { tolerance: 0 });
+  check("out-of-order receipts that still link → no chain break", chain(r).length === 0, lines(r) || "(none)");
+  /* a true gap, where an opening matches NO receipt's closing, is still caught */
+  const cwBad = [cw[0], cw[2], cwRow({ mrn: "R2", date: "09/09/2025", course: "Full",
+    previousDue: "7,000", receivable: "7,000", special: "2,000", currentDue: "5,000" })];
+  const pwBad = [pw[0], pw[2], pwRow({ mrn: "R2", date: "09/09/2025", previousDue: "7,000",
+    receivable: "7,000", special: "2,000", currentDue: "5,000" })];
+  const rBad = U.compare(side(pwBad), side(cwBad), { tolerance: 0 });
+  check("…while an opening that links to nothing is still caught", chain(rBad).length > 0, lines(rBad) || "MISSED");
+}
+
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
 process.exit(fail ? 1 : 0);
