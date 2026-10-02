@@ -41,25 +41,28 @@ function namer(filter, srvMode) {
 /* …and the whole name, with a fixed clock */
 function nameOf(filter, srvMode, n, ext) {
   const el = { href: "", download: "", click() {}, remove() {} };
-  const fn = new Function("filter", "srvMode", "stamp", "URL", "document", "setTimeout",
+  const fn = new Function("filter", "srvMode", "stamp", "outBase", "URL", "document", "setTimeout",
     line(/const FILE_TAG = \{[\s\S]*?\};\n/) + line(/const FILE_TAG_SRV = \{[\s\S]*?\};\n/) +
     src("fileTag") + src("dl") +
     "\nreturn function (n, ext) { dl({}, ext, fileTag(n)); };")(
-    filter, srvMode, () => "20260908-1432",
+    filter, srvMode, () => "20260908-1432", () => "Students",
     { createObjectURL: () => "blob:x", revokeObjectURL() {} },
     { createElement: () => el, body: { appendChild() {} } }, () => {});
   fn(n, ext);
   return el.download;
 }
 
-/* ---------- the name carries the filter and the count ---------- */
+/* ---------- the name carries the input, the filter and the count ---------- */
 {
   check("a mismatch export is named for the mismatches",
-    nameOf("no", false, 241, "xlsx") === "ums-verify-mismatch-241-20260908-1432.xlsx",
+    nameOf("no", false, 241, "xlsx") === "Students - Mismatch (241) - 20260908-1432.xlsx",
     nameOf("no", false, 241, "xlsx"));
   check("…and an unfiltered one says so too",
-    /^ums-verify-all-8735-/.test(nameOf("all", false, 8735, "html")),
+    /^Students - All \(8735\) - /.test(nameOf("all", false, 8735, "html")),
     nameOf("all", false, 8735, "html"));
+  check("…Total Problem is named by its own label",
+    /^Students - Total Problem \(12\) - /.test(nameOf("prob", false, 12, "xlsx")),
+    nameOf("prob", false, 12, "xlsx"));
   check("the extension is still the extension",
     nameOf("prob", false, 12, "txt").endsWith(".txt"), nameOf("prob", false, 12, "txt"));
 }
@@ -79,9 +82,9 @@ function nameOf(filter, srvMode, n, ext) {
   check("CW Empty and “missing on Actual” are not called the same thing",
     one(3) !== two(3), one(3) + " vs " + two(3));
   check("…and each says what that mode means",
-    /cw-empty/.test(one(3)) && /missing-on-actual/.test(two(3)), one(3) + " / " + two(3));
+    /CW Empty/.test(one(3)) && /Missing on Actual/.test(two(3)), one(3) + " / " + two(3));
   check("two-server “identical” is not called “matched”",
-    namer("ok", true)(9) === "identical-9", namer("ok", true)(9));
+    namer("ok", true)(9) === "Identical (9)", namer("ok", true)(9));
 }
 
 /* ---------- every chip has a word, and the words are filename-safe ---------- */
@@ -91,8 +94,9 @@ function nameOf(filter, srvMode, n, ext) {
     const f = chips.map(function (c) { return namer(c, srv)(1); });
     check("every chip has a name of its own" + (srv ? " (two servers)" : ""),
       new Set(f).size === chips.length, f.join(" "));
+    /* spaces and parens are fine in a filename; the Windows-illegal set (\ / : * ? " < > |) is not */
     check("…and none of them can upset a filesystem" + (srv ? " (two servers)" : ""),
-      f.every(function (x) { return /^[a-z0-9-]+$/.test(x); }), f.join(" "));
+      f.every(function (x) { return !/[\\/:*?"<>|]/.test(x); }), f.join(" "));
   });
   /* the interface's own labels are Bengali; a filename that changes with the language is one
      nobody can search for a week later */

@@ -243,7 +243,7 @@ srv.listen(0, "127.0.0.1", () => {
       .forEach(function (f) {
         const v = o[f[0]];
         check("⬇ " + f[0] + " hands over a file", v !== "nothing" && !!v, String(v));
-        check("…named for what it is", new RegExp("^ums-verify-.*\\." + f[1] + "$").test(part(v, 0)), part(v, 0));
+        check("…named for what it is", new RegExp("^.+ - .+ - \\d{8}-\\d{4}\\." + f[1] + "$").test(part(v, 0)), part(v, 0));
         check("…with bytes in it", +part(v, 1) > 200, part(v, 1) + " bytes");
         check("…of the right kind", part(v, 2).indexOf(f[2]) >= 0, part(v, 2));
       });
@@ -259,7 +259,7 @@ srv.listen(0, "127.0.0.1", () => {
       +part(o.html_no, 1) > 200 && +part(o.xlsx_no, 1) > 200,
       part(o.html_no, 1) + " / " + part(o.xlsx_no, 1) + " bytes, " + o.shown_no + " on screen");
     check("…and the filename says which filter it was",
-      /mismatch/.test(part(o.html_no, 0)), part(o.html_no, 0));
+      /Mismatch/.test(part(o.html_no, 0)), part(o.html_no, 0));
     check("the run left the other bucket empty", o.shown_ok === "0", o.shown_ok + " on screen");
     check("…so all three buttons hand over nothing at all",
       o.empty_filter_files === "0", o.empty_filter_files + " file(s)");

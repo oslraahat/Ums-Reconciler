@@ -1887,23 +1887,26 @@
   }
   function ver() { try { return "v" + chrome.runtime.getManifest().version; } catch (e) { return ""; } }
   function stamp() { const d = new Date(); const p = function (n) { return String(n).padStart(2, "0"); }; return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()); }
-  /* What the file is about, in its name. Fixed English words rather than the interface's labels:
-     a filename that changes with the language is one nobody can search for later, and Bengali in a
-     filename travels badly between machines. The two modes name the same chips differently on
-     screen, so they name them differently here too. */
-  const FILE_TAG = { all: "all", ok: "matched", no: "mismatch", cw: "cw-empty",
-    zero: "zero-pay", nf: "no-program", prob: "problems" };
-  const FILE_TAG_SRV = { all: "all", ok: "identical", no: "different", cw: "missing-on-actual",
-    zero: "extra-on-actual", nf: "not-read", prob: "problems" };
+  /* What the file is about, in its name — the selected chip's own label, so a download says at a
+     glance which bucket it holds (Matched / Mismatch / CW Empty / Program Not Found / Zero Pay /
+     Total Problem). Fixed English words rather than the interface's labels: a filename that changes
+     with the language is one nobody can search for later, and Bengali in a filename travels badly
+     between machines. The two modes name the same chips differently on screen, so they do here too. */
+  const FILE_TAG = { all: "All", ok: "Matched", no: "Mismatch", cw: "CW Empty",
+    zero: "Zero Pay", nf: "Program Not Found", prob: "Total Problem" };
+  const FILE_TAG_SRV = { all: "All", ok: "Identical", no: "Data Differs", cw: "Missing on Actual",
+    zero: "Extra on Actual", nf: "Page Not Read", prob: "Total Problem" };
   function fileTag(n) {
     const m = srvMode ? FILE_TAG_SRV : FILE_TAG;
-    return (m[filter] || filter) + "-" + n;
+    return (m[filter] || filter) + " (" + n + ")";
   }
+  /* Named like the auto-saved files — input file + sheet (outBase), then the chip, then the date-time
+     — so a manual download sits beside the run's own output and reads the same way. */
   function dl(blob, ext, tag) {
     const u = URL.createObjectURL(blob);
     const a = document.createElement("a");
     a.href = u;
-    a.download = "ums-verify-" + (tag ? tag + "-" : "") + stamp() + "." + ext;
+    a.download = outBase() + (tag ? " - " + tag : "") + " - " + stamp() + "." + ext;
     document.body.appendChild(a); a.click(); a.remove();
     setTimeout(function () { URL.revokeObjectURL(u); }, 1000);
   }
