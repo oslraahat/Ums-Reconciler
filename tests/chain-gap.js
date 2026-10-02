@@ -174,6 +174,22 @@ const CW_1960915 = [
     receivable: "7,000", special: "2,000", currentDue: "5,000" })];
   const rBad = U.compare(side(pwBad), side(cwBad), { tolerance: 0 });
   check("…while an opening that links to nothing is still caught", chain(rBad).length > 0, lines(rBad) || "MISSED");
+
+  /* a due that VANISHED to zero must still be caught — 0 is where every paid receipt closes, so the
+     "links to some closing" rule must not excuse an opening of 0 just because another receipt ends at 0 */
+  const pwZero = [
+    pwRow({ mrn: "Z1", date: "01/01/2025", income: "5,000", receivable: "5,000", currentDue: "5,000" }),
+    pwRow({ mrn: "Z2", date: "02/01/2025", previousDue: "0", receivable: "0", currentDue: "0" }),
+    pwRow({ mrn: "Z3", date: "03/01/2025", income: "1,000", receivable: "1,000", received: "1,000", currentDue: "0" })
+  ];
+  const cwZero = [
+    cwRow({ mrn: "Z1", date: "01/01/2025", course: "Full", income: "5,000", receivable: "5,000", currentDue: "5,000" }),
+    cwRow({ mrn: "Z2", date: "02/01/2025", course: "Full", previousDue: "0", receivable: "0", currentDue: "0" }),
+    cwRow({ mrn: "Z3", date: "03/01/2025", course: "Full", income: "1,000", receivable: "1,000", grossReceived: "1,000", netReceived: "1,000", currentDue: "0" })
+  ];
+  const rZero = U.compare(side(pwZero), side(cwZero), { tolerance: 0 });
+  check("…and a due that vanished to 0 is not excused by another paid receipt ending at 0",
+    chain(rZero).length > 0, lines(rZero) || "MISSED");
 }
 
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");

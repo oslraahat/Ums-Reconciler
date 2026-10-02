@@ -847,7 +847,10 @@
            23/02 receipt is ordered last, the chain would read 12,000→10,000, but 10,000 is exactly
            where the 23/02 receipt closes, so it is linked, not broken. The row-order check reports a
            genuine ordering fault on its own; §3.5 still checks each receipt's own arithmetic. */
-        const linkedElsewhere = list.some(function (o) {
+        /* actual === 0 is excluded: 0 is where every fully-paid receipt closes, so "opens at 0" would
+           match one by coincidence and hide a real due that vanished to zero. A non-zero opening that
+           matches another receipt's closing is the genuine out-of-order signal. */
+        const linkedElsewhere = actual !== 0 && list.some(function (o) {
           if (o === cur) return false;
           const close = money(o.currentDue);
           return near(close, actual) || (cur.disc > 0 && near(close - cur.disc, actual));
