@@ -84,6 +84,31 @@ function run(cwOver, pwOver) {
   check("Course Wise smaller than Program Wise → caught", cbErr(r).length === 1, lines(r) || "MISSED");
 }
 
+/* ---- a NEGATIVE Due Adjustment is not a write-off ----
+   reg 1785439: 5,000 collected (3,000 fee + 2,000 overpaid), the course is cancelled and 5,000 is
+   refunded (Cash Back 5,000), with Due Adjustment −2,000 (the overpayment folded in). Subtracting a
+   negative adjustment turned 5,000 into 7,000 and invented a "7,000 refunded against 5,000 received"
+   over-refund. Only positive adjustments (real write-offs) come off the cash that left. */
+{
+  const r = U.compare(
+    side([
+      pwRow({ mrn: "1920219383", date: "26/04/2022", income: "3,000", receivable: "3,000",
+        received: "5,000", currentDue: "-2,000" }),
+      pwRow({ crn: "9643208657", date: "26/04/2022", consideration: "3,000", previousDue: "-2,000",
+        receivable: "-2,000", cashBack: "5,000" })
+    ]),
+    side([
+      cwRow({ mrn: "1920219383", date: "26/04/2022", course: "Final Model Test", income: "3,000",
+        receivable: "3,000", grossReceived: "5,000", netReceived: "5,000", currentDue: "-2,000" }),
+      cwRow({ crn: "9643208657", date: "26/04/2022", course: "Final Model Test", consideration: "3,000",
+        previousDue: "-2,000", receivable: "-2,000", dueAdjustment: "-2,000", cashBack: "5,000",
+        netReceived: "-5,000", currentDue: "0" })
+    ]),
+    { tolerance: 0 });
+  check("overpayment refund (Due Adjustment −2,000) → no over-refund finding",
+    r.errors.filter((e) => e.kind === "cashback").length === 0, lines(r) || "(none)");
+}
+
 /* ---- equal on both sides needs no explaining ---- */
 {
   const r = U.compare(

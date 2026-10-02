@@ -472,7 +472,12 @@
        written off against what was owed and never goes out. Counting it flagged 11 programs that
        are entirely correct; net of it, all 1,082 measured programs come back clean. */
     const allGross = cw.rows.reduce(function (s, x) { return s + money(x.grossReceived); }, 0);
-    const allAdj = cw.rows.reduce(function (s, x) { return s + money(x.dueAdjustment); }, 0);
+    /* Only a POSITIVE Due Adjustment is a write-off — money owed that was cancelled instead of
+       refunded, so it does not leave the till. A NEGATIVE Due Adjustment is not a write-off (e.g. an
+       overpayment folded into a cancellation: reg 1785439 refunds 5,000 against 5,000 received, with
+       Due Adjustment −2,000); subtracting it would turn the 5,000 refund into 7,000 and invent an
+       over-refund. So only positive adjustments come off the cash that left. */
+    const allAdj = cw.rows.reduce(function (s, x) { return s + Math.max(0, money(x.dueAdjustment)); }, 0);
     const allCash = cw.rows.reduce(function (s, x) { return s + money(x.cashBack); }, 0) - allAdj;
     /* The per-row `Cash Back = Consideration − Previous Due` rule finds the same over-refunds and
        names the receipt, the course, the date and the exact excess. When it has already spoken,
