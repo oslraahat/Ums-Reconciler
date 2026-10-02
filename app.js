@@ -20,6 +20,10 @@
   // tol 0 like the CLI: at 1 the near() test swallows exactly the ৳1 row-wise differences we are
   // hunting for. Still editable in Settings if a run needs slack.
   let baseUrl = "https://ums-5.osl.team", conc = 10, tol = 0;
+  /* Which ↗ links have been opened, and the one opened last — so going down a list of students to
+     check in UMS, you can see at a glance which you have already opened and where you left off. Kept
+     by URL so it survives a re-render (filter change / re-run rebuilds the cards). */
+  const seenLinks = new Set(); let lastLink = "";
   /* Time-based "Students at once": within the night window [nightFrom, nightTo) (minutes of the day)
      the run uses nightConc instead of conc — so a long run can widen itself while the server is empty
      at night and narrow again by day, without anyone at the keyboard. */
@@ -1572,12 +1576,13 @@
            pasting it into a message or another browser profile is another, and until now the only
            way to get the text was to open the page and copy the address bar. */
         const eUrl = pwUrl(stu.reg, x.res.spid);
-        pn += ' <span class="mut">—</span> <a href="' + eUrl + '" target="_blank" style="color:#8fb4ff" title="' + (srvMode ? "Expected" : "Open Payment History") + '">↗' + (srvMode ? " E" : "") + '</a>';
+        const olnk = function (u) { return "olnk" + (seenLinks.has(u) ? " seen" : "") + (lastLink === u ? " last" : ""); };
+        pn += ' <span class="mut">—</span> <a class="' + olnk(eUrl) + '" data-lk="' + esc(eUrl) + '" href="' + eUrl + '" target="_blank" style="color:#8fb4ff" title="' + (srvMode ? "Expected" : "Open Payment History") + '">↗' + (srvMode ? " E" : "") + '</a>';
         pn += ' <span class="cpy" data-copy="' + esc(eUrl) + '" title="' + (srvMode ? "Copy the Expected link" : "Copy the link") + '">⧉</span>';
         // both servers, one click each — the whole point of the mode is reading them side by side
         if (srvMode) {
           const aUrl = pwUrl(stu.reg, x.res.spid, baseUrl2);
-          pn += ' <a href="' + aUrl + '" target="_blank" style="color:#ffb454" title="Actual">↗ A</a>';
+          pn += ' <a class="' + olnk(aUrl) + '" data-lk="' + esc(aUrl) + '" href="' + aUrl + '" target="_blank" style="color:#ffb454" title="Actual">↗ A</a>';
           pn += ' <span class="cpy" data-copy="' + esc(aUrl) + '" title="Copy the Actual link">⧉</span>';
         }
       }
@@ -2712,6 +2717,15 @@
       if (!b) return;
       const stu = students.filter(function (x) { return String(x.reg) === b.getAttribute("data-reg"); })[0];
       if (stu) markStudent(stu, !!b.getAttribute("data-undo"));
+    });
+    /* opening a ↗ marks it: it joins the "seen" set (dimmed thereafter) and becomes the "last" one
+       (highlighted), so a list of students to check reads back which are done and where you left off */
+    $("list").addEventListener("click", function (e) {
+      const a = e.target.closest ? e.target.closest("a.olnk") : null;
+      if (!a) return;
+      const k = a.getAttribute("data-lk"); if (k) { seenLinks.add(k); lastLink = k; }
+      [].slice.call($("list").querySelectorAll("a.olnk.last")).forEach(function (x) { x.classList.remove("last"); });
+      a.classList.add("seen", "last");
     });
     $("list").addEventListener("click", function (e) {
       const c = e.target.closest ? e.target.closest(".cpy") : null;
