@@ -653,8 +653,17 @@
         want("Cash Back", cons > base ? [cons - base + adj, cons - base] : [0], money(r.cashBack),
           "বাতিলে Cash Back = Consideration − Previous Due (+ Due Adjustment, বান্ডল করা থাকলে)",
           "Consideration " + fmt(cons) + " − Previous Due " + fmt(base) + " (+ Due Adjustment " + fmt(adj) + ")");
-        want("Current Due", Math.max(0, base - cons - adj), money(r.currentDue),
-          "বাতিলে Current Due = Previous Due − Consideration − Due Adjustment",
+        /* Two readings again. The UMS formula subtracts both Consideration and Due Adjustment — but
+           when the Due Adjustment IS the written-off Consideration (Consideration == Due Adjustment)
+           that subtracts the same money twice. reg 2227772: Previous Due 12,000, Consideration 7,000,
+           Due Adjustment 7,000, Current Due 5,000 — 12,000 − 7,000 − 7,000 = −2,000→0 is wrong, while
+           Previous Due − Consideration (12,000 − 7,000 = 5,000) counts the write-off once and is
+           right. The second reading only loosens where the Due Adjustment and Consideration overlap;
+           a Consideration that was genuinely taken back without being written off still fails it. */
+        want("Current Due",
+          [Math.max(0, base - cons - adj), Math.max(0, base - cons)],
+          money(r.currentDue),
+          "বাতিলে Current Due = Previous Due − Consideration − Due Adjustment (বা Previous Due − Consideration, Due Adjustment = Consideration হলে)",
           "Previous Due " + fmt(base) + " − Consideration " + fmt(cons) + " − Due Adjustment " + fmt(adj));
       }
 

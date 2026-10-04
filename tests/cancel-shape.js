@@ -109,6 +109,20 @@ function run(cw) {
   check("too much left owed → caught", duErr(r).length === 1, lines(r) || "MISSED");
 }
 
+/* ---- the Due Adjustment IS the written-off Consideration: don't subtract it twice ---- */
+{
+  /* reg 2227772: Previous Due 12,000, 7,000 of it written off (Consideration 7,000 == Due Adjustment
+     7,000), 5,000 still owed. 12,000 − 7,000 − 7,000 = −2,000→0 would be wrong; 12,000 − 7,000 = 5,000
+     counts the write-off once. */
+  const r = run({ crn: "C10", consideration: "7,000", previousDue: "12,000", receivable: "12,000",
+    deducted: "12,000", cashBack: "0", dueAdjustment: "7,000", currentDue: "5,000" });
+  check("Consideration == Due Adjustment, 5,000 left owed → clean", duErr(r).length === 0, lines(r));
+  /* but if that same 7,000 leaves 4,000 owed (should be 5,000), it is still caught */
+  const rBad = run({ crn: "C10b", consideration: "7,000", previousDue: "12,000", receivable: "12,000",
+    deducted: "12,000", cashBack: "0", dueAdjustment: "7,000", currentDue: "4,000" });
+  check("…but a wrong remainder is still caught", duErr(rBad).length === 1, lines(rBad) || "MISSED");
+}
+
 /* ---- the two are independent: a row can break one and keep the other ---- */
 {
   const r = run({ crn: "C9", consideration: "14,000", previousDue: "8,000", receivable: "8,000",
