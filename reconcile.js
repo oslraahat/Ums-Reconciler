@@ -662,17 +662,25 @@
          written and the excess lands on some other receipt's due. This is the cause, not the effect. */
       /* disc > 0 matters: an over-payment leaves Receivable negative (reg 1785439 CRN 9643208657
          carries −2,000), and 0 > −2,000 is true, so a row with no discount at all was reported as
-         over-discounted. There is nothing to compare when nothing was discounted. */
-      if (disc > 0 && disc > rcvbl + tol + 1e-6) {
+         over-discounted. There is nothing to compare when nothing was discounted.
+
+         The cap is NOT the Receivable but the discountable amount. A NEGATIVE Previous Due is an
+         overpayment credit carried forward: Receivable = Income + Previous Due is then LESS than the
+         new fee, while the discount is given on the full fee and the Current Due simply stays negative
+         (reg 1960688: Income 1,500, Previous Due −410 → Receivable 1,090, Special Discount 1,500,
+         Current Due −410 — correct, not over-discounted). So the credit is added back: the discount
+         may reach Receivable − min(0, Previous Due) = Income + any positive prior due. */
+      const discCap = rcvbl - Math.min(0, money(r.previousDue));
+      if (disc > 0 && disc > discCap + tol + 1e-6) {
         errors.push({
-          key: rowKey(r), field: side + ": Receivable-এর বেশি ছাড়", ref: "§3.7 · ছাড় Receivable ছাড়াতে পারে না", date: r.date,
-          kind: "overdiscount", delta: disc - rcvbl, course: c, cancel: isCancel(r),
+          key: rowKey(r), field: side + ": যতটা ছাড় দেওয়া যায় তার বেশি", ref: "§3.7 · ছাড় Income (+ পুরনো বকেয়া) ছাড়াতে পারে না", date: r.date,
+          kind: "overdiscount", delta: disc - discCap, course: c, cancel: isCancel(r),
           pw: side === "Program Wise" ? fmt(disc) : "—",
           cw: side === "Course Wise" ? fmt(disc) : "—",
-          diff: fmt(disc - rcvbl),
+          diff: fmt(disc - discCap),
           note: at + "ছাড় " + fmt(disc) + " (Sp " + fmt(money(r.special)) + " + Prev.Std " + fmt(money(r.prevStd)) +
-            (money(r.booking) ? " + Booking " + fmt(money(r.booking)) : "") + ") > Receivable " + fmt(rcvbl) +
-            " — " + fmt(disc - rcvbl) + " বেশি"
+            (money(r.booking) ? " + Booking " + fmt(money(r.booking)) : "") + ") > যতটা দেওয়া যায় " + fmt(discCap) +
+            " — " + fmt(disc - discCap) + " বেশি"
         });
       }
 
@@ -1235,7 +1243,7 @@
       case "chain":
         return "Previous Due ভুল · " + at + " — হওয়ার কথা " + fmt(shown - d) + ", আছে " + fmt(shown) + " (" + sign + fmt(d) + ")" + ref;
       case "overdiscount":
-        return "ছাড় বেশি · " + at + " — Receivable " + fmt(shown - d) + ", ছাড় " + fmt(shown) + " (" + fmt(d) + " বেশি)" + ref;
+        return "ছাড় বেশি · " + at + " — সর্বোচ্চ ছাড় " + fmt(shown - d) + ", ছাড় " + fmt(shown) + " (" + fmt(d) + " বেশি)" + ref;
       case "cashback":
         return "Cash Back বেশি · " + at + " — আদায় " + fmt(money(e.cw) - d) + ", ফেরত " + fmt(money(e.cw)) + ref;
       case "struct":

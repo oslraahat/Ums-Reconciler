@@ -88,11 +88,25 @@ const lines = (r) => r.errors.map((e) => U.shortError(e)).join("\n        ");
     !r.errors.some((e) => e.kind === "overdiscount"), lines(r));
 }
 {
-  /* but a real discount against a negative Receivable is still wrong */
+  /* but a real discount against a negative Receivable (with no carried credit) is still wrong */
   const r = U.compare(side([pwRow({ mrn: "A", date: "01/01/2025", receivable: "-2,000",
     special: "1,000" })]), EMPTY, { tolerance: 0 });
   check("a real discount over a negative Receivable → still caught",
     r.errors.some((e) => e.kind === "overdiscount"), lines(r) || "MISSED");
+}
+{
+  /* a discount above Receivable is FINE when the gap is a carried overpayment credit (negative
+     Previous Due): reg 1960688 — Income 1,500, Previous Due −410 → Receivable 1,090, Special
+     Discount 1,500 (the full fee), Current Due stays −410. The cap is Income, not the net Receivable. */
+  const r = U.compare(side([pwRow({ mrn: "A", date: "01/01/2025", income: "1,500",
+    previousDue: "-410", receivable: "1,090", special: "1,500", currentDue: "-410" })]), EMPTY, { tolerance: 0 });
+  check("a discount on the full fee over an overpayment credit → not over-discount",
+    !r.errors.some((e) => e.kind === "overdiscount"), lines(r));
+  /* …but past the fee it is still over-discount */
+  const r2 = U.compare(side([pwRow({ mrn: "A", date: "01/01/2025", income: "1,500",
+    previousDue: "-410", receivable: "1,090", special: "1,600", currentDue: "-510" })]), EMPTY, { tolerance: 0 });
+  check("…while a discount beyond the fee is still caught",
+    r2.errors.some((e) => e.kind === "overdiscount"), lines(r2) || "MISSED");
 }
 
 /* ---- an all-zero ledger stays quiet ---- */
@@ -111,7 +125,7 @@ const lines = (r) => r.errors.map((e) => U.shortError(e)).join("\n        ");
     .forEach(function (fn) {
       check("empty-Course-Wise path still runs " + fn.replace("(pw.rows", "()"), block.indexOf(fn) > 0);
     });
-  check("the over-discount rule keeps its disc > 0 guard", /disc > 0 && disc > rcvbl/.test(REC));
+  check("the over-discount rule keeps its disc > 0 guard", /disc > 0 && disc > discCap/.test(REC));
 }
 /* ---- …and the finding has to REACH the report ----
    Running the rules was only half of it: summary() and app.js's itemDetail() both returned early
