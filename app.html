@@ -30,7 +30,8 @@
   .topbar h1{margin:0;font-size:16px;font-weight:800}
   .topbar p{margin:1px 0 0;font-size:11px;opacity:.8}
   .tbtn{background:rgba(255,255,255,.15);color:#fff;border:1px solid rgba(255,255,255,.35);border-radius:8px;
-        padding:5px 11px;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap}
+        padding:5px 11px;cursor:pointer;font-weight:700;font-size:12px;white-space:nowrap;
+        display:inline-flex;align-items:center;justify-content:center;line-height:1}
   .tbtn:hover{background:rgba(255,255,255,.25)}
   /* Update button (shown only when a newer build exists): a clean green "ready" pill, not the muddy
      amber that clashed with the purple bar */
@@ -41,8 +42,7 @@
   /* plain, exactly like the Lang / Theme buttons beside it (the .tbtn look it inherits): no special
      fill — just the flex centring for the icon and line-height:1 so the label does not jump when it
      swaps to a taller emoji. */
-  #updBtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1;
-    transition:background .12s,border-color .12s,color .12s}
+  #updBtn{gap:6px;transition:background .12s,border-color .12s,color .12s}
   /* "✓ Up to Date" / "⚠ Check failed" stay on the plain button — only the text colour hints the result */
   #updBtn.ok{color:#5ef0a8}
   #updBtn.bad{color:#ff9aa6}
