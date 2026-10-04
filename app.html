@@ -38,22 +38,16 @@
      force a check and see the result. When a newer build is found it gains .has: a clean amber action
      pill (amber is the standard "update available" cue) with a soft pulsing ring, going quiet on
      hover / while updating. */
-  /* highlighted so it stands out from the plain Lang / Theme buttons: a clean, slightly-raised pill
-     with a soft gradient fill and a gentle drop shadow. Height + line-height:1 keep the label from
-     jumping when it swaps to a taller emoji. */
-  #updBtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;border-radius:8px;
-    font-weight:600;height:27px;box-sizing:border-box;line-height:1;padding:0 13px;color:#fff;
-    background:linear-gradient(180deg,rgba(255,255,255,.26),rgba(255,255,255,.12));
-    border:1px solid rgba(255,255,255,.5);box-shadow:0 1px 2px rgba(0,0,0,.18);
-    transition:background .12s,border-color .12s,box-shadow .12s}
-  #updBtn:hover{background:linear-gradient(180deg,rgba(255,255,255,.4),rgba(255,255,255,.22));
-    border-color:rgba(255,255,255,.75);box-shadow:0 2px 5px rgba(0,0,0,.22)}
-  /* the "Up to Date" / "Check failed" flash after a manual check: a clear green tick / red warning */
-  #updBtn.ok{background:rgba(46,193,138,.18);color:#3ff0a8;border:1px solid rgba(46,193,138,.6)}
-  #updBtn.bad{background:rgba(255,107,125,.18);color:#ff9aa6;border:1px solid rgba(255,107,125,.6)}
+  /* plain, exactly like the Lang / Theme buttons beside it (the .tbtn look it inherits): no special
+     fill — just the flex centring for the icon and line-height:1 so the label does not jump when it
+     swaps to a taller emoji. */
+  #updBtn{display:inline-flex;align-items:center;justify-content:center;gap:6px;line-height:1;
+    transition:background .12s,border-color .12s,color .12s}
+  /* "✓ Up to Date" / "⚠ Check failed" stay on the plain button — only the text colour hints the result */
+  #updBtn.ok{color:#5ef0a8}
+  #updBtn.bad{color:#ff9aa6}
   #updBtn.has{background:#f5b301;color:#2b2000;border:1px solid #d99e00;animation:updPulse 2.1s ease-in-out infinite}
   #updBtn.has:hover{background:#ffc21f;border-color:#d99e00;animation:none}
-  #updBtn.ok,#updBtn.bad,#updBtn.has{box-shadow:none}   /* the ring is only for the idle highlight */
   #updBtn:disabled{opacity:.9;cursor:progress;animation:none}
   @keyframes updPulse{0%,100%{box-shadow:0 0 0 0 rgba(242,201,76,0)}50%{box-shadow:0 0 0 4px rgba(242,201,76,.30)}}
   @media (prefers-reduced-motion:reduce){#updBtn.has{animation:none}}
