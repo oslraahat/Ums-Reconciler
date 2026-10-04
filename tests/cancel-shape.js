@@ -121,6 +121,15 @@ function run(cw) {
   const rBad = run({ crn: "C10b", consideration: "7,000", previousDue: "12,000", receivable: "12,000",
     deducted: "12,000", cashBack: "0", dueAdjustment: "7,000", currentDue: "4,000" });
   check("…but a wrong remainder is still caught", duErr(rBad).length === 1, lines(rBad) || "MISSED");
+  /* the Previous Due − Consideration shortcut is ONLY allowed when the Due Adjustment IS the
+     Consideration. With a SEPARATE Due Adjustment, forgetting to subtract it must still be caught:
+     10,000 − 3,000 − 2,000 = 5,000, but 7,000 (= 10,000 − 3,000, adj ignored) is wrong. */
+  const rSep = run({ crn: "C10c", consideration: "3,000", previousDue: "10,000", receivable: "10,000",
+    cashBack: "0", dueAdjustment: "2,000", currentDue: "7,000" });
+  check("a separate Due Adjustment left out of the remainder → caught", duErr(rSep).length === 1, lines(rSep) || "MISSED");
+  const rSepOk = run({ crn: "C10d", consideration: "3,000", previousDue: "10,000", receivable: "10,000",
+    cashBack: "0", dueAdjustment: "2,000", currentDue: "5,000" });
+  check("…and the correct 5,000 is clean", duErr(rSepOk).length === 0, lines(rSepOk));
 }
 
 /* ---- the two are independent: a row can break one and keep the other ---- */

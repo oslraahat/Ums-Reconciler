@@ -660,8 +660,12 @@
            Previous Due − Consideration (12,000 − 7,000 = 5,000) counts the write-off once and is
            right. The second reading only loosens where the Due Adjustment and Consideration overlap;
            a Consideration that was genuinely taken back without being written off still fails it. */
-        want("Current Due",
-          [Math.max(0, base - cons - adj), Math.max(0, base - cons)],
+        /* the second reading is only offered where the write-off actually overlaps the Consideration
+           (Due Adjustment ≈ Consideration); a separate Due Adjustment must still be subtracted, so a
+           base − cons that forgot it is NOT excused. */
+        const cdExp = [Math.max(0, base - cons - adj)];
+        if (Math.abs(adj - cons) <= ROUND_BAND + 1e-6) cdExp.push(Math.max(0, base - cons));
+        want("Current Due", cdExp,
           money(r.currentDue),
           "বাতিলে Current Due = Previous Due − Consideration − Due Adjustment (বা Previous Due − Consideration, Due Adjustment = Consideration হলে)",
           "Previous Due " + fmt(base) + " − Consideration " + fmt(cons) + " − Due Adjustment " + fmt(adj));

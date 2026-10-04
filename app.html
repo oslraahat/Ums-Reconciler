@@ -373,7 +373,7 @@
   .prow .pn{font-weight:600}
   .cpy{cursor:pointer;color:var(--mut);margin-left:2px;user-select:none;border-radius:4px;transition:color .12s,background .12s}
   .cpy:hover{color:var(--accent)}
-  .cpy.ok{color:var(--ok)}
+  .cpy.ok{color:var(--ok) !important}   /* the transient ✓ stays green even on the last-copied pill */
   .cpy.copd{color:#6d5cf0}                                   /* copied at least once */
   .cpy.lastc{color:#fff;background:#6d5cf0;padding:0 3px}     /* the last one copied — pill */
   .prow .pd{font-size:12px;color:var(--no);margin-top:2px;overflow-wrap:anywhere}
