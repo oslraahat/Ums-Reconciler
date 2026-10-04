@@ -64,7 +64,7 @@ function board(students, filter, duringRun) {
     PILLC: { ok: "ok", no: "no", cw: "mut", zero: "mut", nf: "mut", error: "no" },
     notOk: function (st) { return st !== "ok" && st !== "zero"; },
     pwUrl: function () { return "#"; },
-    seenLinks: new Set(), lastLink: "",
+    seenLinks: new Set(), lastLink: "", cpyCls: function () { return "cpy"; },
     srvMode: false, baseUrl2: "",
     paintListNote: function () {},
     applyFilterTo: function () {},

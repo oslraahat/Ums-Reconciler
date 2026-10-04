@@ -368,9 +368,11 @@
   .pill.warn{background:rgba(255,180,84,.16);color:var(--warn)} .pill.mut{background:rgba(139,145,180,.16);color:var(--mut)} .pill.info{background:rgba(91,140,255,.16);color:var(--info)}
   .prow .pinfo{flex:1;min-width:0}
   .prow .pn{font-weight:600}
-  .cpy{cursor:pointer;color:var(--mut);margin-left:2px;user-select:none}
+  .cpy{cursor:pointer;color:var(--mut);margin-left:2px;user-select:none;border-radius:4px;transition:color .12s,background .12s}
   .cpy:hover{color:var(--accent)}
   .cpy.ok{color:var(--ok)}
+  .cpy.copd{color:#37d18b}                                   /* copied at least once — green */
+  .cpy.lastc{color:#04240f;background:#37d18b;padding:0 3px}  /* the last one copied — green pill */
   .prow .pd{font-size:12px;color:var(--no);margin-top:2px;overflow-wrap:anywhere}
   .prow .pd.okd{color:var(--mut)}
   .prow .pd.warnd{color:var(--warn)}

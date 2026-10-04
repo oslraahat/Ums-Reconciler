@@ -24,6 +24,10 @@
      check in UMS, you can see at a glance which you have already opened and where you left off. Kept
      by URL so it survives a re-render (filter change / re-run rebuilds the cards). */
   const seenLinks = new Set(); let lastLink = "";
+  /* The same for the ⧉ copy icons (Reg, SPID, link): a copied one turns green and the last one copied
+     gets a pill, so you can see which Reg/SPID you have already picked up. Kept by the copied text. */
+  const copiedVals = new Set(); let lastCopy = "";
+  function cpyCls(v) { return "cpy" + (copiedVals.has(v) ? " copd" : "") + (lastCopy === v ? " lastc" : ""); }
   /* Time-based "Students at once": within the night window [nightFrom, nightTo) (minutes of the day)
      the run uses nightConc instead of conc — so a long run can widen itself while the server is empty
      at night and narrow again by day, without anyone at the keyboard. */
@@ -1568,22 +1572,22 @@
       const dcls = x.res.st === "ok" ? "pd okd" : ((x.res.st === "no" || x.res.st === "error") ? "pd" : "pd warnd");
       const reg = esc(stu.reg), spid = esc(x.res.spid || "");
       let pn = (nm ? esc(nm) + " — " : "");
-      pn += '<span class="mut">Reg:</span> ' + reg + ' <span class="cpy" data-copy="' + reg + '" title="Copy Reg">⧉</span>';
+      pn += '<span class="mut">Reg:</span> ' + reg + ' <span class="' + cpyCls(reg) + '" data-copy="' + reg + '" title="Copy Reg">⧉</span>';
       pn += ' <span class="mut">—</span> <span class="mut">SPID:</span> ' + (spid || "—");
       if (x.res.spid) {
-        pn += ' <span class="cpy" data-copy="' + spid + '" title="Copy SPID">⧉</span>';
+        pn += ' <span class="' + cpyCls(spid) + '" data-copy="' + spid + '" title="Copy SPID">⧉</span>';
         /* Each address gets the ⧉ the Reg and the SPID already have: opening it is one thing,
            pasting it into a message or another browser profile is another, and until now the only
            way to get the text was to open the page and copy the address bar. */
         const eUrl = pwUrl(stu.reg, x.res.spid);
         const olnk = function (u) { return "olnk" + (seenLinks.has(u) ? " seen" : "") + (lastLink === u ? " last" : ""); };
         pn += ' <span class="mut">—</span> <a class="' + olnk(eUrl) + '" data-lk="' + esc(eUrl) + '" href="' + eUrl + '" target="_blank" style="color:#8fb4ff" title="' + (srvMode ? "Expected" : "Open Payment History") + '">↗' + (srvMode ? " E" : "") + '</a>';
-        pn += ' <span class="cpy" data-copy="' + esc(eUrl) + '" title="' + (srvMode ? "Copy the Expected link" : "Copy the link") + '">⧉</span>';
+        pn += ' <span class="' + cpyCls(eUrl) + '" data-copy="' + esc(eUrl) + '" title="' + (srvMode ? "Copy the Expected link" : "Copy the link") + '">⧉</span>';
         // both servers, one click each — the whole point of the mode is reading them side by side
         if (srvMode) {
           const aUrl = pwUrl(stu.reg, x.res.spid, baseUrl2);
           pn += ' <a class="' + olnk(aUrl) + '" data-lk="' + esc(aUrl) + '" href="' + aUrl + '" target="_blank" style="color:#ffb454" title="Actual">↗ A</a>';
-          pn += ' <span class="cpy" data-copy="' + esc(aUrl) + '" title="Copy the Actual link">⧉</span>';
+          pn += ' <span class="' + cpyCls(aUrl) + '" data-copy="' + esc(aUrl) + '" title="Copy the Actual link">⧉</span>';
         }
       }
       /* the headline names the fault; this says what it actually means, which until now was
@@ -2731,7 +2735,14 @@
       const c = e.target.closest ? e.target.closest(".cpy") : null;
       if (!c) return;
       const url = c.getAttribute("data-copy") || c.getAttribute("data-url"); if (!url) return;
-      const done = function () { const o = c.textContent; c.textContent = "✓"; c.classList.add("ok"); setTimeout(function () { c.textContent = o; c.classList.remove("ok"); }, 1000); };
+      const done = function () {
+        const o = c.textContent; c.textContent = "✓"; c.classList.add("ok"); setTimeout(function () { c.textContent = o; c.classList.remove("ok"); }, 1000);
+        /* keep a lasting mark of what was copied (green), and a pill on the last one — survives a
+           re-render via copiedVals/lastCopy */
+        copiedVals.add(url); lastCopy = url;
+        [].slice.call($("list").querySelectorAll(".cpy.lastc")).forEach(function (x) { x.classList.remove("lastc"); });
+        c.classList.add("copd", "lastc");
+      };
       try { navigator.clipboard.writeText(url).then(done, function () {}); }
       catch (err) { const ta = document.createElement("textarea"); ta.value = url; document.body.appendChild(ta); ta.select(); try { document.execCommand("copy"); done(); } catch (e2) {} ta.remove(); }
     });
