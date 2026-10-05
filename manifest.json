@@ -1,9 +1,9 @@
 {
   "manifest_version": 3,
   "name": "UMS Reconciler",
-  "version": "13.99.64",
+  "version": "13.99.65",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAsfh35H8cv+lAJ1x+F6d3yWVRO8qqBsfBO9l1Pfr5gbNbov6rQi3axQ0ABxEDCHQjF9QVC5A/j6CkaQUNFoL0c68oFvP4kOcRnUc8rc7E9xiwNF4EliGCMHC3Thl5FGCIFW3il6oVpO0AH3dVAlc6x5v1oAxyorfXdcmUO19/7NKqwyp7RXu2KLld8iom8fSAuj6TPEfV/XAZhfdClPE9HWPWqIZSYrUBSQxVliBTBjM57dRMwrtXaurMVDYqs2tAkvC1TkeHNIoH/e1ErqiYg2WeDK03JZh9DD7KwE601nBcN1IWgGA0/qw/9h4uToA6w0vfGfql+/59+Jn4d0OVGQIDAQAB",
-  "description": "Verifies that Course Wise payment distribution matches the Program Wise totals on UMS (*.osl.team / *.umsbd.net, matched per MRN/CRN, column by column), and compares the same student across two UMS servers cell by cell. Editable base URLs, pop-out window, Google Sheet import.",
+  "description": "Verifies that Course Wise payment distribution matches the Program Wise totals on UMS (*.osl.team / *.umsbd.net / *.orgbd.net, matched per MRN/CRN, column by column), and compares the same student across two UMS servers cell by cell. Editable base URLs, pop-out window, Google Sheet import.",
   "icons": {
     "16": "icon16.png",
     "32": "icon32.png",
@@ -32,6 +32,7 @@
   "host_permissions": [
     "https://*.osl.team/*",
     "https://*.umsbd.net/*",
+    "https://*.orgbd.net/*",
     "https://docs.google.com/*",
     "https://*.googleusercontent.com/*",
     "https://raw.githubusercontent.com/*",
@@ -45,7 +46,10 @@
         "https://*.osl.team/Student/Payment/HistoyOfPaymentCourseWise*",
         "https://*.umsbd.net/Student/Payment/PaymentHistory*",
         "https://*.umsbd.net/Student/Payment/HistoryOfPayment*",
-        "https://*.umsbd.net/Student/Payment/HistoyOfPaymentCourseWise*"
+        "https://*.umsbd.net/Student/Payment/HistoyOfPaymentCourseWise*",
+        "https://*.orgbd.net/Student/Payment/PaymentHistory*",
+        "https://*.orgbd.net/Student/Payment/HistoryOfPayment*",
+        "https://*.orgbd.net/Student/Payment/HistoyOfPaymentCourseWise*"
       ],
       "js": [
         "reconcile.js",
@@ -70,7 +74,8 @@
       ],
       "matches": [
         "https://*.osl.team/*",
-        "https://*.umsbd.net/*"
+        "https://*.umsbd.net/*",
+        "https://*.orgbd.net/*"
       ]
     }
   ]

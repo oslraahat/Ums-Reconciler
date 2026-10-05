@@ -52,8 +52,8 @@
   function admPool() { return Math.max(1, Math.min(20, parseInt($("admPool").value, 10) || 1)); }
   function admBaseUrl() { return (($("admBase") && $("admBase").value) || "").trim().replace(/\/+$/, ""); }
   /* New Admission WRITES real records, so it is deliberately locked to osl.team (the test/staging
-     UMS). umsbd.net is read-only here — its Payment History can be reconciled, but no admission may
-     be created against it. Reject anything else with a clear message. */
+     UMS). umsbd.net / orgbd.net are read-only here — their Payment History can be reconciled, but no
+     admission may be created against them. Reject anything else with a clear message. */
   function admIsOsl(base) { try { return /^https?:$/i.test(new URL(base).protocol) && /(^|\.)osl\.team$/i.test(new URL(base).hostname); } catch (e) { return false; } }
   /* say WHICH server needs the login, so the fix is obvious — and so a login on the wrong server
      (right person, wrong UMS Address) shows up as a mismatch instead of a blank "not logged in" */
@@ -82,7 +82,7 @@
   /* ---- session fetch helpers ---- */
   function admUrl(path) {
     const base = admBaseUrl();
-    if (!admIsOsl(base)) throw new Error("New Admission শুধু *.osl.team-এ চলে (যেমন https://ums-4.osl.team) — umsbd.net সহ অন্য সার্ভার read-only, সেখানে ভর্তি করা যাবে না। \"" + base + "\" চলবে না");
+    if (!admIsOsl(base)) throw new Error("New Admission শুধু *.osl.team-এ চলে (যেমন https://ums-4.osl.team) — umsbd.net / orgbd.net সহ অন্য সার্ভার read-only, সেখানে ভর্তি করা যাবে না। \"" + base + "\" চলবে না");
     return base + path;
   }
   /* UMS denies admission AJAX that does not look like it came from the admission page, so rewrite
@@ -350,7 +350,7 @@
   }
   async function admLoadForm() {
     const base = admBaseUrl(); if (!base) { admOutLine(t("adm_need_base")); admBadField("admBase"); return; }
-    if (!admIsOsl(base)) { admOutLine("⚠ New Admission শুধু *.osl.team-এ চলে — umsbd.net read-only, সেখানে ভর্তি করা যাবে না"); admBadField("admBase"); return; }
+    if (!admIsOsl(base)) { admOutLine("⚠ New Admission শুধু *.osl.team-এ চলে — umsbd.net / orgbd.net read-only, সেখানে ভর্তি করা যাবে না"); admBadField("admBase"); return; }
     admLoadBtn(true);
     try {
       /* install the referer rule and fetch the page at the same time — the page GET (a document
