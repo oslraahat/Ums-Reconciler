@@ -192,5 +192,40 @@ const CW_1960915 = [
     chain(rZero).length > 0, lines(rZero) || "MISSED");
 }
 
+/* real: reg 1819558 (Faiza, orgbd.net) — a migration-cancellation whose Previous Due reaches back
+   to the ORIGINAL admission, not the row just above it.
+     14/08 admit: owed 20,000 (21,000 − 1,000), paid 14,000 → Current Due 6,000
+     19/08 pays the 6,000 → Current Due 0
+     05/10 cancels "For Student Migration": Previous Due 6,000, Consideration 20,000, Cash Back 14,000
+   Read strictly against the row above, 05/10 opens at 6,000 where 19/08 closed at 0 — a jump. But
+   6,000 is exactly where the 14/08 admission closed: the cancellation reverses that original
+   admission, so its opening links there, not to the row above. Nothing was lost, and the Total
+   Summary's −6,000 comes from the net identity (Receivable−Consideration−disc vs Received−CashBack),
+   not from this Previous Due — so the student is clean. */
+{
+  const PW = [
+    pwRow({ mrn: "1321354510", date: "14/08/2026", income: "21,000", prevStd: "1,000",
+      receivable: "21,000", received: "14,000", currentDue: "6,000" }),
+    pwRow({ mrn: "2720275889", date: "19/08/2026", previousDue: "6,000", receivable: "6,000",
+      received: "6,000", currentDue: "0" }),
+    pwRow({ crn: "9643306247", date: "05/10/2026", consideration: "20,000", previousDue: "6,000",
+      receivable: "6,000", cashBack: "14,000", currentDue: "0",
+      remarks: "Full Course 2026 [Offline] Cancelled.For Student Migration" })
+  ];
+  const CW = [
+    cwRow({ mrn: "1321354510", date: "14/08/2026", course: "Varsity KA", income: "21,000",
+      prevStd: "1,000", receivable: "21,000", grossReceived: "14,000", netReceived: "14,000", currentDue: "6,000" }),
+    cwRow({ mrn: "2720275889", date: "19/08/2026", course: "Varsity KA", previousDue: "6,000",
+      receivable: "6,000", grossReceived: "6,000", netReceived: "6,000", currentDue: "0" }),
+    cwRow({ crn: "9643306247", date: "05/10/2026", course: "Varsity KA", consideration: "20,000",
+      previousDue: "6,000", receivable: "6,000", cashBack: "14,000", netReceived: "(14,000)", currentDue: "0" })
+  ];
+  const r = U.compare(side(PW), side(CW), { tolerance: 0 });
+  check("migration-cancellation opening links to the original admission → no chain error",
+    chain(r).length === 0, lines(r) || "MISSED");
+  check("…and the whole student reads clean", r.errors.length === 0, lines(r));
+  check("…and matched", U.summary(r) === "সব মিলেছে", U.summary(r));
+}
+
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
 process.exit(fail ? 1 : 0);
