@@ -2825,7 +2825,20 @@
      account through; an "Anyone with the link" file needs no session. A link that is NOT public
      answers 401/403 (or a sign-in HTML page) — surfaced as "login/access needed", not a dead error. */
   function importOneDrive(link) {
-    const b64 = btoa(unescape(encodeURIComponent(link)));
+    /* Use the CANONICAL share URL for the token, not the pasted browser URL. A onedrive.live.com
+       link carries volatile query (?rtime=…&web=1&TeamsCID=…) that breaks the shares token (HTTP
+       400), and it base64-encodes the real 1drv.ms share URL into ?redeem= — which the API accepts.
+       So: if there's a redeem, decode it; then strip the query either way. */
+    let share = link;
+    try {
+      const u = new URL(link);
+      const redeem = u.searchParams.get("redeem");
+      if (redeem) {
+        try { share = decodeURIComponent(escape(atob(redeem.replace(/-/g, "+").replace(/_/g, "/")))); } catch (e) {}
+      }
+      const s = new URL(share); s.search = ""; s.hash = ""; share = s.toString();
+    } catch (e) {}
+    const b64 = btoa(unescape(encodeURIComponent(share)));
     const token = "u!" + b64.replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-");
     const url = "https://api.onedrive.com/v1.0/shares/" + token + "/root/content";
     $("impNote").textContent = t("imp_sheet");
