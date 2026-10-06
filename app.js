@@ -280,7 +280,7 @@
     single_l: { bn: "Single Reconcile", en: "Single Reconcile" },
     in_hint: { bn: "Excel/CSV বা Google Sheet দাও — Reg ও Program ID কলাম নিজেই ধরবে।", en: "Give an Excel/CSV or a Google Sheet — Reg and Program ID columns are auto-detected." },
     import_btn: { bn: "⬆ Import Excel", en: "⬆ Import Excel" }, link_btn: { bn: "↧ Sheet Link", en: "↧ Sheet Link" },
-    link_ph: { bn: "…অথবা Google Sheet লিংক", en: "…or a Google Sheet link" },
+    link_ph: { bn: "…অথবা Google Sheet / OneDrive লিংক", en: "…or a Google Sheet / OneDrive link" },
     paste_ph: { bn: "…অথবা এখানে পেস্ট করো — প্রতি লাইনে: Student Reg, Student Program ID", en: "…or paste here — one line each: Student Reg, Student Program ID" },
     paste_btn: { bn: "✓ Check", en: "✓ Check" },
     paste_empty: { bn: "পেস্ট বক্সটা ফাঁকা — Reg ও Program Id বসিয়ে আবার Check চাপো", en: "Paste box is empty — put Reg and Program Id in it, then press Check" },
@@ -298,7 +298,7 @@
     run_btn: { bn: "▶ Start", en: "▶ Start" },
     imp_row: { bn: "টি", en: "entries" }, imp_empty: { bn: "ফাইল খালি", en: "File empty" },
     imp_excel: { bn: "⏳ Excel পড়ছি…", en: "⏳ Reading Excel…" }, imp_excel_fail: { bn: "Excel পড়া গেল না", en: "Could not read Excel" },
-    imp_sheet: { bn: "⏳ Sheet আনছি…", en: "⏳ Fetching Sheet…" }, imp_login: { bn: "Google লগইন/অ্যাক্সেস দরকার", en: "Google login/access needed" }, imp_fail: { bn: "আনা গেল না", en: "Could not fetch" }, imp_badlink: { bn: "লিংক ঠিক নয়", en: "Invalid link" },
+    imp_sheet: { bn: "⏳ Sheet আনছি…", en: "⏳ Fetching Sheet…" }, imp_login: { bn: "লগইন/অ্যাক্সেস দরকার (শিটটি পাবলিক তো?)", en: "Login/access needed (is the sheet public?)" }, imp_fail: { bn: "আনা গেল না", en: "Could not fetch" }, imp_badlink: { bn: "লিংক ঠিক নয়", en: "Invalid link" },
     e_need: { bn: "spid বা program দাও", en: "give spid or program" }, e_pw: { bn: "Program Wise data নেই (redirect/ভুল spid?)", en: "No Program Wise data (redirect/wrong spid?)" }, e_perm: { bn: "search permission নেই", en: "no search permission" }, e_regspid: { bn: "এই সারিতে Reg আর Student PID একই সংখ্যা — এক ঘরের নম্বরই দুই ঘরে বসে গেছে কিনা দেখো (কলাম উল্টে দিলেও এই সারিতে কিছু বদলাত না)", en: "Reg and Student PID are the same number on this row — check one value has not been pasted into both cells (swapping the columns would change nothing here)" },
     results_h: { bn: "ফলাফল", en: "Results" }, ready: { bn: "প্রস্তুত", en: "Ready" },
     t_ok: { bn: "মিলেছে", en: "Matched" }, t_no: { bn: "অমিল", en: "Mismatch" }, t_cw: { bn: "CW ফাঁকা", en: "CW Empty" }, t_zero: { bn: "Zero Pay", en: "Zero Pay" }, t_stu: { bn: "Total Problem", en: "Total Problem" }, t_nf: { bn: "Program পাওয়া যায়নি", en: "Program Not Found" }, 
@@ -2780,7 +2780,13 @@
   }
 
   function importFromLink() {
-    const link = $("link").value.trim(); const m = link.match(/\/spreadsheets\/d\/([a-zA-Z0-9\-_]+)/);
+    const link = $("link").value.trim();
+    if (!link) { $("impNote").textContent = t("imp_badlink"); return; }
+    // OneDrive / SharePoint share links carry an .xlsx, not a CSV endpoint — fetched a different way.
+    if (/(?:^|\/\/)(?:1drv\.ms|onedrive\.live\.com|[\w-]+\.sharepoint\.com)\//i.test(link)) {
+      importOneDrive(link); return;
+    }
+    const m = link.match(/\/spreadsheets\/d\/([a-zA-Z0-9\-_]+)/);
     if (!m) { $("impNote").textContent = t("imp_badlink"); return; }
     const g = link.match(/[#&?]gid=(\d+)/); const gid = g ? g[1] : "0";
     const url = "https://docs.google.com/spreadsheets/d/" + m[1] + "/export?format=csv&gid=" + gid;
@@ -2809,6 +2815,47 @@
       else setSource("↧ " + (nm || t("src_link")), nm ? "" : "gid " + gid);
       applyImported(parseCSV(txt));
     }).catch(function (e) {
+      $("impNote").textContent = t("imp_fail") + " — " + String((e && e.message) || e);
+    });
+  }
+
+  /* OneDrive / SharePoint: a share link has no CSV export, so fetch the file itself through
+     Microsoft's public "shares" API — base64url(link), prefixed u!, then /root/content hands back
+     the .xlsx (or a CSV). credentials:"include" lets a file scoped to the signed-in Microsoft
+     account through; an "Anyone with the link" file needs no session. A link that is NOT public
+     answers 401/403 (or a sign-in HTML page) — surfaced as "login/access needed", not a dead error. */
+  function importOneDrive(link) {
+    const b64 = btoa(unescape(encodeURIComponent(link)));
+    const token = "u!" + b64.replace(/=+$/, "").replace(/\//g, "_").replace(/\+/g, "-");
+    const url = "https://api.onedrive.com/v1.0/shares/" + token + "/root/content";
+    $("impNote").textContent = t("imp_sheet");
+    let fname = "OneDrive";
+    fetch(url, { credentials: "include" }).then(function (r) {
+      if (r.status === 401 || r.status === 403) throw new Error("__login__");
+      if (!r.ok) throw new Error("HTTP " + r.status);
+      try {
+        const cd = r.headers.get("content-disposition") || "";
+        const mm = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(cd);
+        if (mm) fname = decodeURIComponent(mm[1].trim());
+      } catch (e) {}
+      return r.arrayBuffer();
+    }).then(function (buf) {
+      if (!buf) return;
+      const u8 = new Uint8Array(buf);
+      // an .xlsx is a zip (PK\x03\x04); anything else is either a CSV or a sign-in / error page
+      const zip = u8.length > 3 && u8[0] === 0x50 && u8[1] === 0x4B && (u8[2] === 0x03 || u8[2] === 0x05 || u8[2] === 0x07);
+      if (!zip) {
+        const head = new TextDecoder("utf-8").decode(u8.slice(0, 256));
+        if (/^\s*<(?:!doctype|html|\?xml)/i.test(head)) { $("impNote").textContent = t("imp_login"); return; }
+        clearSheetPicker();
+        setSource("↧ " + (fname || t("src_link")), "OneDrive");
+        applyImported(parseCSV(new TextDecoder("utf-8").decode(u8)));
+        return;
+      }
+      // hand the workbook to the same reader the Import-Excel button uses, so the tab picker works too
+      loadXlsx(new File([buf], /\.(xlsx|xls|csv)$/i.test(fname) ? fname : fname + ".xlsx"));
+    }).catch(function (e) {
+      if (e && e.message === "__login__") { $("impNote").textContent = t("imp_login"); return; }
       $("impNote").textContent = t("imp_fail") + " — " + String((e && e.message) || e);
     });
   }
