@@ -23,6 +23,7 @@
 
   var MAX_LINKS = 600;           // a hard cap so a mis-parsed page can never spawn thousands of fetches
   var CONC = 8;                  // parallel page checks (HTTP mode)
+  var FN_HEADLESS_CONC = 3;      // parallel off-screen windows in Headless mode (Browser stays 1)
   var fnRun = null;              // { stop } while a crawl is going
   var fnMode = "http";           // http | browser | headless
 
@@ -260,14 +261,14 @@
       } catch (e) { resolve(null); }
     });
   }
-  function fnVisit(url, mode, base, actions, vals) {
+  function fnVisit(url, mode, base, actions, vals, slot) {
     return new Promise(function (resolve) {
       var done = false;
       // a page that blocks (a native dialog, an endless script) must NOT hang the whole crawl — if the
       // background does not answer in time, give up on this one and move on.
       var to = setTimeout(function () { if (!done) { done = true; resolve({ ok: false, error: "timeout — পেজ সাড়া দেয়নি (৬০s)" }); } }, 60000);
       try {
-        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals }, function (resp) {
+        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals, slot: slot || 0 }, function (resp) {
           if (done) { void chrome.runtime.lastError; return; } done = true; clearTimeout(to);
           var le = chrome.runtime.lastError;
           if (le) { resolve({ ok: false, error: le.message || "no response (এক্সটেনশন পুরো Reload করো)" }); return; }
@@ -333,18 +334,24 @@
         tpin: ($("fnTpin") && $("fnTpin").value || "").trim(),
         pin: ($("fnPin") && $("fnPin").value || "").trim()
       };
+      // Headless runs several off-screen windows in parallel for speed; Browser stays 1-at-a-time
+      // (it is the visible front tab). Each concurrent worker borrows a free window slot.
+      var concV = (fnMode === "headless") ? FN_HEADLESS_CONC : 1;
+      var freeSlots = []; for (var si = 0; si < concV; si++) freeSlots.push(si);
       fnProgress(0, total, t("fn_visiting"));
-      for (var vi = 0; vi < links.length; vi++) {
-        if (fnRun && fnRun.stop) break;
-        await waitIfPaused(); if (fnRun && fnRun.stop) break;
-        var v = await fnVisit(links[vi].url, fnMode, base, doActions, vals);
-        var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
-        var row = Object.assign({}, links[vi], c);
-        if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
-        results.push(row);
-        done++; fnProgress(done, total, t("fn_visiting"));
+      await pool(links, concV, function (link) {
+        var slot = freeSlots.length ? freeSlots.pop() : 0;
+        return fnVisit(link.url, fnMode, base, doActions, vals, slot).then(function (v) {
+          freeSlots.push(slot);
+          var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
+          var row = Object.assign({}, link, c);
+          if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
+          return row;
+        }, function (e) { freeSlots.push(slot); return Object.assign({}, link, { pass: false, reason: "লোড হয়নি — " + String(e && e.message || e), kind: "net" }); });
+      }, function (row) {
+        results.push(row); done++; fnProgress(done, total, t("fn_visiting"));
         fnRenderSummary(); fnRenderList();
-      }
+      });
       try { chrome.runtime.sendMessage({ type: "fnVisitClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
     }
     if (fnRun && fnRun.stop) { fnDone(); return; }

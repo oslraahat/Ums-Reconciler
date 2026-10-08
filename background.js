@@ -455,7 +455,7 @@ async function fnShotClose() {
    Load each page for real so its JavaScript runs, then read the rendered DOM + any uncaught console
    errors. Browser = a visible front tab; Headless = an off-screen window that never takes focus.
    Still read-only: it only opens the page. */
-let fnVisit = { tabId: null, winId: null, mode: null };
+let fnVisitSlots = {};   // slot -> { tabId, winId, mode }; one reused window per concurrency slot
 let fnProbeReg = "";   // origin the console collector is registered for ("" = not registered)
 async function fnRegisterProbe(base) {
   var origin; try { origin = new URL(base).origin; } catch (e) { return; }
@@ -476,20 +476,22 @@ async function fnUnregisterProbe() {
   try { await chrome.scripting.unregisterContentScripts({ ids: ["fnprobe"] }); } catch (e) {}
   fnProbeReg = "";
 }
-async function fnEnsureVisit(url, mode) {
-  if (fnVisit.tabId != null && fnVisit.mode === mode && await getTab(fnVisit.tabId)) { await chrome.tabs.update(fnVisit.tabId, { url: url }); return fnVisit.tabId; }
-  await fnVisitClose();
+async function fnEnsureVisit(url, mode, slot) {
+  slot = slot || 0;
+  var cur = fnVisitSlots[slot];
+  if (cur && cur.tabId != null && cur.mode === mode && await getTab(cur.tabId)) { await chrome.tabs.update(cur.tabId, { url: url }); return cur.tabId; }
+  if (cur) { try { if (cur.winId != null && cur.mode !== "browser") await chrome.windows.remove(cur.winId); else if (cur.tabId != null) await chrome.tabs.remove(cur.tabId); } catch (e) {} }
   if (mode === "browser") {
     const tb = await chrome.tabs.create({ url: url, active: true });
-    fnVisit = { tabId: tb.id, winId: tb.windowId, mode: mode };
+    fnVisitSlots[slot] = { tabId: tb.id, winId: tb.windowId, mode: mode };
   } else {
     let win;
     try { win = await chrome.windows.create({ url: url, focused: false, left: 30000, top: 30000, width: 1200, height: 820 }); }
     catch (e) { win = await chrome.windows.create({ url: url, focused: false, width: 1200, height: 820 }); }
     try { await chrome.windows.update(win.id, { left: 30000, top: 30000, focused: false }); } catch (e) {}
-    fnVisit = { tabId: win && win.tabs && win.tabs[0] && win.tabs[0].id, winId: win.id, mode: mode };
+    fnVisitSlots[slot] = { tabId: win && win.tabs && win.tabs[0] && win.tabs[0].id, winId: win.id, mode: mode };
   }
-  return fnVisit.tabId;
+  return fnVisitSlots[slot].tabId;
 }
 async function fnProbeDeep(opts) {
   // runs in the loaded page (MAIN world): classify from what actually rendered, and — when opts.actions
@@ -588,7 +590,7 @@ async function fnActionProbe(opts) {
     }
     // several passes so cascading dropdowns (one selection loads the next via AJAX) ALL get set
     try {
-      for (var pass = 0; pass < 4; pass++) { var changed = fillSelects(); fillInputs(); await sleep(changed ? 500 : 250); }
+      for (var pass = 0; pass < 3; pass++) { var changed = fillSelects(); fillInputs(); await sleep(changed ? 350 : 120); }
     } catch (e) {}
 
     // Changing a password would lock the real user out, so on any page carrying a password box the
@@ -630,13 +632,13 @@ async function fnActionProbe(opts) {
   } catch (e) { actions.push({ label: "(action probe)", pass: false, reason: String((e && e.message) || e) }); }
   return actions;
 }
-async function fnVisitRun(url, mode, base, actions, vals) {
+async function fnVisitRun(url, mode, base, actions, vals, slot) {
   try {
     await fnRegisterProbe(base);
-    var tabId = await fnEnsureVisit(url, mode);
+    var tabId = await fnEnsureVisit(url, mode, slot || 0);
     if (tabId == null) return { ok: false, error: "tab/window তৈরি হয়নি" };
     await waitTabComplete(tabId, 25000);
-    await bgSleep(600);   // let scripts run and paint
+    await bgSleep(300);   // let scripts run and paint
     // write-gate: state-changing buttons fire only on the osl.team test server
     var allowWrite = false;
     try { allowWrite = /(^|\.)osl\.team$/i.test(new URL(base).hostname); } catch (e) {}
@@ -679,8 +681,11 @@ async function fnVisitRun(url, mode, base, actions, vals) {
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
 async function fnVisitClose() {
-  try { if (fnVisit.winId != null && fnVisit.mode !== "browser") await chrome.windows.remove(fnVisit.winId); else if (fnVisit.tabId != null) await chrome.tabs.remove(fnVisit.tabId); } catch (e) {}
-  fnVisit = { tabId: null, winId: null, mode: null };
+  for (var k in fnVisitSlots) {
+    var s = fnVisitSlots[k]; if (!s) continue;
+    try { if (s.winId != null && s.mode !== "browser") await chrome.windows.remove(s.winId); else if (s.tabId != null) await chrome.tabs.remove(s.tabId); } catch (e) {}
+  }
+  fnVisitSlots = {};
   await fnUnregisterProbe();
 }
 
@@ -689,14 +694,15 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === "admBrowserClose") { admCloseRun(msg.slot).then(function () { sendResponse({ ok: true }); }); return true; }
   if (msg && msg.type === "fnShot") { fnShotRun(msg.url).then(sendResponse); return true; }
   if (msg && msg.type === "fnShotClose") { fnShotClose().then(function () { sendResponse({ ok: true }); }); return true; }
-  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions, msg.vals).then(sendResponse); return true; }
+  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions, msg.vals, msg.slot).then(sendResponse); return true; }
   if (msg && msg.type === "fnVisitClose") { fnVisitClose().then(function () { sendResponse({ ok: true }); }); return true; }
 });
 /* If the user closes a Function-Check window by hand (or the panel goes away mid-crawl and its close
    message never arrives), drop our state and unregister the console collector so nothing leaks. */
 if (chrome.windows && chrome.windows.onRemoved) {
   chrome.windows.onRemoved.addListener(function (winId) {
-    if (fnVisit && fnVisit.winId === winId) { fnVisit = { tabId: null, winId: null, mode: null }; fnUnregisterProbe(); }
+    for (var k in fnVisitSlots) { if (fnVisitSlots[k] && fnVisitSlots[k].winId === winId) { delete fnVisitSlots[k]; } }
+    if (!Object.keys(fnVisitSlots).length) fnUnregisterProbe();
     if (fnShot && fnShot.winId === winId) { fnShot = { tabId: null, winId: null }; }
   });
 }
