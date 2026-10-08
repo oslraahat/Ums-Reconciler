@@ -306,6 +306,26 @@
         $("fnNote").textContent = t("fn_login"); fnDone(); return;
       }
       links = fnParseNav(home.html, base);
+      // The home page carries only the CURRENT section's sidebar (Student) plus the top-nav links to
+      // the other sections — each other section (Exam, Teacher, Team, Inventory, CRM, Administration)
+      // loads its OWN sidebar only when you open it. So open each section's landing page once and merge
+      // its sub-menus in, or the whole crawl would miss hundreds of pages outside Student.
+      var seenUrls = {}; links.forEach(function (l) { seenUrls[l.url] = 1; });
+      var roots = {};   // top menu -> its shortest landing path found in the home nav
+      links.forEach(function (l) {
+        var tm = fnTopMenu(l.path);
+        if (tm !== "Student" && tm !== "Other" && (!roots[tm] || l.path.length < roots[tm].length)) roots[tm] = l.path;
+      });
+      var rootList = Object.keys(roots);
+      for (var ri = 0; ri < rootList.length; ri++) {
+        if (fnRun && fnRun.stop) break;
+        fnProgress(ri, rootList.length, t("fn_sections"));
+        try {
+          var secUrl = new URL(roots[rootList[ri]], base).href;
+          var sec = await fetchHtml(secUrl);
+          fnParseNav(sec.html, base).forEach(function (l) { if (!seenUrls[l.url]) { seenUrls[l.url] = 1; links.push(l); } });
+        } catch (e) {}
+      }
     } catch (e) {
       $("fnNote").textContent = t("fn_fail") + " — " + String(e && e.message || e); fnDone(); return;
     }

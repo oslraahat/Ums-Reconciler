@@ -165,6 +165,7 @@
     fn_browser_l: { bn: "🌐 Browser", en: "🌐 Browser" },
     fn_headless_l: { bn: "⚙️ Headless", en: "⚙️ Headless" },
     fn_reading: { bn: "মেনু পড়ছি…", en: "Reading the menu…" },
+    fn_sections: { bn: "সব বিভাগের sub-menu আনছি…", en: "Collecting every section's sub-menus…" },
     fn_checking: { bn: "পেজ যাচাই করছি…", en: "Checking pages…" },
     fn_visiting: { bn: "পেজ লোড করে যাচাই করছি…", en: "Loading & checking pages…" },
     fn_shooting: { bn: "Fail-এর স্ক্রিনশট নিচ্ছি…", en: "Capturing failure screenshots…" },
