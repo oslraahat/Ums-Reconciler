@@ -350,7 +350,10 @@
     if ($("fnActions")) $("fnActions").addEventListener("change", function () { try { chrome.storage.local.set({ fnActions: this.checked }); } catch (e) {} });
     var VKEYS = { fnRoll: "fnRoll", fnReg: "fnReg", fnMobile: "fnMobile", fnTpin: "fnTpin", fnPin: "fnPin" };
     Object.keys(VKEYS).forEach(function (id) {
-      var e = $(id); if (e) e.addEventListener("input", function () { var o = {}; o[id] = this.value; try { chrome.storage.local.set(o); } catch (err) {} });
+      var e = $(id); if (!e) return;
+      // input covers typing; change/blur catch a browser autofill/suggestion that doesn't fire input
+      var save = function () { var o = {}; o[id] = e.value; try { chrome.storage.local.set(o); } catch (err) {} };
+      ["input", "change", "blur"].forEach(function (ev) { e.addEventListener(ev, save); });
     });
     if ($("fnBase") && !$("fnBase").value) $("fnBase").value = (A.getBaseUrl && A.getBaseUrl()) || "https://ums-4.osl.team";
     try {
