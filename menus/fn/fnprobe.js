@@ -4,6 +4,10 @@
  * page global that the post-load probe reads back. It only listens — it changes nothing. */
 (function () {
   try {
+    // Neuter native dialogs the moment the page starts: an alert/confirm/prompt fired during page
+    // LOAD blocks the page thread, which would hang our probe injection and time the page out even
+    // though it opens fine by hand.
+    try { window.alert = function () {}; window.confirm = function () { return true; }; window.prompt = function () { return null; }; } catch (_) {}
     if (window.__fnErr) return;
     window.__fnErr = [];
     window.addEventListener("error", function (e) {

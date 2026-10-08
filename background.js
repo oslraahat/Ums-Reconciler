@@ -307,6 +307,9 @@ async function admDriver(p) {
 }
 
 function bgSleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
+// resolve a promise, but reject if it has not settled in `ms` — so a hung executeScript (e.g. the
+// page thread blocked by a dialog) is given up on instead of hanging the whole visit for 60s.
+function fnRace(p, ms) { return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej(new Error("probe timeout")); }, ms); })]); }
 function getTab(id) { return new Promise(function (r) { chrome.tabs.get(id, function (t) { r(chrome.runtime.lastError ? null : t); }); }); }
 const RECEIPT_RE = /GenerateMoneyReciept|GenerateCoursewiseMoneyReciept/i;
 function receiptId(url) { const m = url && url.match(/[?&](?:id|studentPaymentIdList)=(\d+)/); return m ? m[1] : ""; }
@@ -588,6 +591,33 @@ async function fnActionProbe(opts) {
       document.querySelectorAll("table tr").forEach(function (tr) { if (vis(tr) && tr.querySelector("td")) n++; });
       return n;
     }
+    function valCount() {   // visible, non-empty validation messages on screen
+      var n = 0;
+      document.querySelectorAll(".field-validation-error, .validation-summary-errors li, .invalid-feedback, .text-danger, [id$='Error'], [id$='error']").forEach(function (el) {
+        if (vis(el) && (el.textContent || "").replace(/\s+/g, " ").trim()) n++;
+      });
+      return n;
+    }
+
+    // ---- EMPTY-field submit check (before filling) ----
+    // Click the form's primary Submit with everything still blank, to confirm its validation fires.
+    // Navigation is already held back, so an empty submit on a well-formed form just shows its
+    // required-field messages / reveals a new control — it does not reach the server.
+    try {
+      var sub = document.querySelector('input[type=submit], button[type=submit]');
+      if (!sub) { var bb = document.querySelectorAll("button, input[type=button], [role=button]"); for (var si = 0; si < bb.length; si++) { if (vis(bb[si]) && /submit|search|go|next|ok|save/i.test((bb[si].value || bb[si].textContent || ""))) { sub = bb[si]; break; } } }
+      if (sub && vis(sub) && !sub.disabled && !document.querySelector("input[type=password]")) {
+        var vb = valCount(), url0 = location.href;
+        sub.click();
+        await sleep(700);
+        if (location.href === url0) {
+          var va = valCount();
+          if (va > vb) actions.push({ label: "(খালি submit)", pass: true, reason: "✓ validation এলো — " + va + " টি বার্তা" });
+          else actions.push({ label: "(খালি submit)", pass: false, reason: "⚠ খালি Submit-এ কোনো validation এলো না" });
+        }
+      }
+    } catch (e) {}
+
     // several passes so cascading dropdowns (one selection loads the next via AJAX) ALL get set
     try {
       for (var pass = 0; pass < 3; pass++) { var changed = fillSelects(); fillInputs(); await sleep(changed ? 350 : 120); }
@@ -658,8 +688,8 @@ async function fnVisitRun(url, mode, base, actions, vals, slot) {
       // MAIN world lets the probe read the console-error collector; fall back to the default world
       // (DOM check still works, just no window.__fnErr) on a Chrome that rejects world:MAIN here.
       var res;
-      try { res = await chrome.scripting.executeScript({ target: { tabId: tabId }, world: "MAIN", func: fnProbeDeep, args: [opts] }); }
-      catch (e1) { useMain = false; res = await chrome.scripting.executeScript({ target: { tabId: tabId }, func: fnProbeDeep, args: [opts] }); }
+      try { res = await fnRace(chrome.scripting.executeScript({ target: { tabId: tabId }, world: "MAIN", func: fnProbeDeep, args: [opts] }), 12000); }
+      catch (e1) { useMain = false; res = await fnRace(chrome.scripting.executeScript({ target: { tabId: tabId }, func: fnProbeDeep, args: [opts] }), 12000); }
       probe = res && res[0] && res[0].result;
       if (!probe) probe = { error: "probe ফলাফল পাওয়া যায়নি" };
     } catch (e) { probe = { error: String((e && e.message) || e) }; }
@@ -676,7 +706,7 @@ async function fnVisitRun(url, mode, base, actions, vals, slot) {
         var ar;
         var tgt = { target: { tabId: tabId }, func: fnActionProbe, args: [opts] };
         if (useMain) tgt.world = "MAIN";
-        ar = await chrome.scripting.executeScript(tgt);
+        ar = await fnRace(chrome.scripting.executeScript(tgt), 40000);
         probe.actions = (ar && ar[0] && ar[0].result) || [];
       } catch (e) {
         // A button navigated the page before we could hold it back → the injected frame is gone. That
