@@ -498,10 +498,12 @@ async function fnEnsureVisit(url, mode, slot) {
   } else {
     // Headless: a MINIMIZED window — truly hidden and never focused. (An off-screen left:30000 window
     // gets clamped back onto the display by some Chrome/OS setups, which is why windows were showing.)
+    // NOTE: `focused:false` together with `state:"minimized"` conflicts and Chrome then ignores the
+    // minimize (window shows). Pass state alone — minimized is inactive by definition.
     let win;
-    try { win = await chrome.windows.create({ url: url, focused: false, state: "minimized" }); }
+    try { win = await chrome.windows.create({ url: url, state: "minimized" }); }
     catch (e) { win = await chrome.windows.create({ url: url, focused: false, left: 30000, top: 30000, width: 1200, height: 820 }); }
-    try { await chrome.windows.update(win.id, { state: "minimized", focused: false }); } catch (e) {}
+    try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}
     fnVisitSlots[slot] = { tabId: win && win.tabs && win.tabs[0] && win.tabs[0].id, winId: win.id, mode: mode };
   }
   return fnVisitSlots[slot].tabId;

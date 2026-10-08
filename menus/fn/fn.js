@@ -376,21 +376,25 @@
     }
     if (fnRun && fnRun.stop) { fnDone(); return; }
 
-    // 2) a screenshot for each failure (sequential — one side window, reused)
-    var fails = results.filter(function (r) { return !r.pass; });
-    for (var k = 0; k < fails.length; k++) {
-      if (fnRun && fnRun.stop) break;
-      await waitIfPaused(); if (fnRun && fnRun.stop) break;
-      fnProgress(k, fails.length, t("fn_shooting"));
-      var s = await fnShot(fails[k].url);
-      if (s && s.shot) {
-        fails[k].shot = s.shot;
-        // refine the reason with what the loaded page actually showed, if the probe found more
-        if (s.probe && s.probe.errText && fails[k].kind !== "page") fails[k].reason += " · " + String(s.probe.errText).slice(0, 60);
-        fnRenderList();
+    // 2) a screenshot for each failure. The capture window must be visible to be captured, so in
+    // Headless (= stay hidden) the screenshot pass is skipped — no window pops up. Use Browser/HTTP
+    // mode if you want failure screenshots.
+    if (fnMode !== "headless") {
+      var fails = results.filter(function (r) { return !r.pass; });
+      for (var k = 0; k < fails.length; k++) {
+        if (fnRun && fnRun.stop) break;
+        await waitIfPaused(); if (fnRun && fnRun.stop) break;
+        fnProgress(k, fails.length, t("fn_shooting"));
+        var s = await fnShot(fails[k].url);
+        if (s && s.shot) {
+          fails[k].shot = s.shot;
+          // refine the reason with what the loaded page actually showed, if the probe found more
+          if (s.probe && s.probe.errText && fails[k].kind !== "page") fails[k].reason += " · " + String(s.probe.errText).slice(0, 60);
+          fnRenderList();
+        }
       }
+      try { chrome.runtime.sendMessage({ type: "fnShotClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
     }
-    try { chrome.runtime.sendMessage({ type: "fnShotClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
     fnProgress(results.length, results.length, t("fn_done"));
     fnDone();
   }
