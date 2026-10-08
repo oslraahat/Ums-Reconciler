@@ -156,6 +156,8 @@
     fn_base_l: { bn: "UMS ঠিকানা (Base URL)", en: "UMS address (Base URL)" },
     fn_start: { bn: "Check Now", en: "Check Now" },
     fn_stop: { bn: "⏹ থামাও", en: "⏹ Stop" },
+    fn_pause: { bn: "⏸ বিরতি", en: "⏸ Pause" },
+    fn_resume: { bn: "▶ চালাও", en: "▶ Resume" },
     fn_export: { bn: "⬇ CSV", en: "⬇ CSV" },
     fn_actions_l: { bn: "বাটনও টেস্ট করো — field ভরে প্রতিটি বাটনে ক্লিক (Browser/Headless মোডে)", en: "Test buttons too — fill fields & click each button (Browser/Headless mode)" },
     fn_vals_l: { bn: "বাটন-টেস্টে এই মানগুলো বসবে:", en: "Button test uses these values:" },

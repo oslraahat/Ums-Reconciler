@@ -197,6 +197,7 @@
       var i = 0, active = 0, done = 0;
       function next() {
         if (fnRun && fnRun.stop) { if (active === 0) resolve(); return; }
+        if (fnRun && fnRun.paused) { setTimeout(next, 300); return; }   // hold off new dispatches while paused
         while (active < n && i < items.length) {
           var idx = i++; active++;
           worker(items[idx], idx).then(function (r) { onEach(r, idx); }).catch(function () {}).then(function () {
@@ -246,11 +247,20 @@
     });
   }
 
+  function waitIfPaused() {
+    return new Promise(function (resolve) {
+      (function loop() {
+        if (!fnRun || !fnRun.paused || fnRun.stop) { resolve(); return; }
+        setTimeout(loop, 250);
+      })();
+    });
+  }
   async function fnStart() {
     if (fnRun) return;
-    fnRun = { stop: false };
+    fnRun = { stop: false, paused: false };
     results = [];
     $("fnStart").style.display = "none"; $("fnStop").style.display = "";
+    if ($("fnPause")) { $("fnPause").style.display = ""; $("fnPause").textContent = t("fn_pause"); }
     $("fnSummary").innerHTML = ""; $("fnList").innerHTML = "";
     var base = fnBase();
     fnProgress(0, 0, t("fn_reading"));
@@ -289,6 +299,7 @@
       fnProgress(0, total, t("fn_visiting"));
       for (var vi = 0; vi < links.length; vi++) {
         if (fnRun && fnRun.stop) break;
+        await waitIfPaused(); if (fnRun && fnRun.stop) break;
         var v = await fnVisit(links[vi].url, fnMode, base, doActions, vals);
         var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
         var row = Object.assign({}, links[vi], c);
@@ -305,6 +316,7 @@
     var fails = results.filter(function (r) { return !r.pass; });
     for (var k = 0; k < fails.length; k++) {
       if (fnRun && fnRun.stop) break;
+      await waitIfPaused(); if (fnRun && fnRun.stop) break;
       fnProgress(k, fails.length, t("fn_shooting"));
       var s = await fnShot(fails[k].url);
       if (s && s.shot) {
@@ -319,10 +331,16 @@
     fnDone();
   }
 
-  function fnStop() { if (fnRun) fnRun.stop = true; }
+  function fnStop() { if (fnRun) { fnRun.stop = true; fnRun.paused = false; } }
+  function fnPause() {
+    if (!fnRun) return;
+    fnRun.paused = !fnRun.paused;
+    var b = $("fnPause"); if (b) b.textContent = fnRun.paused ? t("fn_resume") : t("fn_pause");
+  }
   function fnDone() {
     fnRun = null;
     if ($("fnStart")) { $("fnStart").style.display = ""; $("fnStop").style.display = "none"; }
+    if ($("fnPause")) { $("fnPause").style.display = "none"; $("fnPause").textContent = t("fn_pause"); }
     fnRenderSummary();
   }
 
@@ -345,6 +363,7 @@
   function fnWire() {
     if ($("fnStart")) $("fnStart").addEventListener("click", fnStart);
     if ($("fnStop")) $("fnStop").addEventListener("click", fnStop);
+    if ($("fnPause")) $("fnPause").addEventListener("click", fnPause);
     if ($("fnExport")) $("fnExport").addEventListener("click", fnExport);
     if ($("fnHttp")) $("fnHttp").addEventListener("click", function () { fnSetMode("http"); });
     if ($("fnBrowser")) $("fnBrowser").addEventListener("click", function () { fnSetMode("browser"); });
