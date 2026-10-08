@@ -40,6 +40,23 @@
   var SKIP_HREF = /(log\s*-?\s*(out|off)|sign\s*-?\s*out|\/account\/log|\/logout|\/logoff|delete|remove|destroy|\bdrop\b|approve|activate|deactivate|\bvoid\b|\benable\b|\bdisable\b|\breset\b|generate|\bsend\b|export|download|\/print|\.(pdf|xlsx?|csv|zip|docx?|pptx?|png|jpe?g|gif)(\?|$))/i;
   var ORIGIN = function (u) { try { return new URL(u).origin; } catch (e) { return ""; } };
 
+  /* The top-level UMS menu a path belongs to, and the order the user wants them checked in:
+     Student → Administration → Exam → Teacher → CRM → Team → Inventory. CRM lives UNDER /Student
+     (…/CrmConversation/…), so it is matched first; Team is /Hr, Inventory is /UInventory. */
+  var MENU_ORDER = ["Student", "Administration", "Exam", "Teacher", "CRM", "Team", "Inventory", "Other"];
+  function fnTopMenu(path) {
+    var p = String(path || "").toLowerCase();
+    if (/crm/.test(p)) return "CRM";
+    if (/^\/administration\b/.test(p)) return "Administration";
+    if (/^\/exam\b/.test(p)) return "Exam";
+    if (/^\/teachers?\b/.test(p)) return "Teacher";
+    if (/^\/hr\b/.test(p)) return "Team";
+    if (/^\/(u)?inventory\b/.test(p)) return "Inventory";
+    if (/^\/student\b/.test(p)) return "Student";
+    return "Other";
+  }
+  function fnMenuRank(path) { var i = MENU_ORDER.indexOf(fnTopMenu(path)); return i < 0 ? MENU_ORDER.length : i; }
+
   /* Pull EVERY link out of the page — menus, sub-menus and any other navigational <a href>. Server-
      rendered UMS keeps every sidebar/submenu <a> in the markup (collapsed ones are only hidden by
      CSS), and sub-menus can sit outside the main nav container, so the whole document is scanned
@@ -197,7 +214,7 @@
       var i = 0, active = 0, done = 0;
       function next() {
         if (fnRun && fnRun.stop) { if (active === 0) resolve(); return; }
-        if (fnRun && fnRun.paused) { setTimeout(next, 300); return; }   // hold off new dispatches while paused
+        if (fnRun && fnRun.paused) { fnRun._resume = next; return; }   // park until Resume fires next()
         while (active < n && i < items.length) {
           var idx = i++; active++;
           worker(items[idx], idx).then(function (r) { onEach(r, idx); }).catch(function () {}).then(function () {
@@ -247,14 +264,14 @@
     });
   }
 
+  // Event-driven, not a poll: a backgrounded panel (Browser mode steals focus) throttles setTimeout,
+  // which could leave a poll-based wait stuck after Resume. Instead we park the loop on a resolver
+  // that the Resume/Stop click fires directly.
   function waitIfPaused() {
-    return new Promise(function (resolve) {
-      (function loop() {
-        if (!fnRun || !fnRun.paused || fnRun.stop) { resolve(); return; }
-        setTimeout(loop, 250);
-      })();
-    });
+    if (!fnRun || !fnRun.paused || fnRun.stop) return Promise.resolve();
+    return new Promise(function (resolve) { fnRun._resume = resolve; });
   }
+  function fnReleasePause() { if (fnRun && fnRun._resume) { var r = fnRun._resume; fnRun._resume = null; r(); } }
   async function fnStart() {
     if (fnRun) return;
     fnRun = { stop: false, paused: false };
@@ -275,6 +292,9 @@
       $("fnNote").textContent = t("fn_fail") + " — " + String(e && e.message || e); fnDone(); return;
     }
     if (!links.length) { $("fnNote").textContent = t("fn_nomenu"); fnDone(); return; }
+    // check in the menu serial the user wants: Student → Administration → Exam → Teacher → CRM →
+    // Team → Inventory (stable, so sub-menu order within each menu is kept as the page listed them)
+    links.sort(function (a, b) { return fnMenuRank(a.path) - fnMenuRank(b.path); });
 
     // 1) pass/fail over every page
     var total = links.length, done = 0;
@@ -331,11 +351,12 @@
     fnDone();
   }
 
-  function fnStop() { if (fnRun) { fnRun.stop = true; fnRun.paused = false; } }
+  function fnStop() { if (fnRun) { fnRun.stop = true; fnRun.paused = false; fnReleasePause(); } }
   function fnPause() {
     if (!fnRun) return;
     fnRun.paused = !fnRun.paused;
     var b = $("fnPause"); if (b) b.textContent = fnRun.paused ? t("fn_resume") : t("fn_pause");
+    if (!fnRun.paused) fnReleasePause();   // Resume → release the parked loop immediately
   }
   function fnDone() {
     fnRun = null;
