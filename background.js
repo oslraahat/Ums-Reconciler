@@ -603,7 +603,11 @@ async function fnActionProbe(opts) {
       var label = ((b.value || b.textContent || b.title || "").replace(/\s+/g, " ").trim() || "button").slice(0, 40);
       var isWrite = WRITE.test(label) || /submit/i.test(b.type || "");
       if (isWrite && (hasPassword || /password|change.?pass|credential/i.test(label))) { actions.push({ label: label, pass: true, reason: "skipped — password/credential (নিরাপত্তা)" }); continue; }
-      var isView = VIEW.test(label) && !isWrite;
+      // a plain navigational link (<a class=btn href=/page>) only changes location — which we hold
+      // back — so it never loads a table in place; don't judge it by the view/table rule.
+      var hrefAttr = (b.tagName === "A" && b.getAttribute("href")) || "";
+      var isNavLink = !!hrefAttr && hrefAttr.charAt(0) !== "#" && !/^javascript:/i.test(hrefAttr);
+      var isView = VIEW.test(label) && !isWrite && !isNavLink;
       var before = location.href, rowsBefore = dataRows();
       try { if (window.__fnErr) window.__fnErr.length = 0; } catch (e) {}
       try { b.click(); } catch (e) { actions.push({ label: label, pass: false, reason: "click error: " + ((e && e.message) || e) }); continue; }
@@ -615,6 +619,7 @@ async function fnActionProbe(opts) {
       var ce = ""; try { if (window.__fnErr && window.__fnErr.length) ce = window.__fnErr.slice(0, 2).join(" | "); } catch (e) {}
       if (er) { actions.push({ label: label, pass: false, reason: "error: " + er.slice(0, 70) }); continue; }
       if (ce) { actions.push({ label: label, pass: false, reason: "JS error: " + ce.slice(0, 70) }); continue; }
+      if (isNavLink) { actions.push({ label: label, pass: true, reason: "লিংক বাটন — নেভিগেশন আটকানো হয়েছে (error নেই)" }); continue; }
       if (isView) {
         var rowsAfter = dataRows(), hasTable = !!document.querySelector("table");
         if (rowsAfter > 0) actions.push({ label: label, pass: true, reason: "✓ টেবিল এলো — " + rowsAfter + " row" });

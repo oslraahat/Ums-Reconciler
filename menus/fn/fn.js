@@ -47,12 +47,12 @@
   function fnTopMenu(path) {
     var p = String(path || "").toLowerCase();
     if (/crm/.test(p)) return "CRM";
-    if (/^\/administration\b/.test(p)) return "Administration";
-    if (/^\/exam\b/.test(p)) return "Exam";
-    if (/^\/teachers?\b/.test(p)) return "Teacher";
-    if (/^\/hr\b/.test(p)) return "Team";
-    if (/^\/(u)?inventory\b/.test(p)) return "Inventory";
-    if (/^\/student\b/.test(p)) return "Student";
+    if (/^\/administration/.test(p)) return "Administration";
+    if (/^\/exam/.test(p)) return "Exam";
+    if (/^\/teacher/.test(p)) return "Teacher";
+    if (/^\/hr(\/|$)/.test(p)) return "Team";
+    if (/^\/(u)?inventor/.test(p)) return "Inventory";
+    if (/^\/student/.test(p)) return "Student";
     return "Other";
   }
   function fnMenuRank(path) { var i = MENU_ORDER.indexOf(fnTopMenu(path)); return i < 0 ? MENU_ORDER.length : i; }
@@ -268,7 +268,7 @@
       var to = setTimeout(function () { if (!done) { done = true; resolve({ ok: false, error: "timeout — পেজ সাড়া দেয়নি (৬০s)" }); } }, 60000);
       try {
         chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals }, function (resp) {
-          if (done) return; done = true; clearTimeout(to);
+          if (done) { void chrome.runtime.lastError; return; } done = true; clearTimeout(to);
           var le = chrome.runtime.lastError;
           if (le) { resolve({ ok: false, error: le.message || "no response (এক্সটেনশন পুরো Reload করো)" }); return; }
           resolve(resp || { ok: false, error: "empty response" });
