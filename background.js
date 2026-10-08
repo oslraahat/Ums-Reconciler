@@ -460,20 +460,28 @@ async function fnShotClose() {
    Still read-only: it only opens the page. */
 let fnVisitSlots = {};   // slot -> { tabId, winId, mode }; one reused window per concurrency slot
 let fnProbeReg = "";   // origin the console collector is registered for ("" = not registered)
+let fnRegPromise = null, fnRegTarget = "";   // in-flight registration, so parallel workers share one
 async function fnRegisterProbe(base) {
   var origin; try { origin = new URL(base).origin; } catch (e) { return; }
   if (fnProbeReg === origin) return;
-  // A dynamic registration survives service-worker restarts while fnProbeReg resets to "", so ALWAYS
-  // clear "fnprobe" by id first — gating this on the in-memory flag would leave a stale registration
-  // and every later register would throw "Duplicate script ID", killing console-error collection.
-  await fnUnregisterProbe();
-  try {
-    await chrome.scripting.registerContentScripts([{
-      id: "fnprobe", matches: [origin + "/*"], js: ["menus/fn/fnprobe.js"],
-      runAt: "document_start", world: "MAIN", persistAcrossSessions: false
-    }]);
-    fnProbeReg = origin;
-  } catch (e) { fnProbeReg = ""; }   // old Chrome without world:MAIN → console errors just won't be collected
+  // Headless runs several workers at once; without memoising, each would register "fnprobe" before
+  // fnProbeReg is set and their register/unregister calls would race (Duplicate script ID / one
+  // undoing another). Share a single in-flight registration per origin instead.
+  if (fnRegPromise && fnRegTarget === origin) return fnRegPromise;
+  fnRegTarget = origin;
+  fnRegPromise = (async function () {
+    // A dynamic registration survives service-worker restarts while fnProbeReg resets to "", so ALWAYS
+    // clear "fnprobe" by id first — gating on the in-memory flag would leave a stale registration.
+    await fnUnregisterProbe();
+    try {
+      await chrome.scripting.registerContentScripts([{
+        id: "fnprobe", matches: [origin + "/*"], js: ["menus/fn/fnprobe.js"],
+        runAt: "document_start", world: "MAIN", persistAcrossSessions: false
+      }]);
+      fnProbeReg = origin;
+    } catch (e) { fnProbeReg = ""; }   // old Chrome without world:MAIN → console errors just won't be collected
+  })();
+  try { await fnRegPromise; } finally { fnRegPromise = null; }
 }
 async function fnUnregisterProbe() {
   try { await chrome.scripting.unregisterContentScripts({ ids: ["fnprobe"] }); } catch (e) {}
