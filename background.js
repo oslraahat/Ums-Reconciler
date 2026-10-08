@@ -598,10 +598,19 @@ async function fnActionProbe(opts) {
     var hasPassword = !!document.querySelector("input[type=password]");
     var WRITE = /\b(save|submit|create|add|update|edit|delete|remove|destroy|confirm|send|issue|approve|reject|block|reset|import|sync|generate|pay|void|settle|distribute|transfer|assign|post|enable|disable|process|finalize|publish|freeze|promote|migrate|merge|lock|unlock)\b|সংরক্ষণ|জমা|হালনাগাদ|মুছ|পাঠা/i;
     var VIEW = /\b(view|search|find|show|report|load|filter|list|get|display|preview|check|go|ok)\b|খুঁজ|দেখ|অনুসন্ধান/i;
-    var cand = [].slice.call(document.querySelectorAll("button, input[type=submit], input[type=button], [role=button], a.btn"));
-    var btns = cand.filter(function (b) { return vis(b) && !b.disabled; });
-    for (var bi = 0; bi < btns.length && bi < 10; bi++) {
-      var b = btns[bi];
+    // Re-scan before EACH click, not once up front: clicking a button (e.g. an empty-field Submit)
+    // can reveal NEW buttons, and those must be tested too. `tested` holds the elements already done.
+    var SEL = "button, input[type=submit], input[type=button], [role=button], a.btn";
+    var tested = [];
+    function nextBtn() {
+      var list = document.querySelectorAll(SEL);
+      for (var j = 0; j < list.length; j++) { var el = list[j]; if (vis(el) && !el.disabled && tested.indexOf(el) < 0) return el; }
+      return null;
+    }
+    var count = 0, navAway = false;
+    while (count < 16 && !navAway) {
+      var b = nextBtn(); if (!b) break;
+      tested.push(b); count++;
       var label = ((b.value || b.textContent || b.title || "").replace(/\s+/g, " ").trim() || "button").slice(0, 40);
       var isWrite = WRITE.test(label) || /submit/i.test(b.type || "");
       if (isWrite && (hasPassword || /password|change.?pass|credential/i.test(label))) { actions.push({ label: label, pass: true, reason: "skipped — password/credential (নিরাপত্তা)" }); continue; }
@@ -616,7 +625,7 @@ async function fnActionProbe(opts) {
       // wait for the result — poll a little longer for a view/search that loads a table over AJAX
       var waited = 0, step = 300, cap = isView ? 2000 : 700;
       while (waited < cap) { await sleep(step); waited += step; if (location.href !== before) break; if (isView && dataRows() > rowsBefore) break; }
-      if (location.href !== before) { actions.push({ label: label, pass: true, reason: "action triggered (পেজ বদলেছে)" }); break; }
+      if (location.href !== before) { actions.push({ label: label, pass: true, reason: "action triggered (পেজ বদলেছে)" }); navAway = true; continue; }
       var er = pageErr();
       var ce = ""; try { if (window.__fnErr && window.__fnErr.length) ce = window.__fnErr.slice(0, 2).join(" | "); } catch (e) {}
       if (er) { actions.push({ label: label, pass: false, reason: "error: " + er.slice(0, 70) }); continue; }
