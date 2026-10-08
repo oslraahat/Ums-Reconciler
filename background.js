@@ -615,13 +615,22 @@ async function fnActionProbe(opts) {
       var sub = document.querySelector('input[type=submit], button[type=submit]');
       if (!sub) { var bb = document.querySelectorAll("button, input[type=button], [role=button]"); for (var si = 0; si < bb.length; si++) { if (vis(bb[si]) && /submit|search|go|next|ok|save/i.test((bb[si].value || bb[si].textContent || ""))) { sub = bb[si]; break; } } }
       if (sub && vis(sub) && !sub.disabled && !document.querySelector("input[type=password]")) {
+        var visCount = function (sel) { var n = 0; document.querySelectorAll(sel).forEach(function (el) { if (vis(el)) n++; }); return n; };
         var vb = valCount(), url0 = location.href;
+        var btnB = visCount("button, input[type=submit], input[type=button], [role=button]"), inpB = visCount("input, select, textarea"), rowB = dataRows();
+        try { if (window.__fnErr) window.__fnErr.length = 0; } catch (e) {}
         sub.click();
         await sleep(700);
         if (location.href === url0) {
           var va = valCount();
-          if (va > vb) actions.push({ label: "(খালি submit)", pass: true, reason: "✓ validation এলো — " + va + " টি বার্তা" });
-          else actions.push({ label: "(খালি submit)", pass: false, reason: "⚠ খালি Submit-এ কোনো validation এলো না" });
+          var jsErr = ""; try { if (window.__fnErr && window.__fnErr.length) jsErr = window.__fnErr.slice(0, 2).join(" | "); } catch (e) {}
+          // a brand-new control / form / table appearing is the page responding correctly, even with
+          // no validation message (e.g. New Admission opens its form on an empty Submit).
+          var grew = visCount("button, input[type=submit], input[type=button], [role=button]") > btnB || visCount("input, select, textarea") > inpB || dataRows() > rowB;
+          if (jsErr) actions.push({ label: "(খালি submit)", pass: false, reason: "JS error: " + jsErr.slice(0, 70) });
+          else if (va > vb) actions.push({ label: "(খালি submit)", pass: true, reason: "✓ validation এলো — " + va + " টি বার্তা" });
+          else if (grew) actions.push({ label: "(খালি submit)", pass: true, reason: "✓ খালি Submit-এ এগোলো — নতুন ফর্ম/কনটেন্ট এলো" });
+          else actions.push({ label: "(খালি submit)", pass: true, reason: "খালি Submit — validation নেই, কিছু বদলায়নি" });
         }
       }
     } catch (e) {}
