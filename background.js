@@ -389,7 +389,63 @@ async function admBrowserRun(p) {
   } catch (e) { return { ok: false, message: String((e && e.message) || e) }; }
 }
 
+/* ───────────────────────── Function Check · screenshot ─────────────────────────
+   For a page that failed the rapid HTTP check, load it in ONE reused side window (parked off-screen
+   so it never takes focus, but NOT minimized — a minimized/hidden window cannot be captured) and
+   grab a JPEG of it, plus a quick DOM probe for a visible error message. Read-only: it only opens
+   the page, never clicks anything. osl.team is in host_permissions, which is what captureVisibleTab
+   needs for that tab; if a particular Chrome still refuses, the shot comes back null and the check
+   simply shows the failure without a picture. */
+let fnShot = { tabId: null, winId: null };
+async function fnEnsureTab(url) {
+  if (fnShot.tabId != null && await getTab(fnShot.tabId)) { await chrome.tabs.update(fnShot.tabId, { url: url }); return fnShot.tabId; }
+  let win;
+  try { win = await chrome.windows.create({ url: url, focused: false, left: 30000, top: 30000, width: 1200, height: 820 }); }
+  catch (e) { win = await chrome.windows.create({ url: url, focused: false, width: 1200, height: 820 }); }
+  try { await chrome.windows.update(win.id, { left: 30000, top: 30000, focused: false }); } catch (e) {}
+  fnShot.tabId = win && win.tabs && win.tabs[0] && win.tabs[0].id;
+  fnShot.winId = win.id;
+  return fnShot.tabId;
+}
+function fnProbePage() {
+  // runs in the page: report a visible error message and whether the page is essentially empty
+  try {
+    var sel = ".validation-summary-errors, .text-danger, .alert-danger, .field-validation-error, #boardInfoErrorMessage, .exception, .yellow-screen";
+    var e = document.querySelector(sel);
+    var errText = e ? (e.textContent || "").replace(/\s+/g, " ").trim() : "";
+    if (!errText) {
+      var b = (document.body && document.body.innerText || "");
+      if (/Server Error in|Exception Details:|Stack Trace:|Runtime Error/i.test(b)) errText = b.replace(/\s+/g, " ").trim().slice(0, 120);
+    }
+    var len = (document.body && (document.body.innerText || "").replace(/\s+/g, " ").trim().length) || 0;
+    return { errText: errText, bodyLen: len, title: document.title || "" };
+  } catch (err) { return { errText: "", bodyLen: 0, title: "" }; }
+}
+async function fnShotRun(url) {
+  try {
+    var tabId = await fnEnsureTab(url);
+    if (tabId == null) return { ok: false };
+    await waitTabComplete(tabId, 25000);
+    await bgSleep(500);   // let the page paint
+    var probe = null;
+    try {
+      var res = await chrome.scripting.executeScript({ target: { tabId: tabId }, func: fnProbePage });
+      probe = res && res[0] && res[0].result;
+    } catch (e) {}
+    var shot = null;
+    try { shot = await chrome.tabs.captureVisibleTab(fnShot.winId, { format: "jpeg", quality: 55 }); }
+    catch (e) { shot = null; }
+    return { ok: true, shot: shot, probe: probe };
+  } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
+}
+async function fnShotClose() {
+  try { if (fnShot.winId != null) await chrome.windows.remove(fnShot.winId); } catch (e) {}
+  fnShot = { tabId: null, winId: null };
+}
+
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === "admBrowser") { admBrowserRun(msg.params || {}).then(sendResponse); return true; }
   if (msg && msg.type === "admBrowserClose") { admCloseRun(msg.slot).then(function () { sendResponse({ ok: true }); }); return true; }
+  if (msg && msg.type === "fnShot") { fnShotRun(msg.url).then(sendResponse); return true; }
+  if (msg && msg.type === "fnShotClose") { fnShotClose().then(function () { sendResponse({ ok: true }); }); return true; }
 });

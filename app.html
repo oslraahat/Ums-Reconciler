@@ -571,6 +571,27 @@
      (a middot separates the two); the #pgPay .hint line-clamp keeps it to one line, hover expands */
   .where:not(:empty){display:inline;overflow-wrap:anywhere}
   .where:not(:empty)::after{content:"·";margin:0 6px;color:var(--mut);font-weight:400}
+  /* Function Check */
+  .fnprog{display:flex;align-items:center;gap:10px;margin:14px 0 6px}
+  .fnbarwrap{flex:1;height:8px;background:rgba(127,127,127,.18);border-radius:6px;overflow:hidden}
+  .fnbar{height:100%;width:0;background:linear-gradient(90deg,#5a3ff0,#37d18b);transition:width .2s}
+  .fnpill{display:inline-block;padding:1px 8px;border-radius:10px;font-size:12px;font-weight:700;margin-left:4px}
+  .fnpill.ok{background:rgba(55,209,139,.16);color:#2fa368}
+  .fnpill.bad{background:rgba(255,90,110,.16);color:#e14b5e}
+  .fnlist{margin-top:10px;display:flex;flex-direction:column;gap:12px}
+  .fngrp{border:1px solid rgba(127,127,127,.18);border-radius:10px;overflow:hidden}
+  .fnghead{padding:7px 12px;font-weight:800;background:rgba(127,127,127,.07);border-bottom:1px solid rgba(127,127,127,.14)}
+  .fnrow{display:flex;align-items:center;gap:10px;padding:6px 12px;border-bottom:1px solid rgba(127,127,127,.08);flex-wrap:wrap}
+  .fnrow:last-child{border-bottom:0}
+  .fnrow.f{background:rgba(255,90,110,.05)}
+  .fnst{width:16px;text-align:center;font-weight:800}
+  .fnrow.p .fnst{color:#2fa368}.fnrow.f .fnst{color:#e14b5e}
+  .fnlk{font-weight:600;text-decoration:none;color:inherit}
+  .fnlk:hover{text-decoration:underline}
+  .fnpath{font-size:11px;font-family:ui-monospace,Consolas,monospace}
+  .fnwhy{color:#e14b5e;font-size:12px;flex:1 1 100%;margin-left:26px}
+  .fnshot{margin-left:auto;flex:0 0 auto}
+  .fnshot img{height:46px;border-radius:5px;border:1px solid rgba(127,127,127,.3);display:block}
 </style>
 </head>
 <body>
@@ -595,6 +616,7 @@
           <button id="navCrmDash" class="on" data-i18n="crm_dash">Dashboard</button>
         </div>
         <button id="navAdm"><span class="ic">🎓</span><span data-i18n="nav_adm">New Admission</span></button>
+        <button id="navFn"><span class="ic">🩺</span><span data-i18n="nav_fn">Function Check</span></button>
       </div>
     </div></nav>
     <div class="main">
@@ -873,6 +895,24 @@
         </div>
       </div>
     </section>
+
+    <section id="pgFn" class="page">
+      <div class="wrap">
+        <div class="card">
+          <div class="ch"><h2 data-i18n="fn_h">Clickable Function Check</h2><span id="fnSummary" style="margin-left:auto"></span></div>
+          <p class="hint" data-i18n="fn_intro" style="margin:0 0 14px"></p>
+          <div class="row-actions" style="align-items:end;gap:12px;flex-wrap:wrap">
+            <div style="flex:1 1 320px;min-width:200px"><label data-i18n="fn_base_l">UMS ঠিকানা (Base URL)</label>
+              <input id="fnBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
+            <button class="btn g" id="fnStart" style="height:var(--ctl-h);gap:7px"><span>🩺</span><span data-i18n="fn_start">Check Now</span></button>
+            <button class="btn" id="fnStop" style="height:var(--ctl-h);display:none" data-i18n="fn_stop">⏹ Stop</button>
+            <button class="btn" id="fnExport" style="height:var(--ctl-h)" data-i18n="fn_export">⬇ CSV</button>
+          </div>
+          <div class="fnprog"><div class="fnbarwrap"><div id="fnBar" class="fnbar"></div></div><span id="fnNote" class="mut"></span></div>
+          <div id="fnList" class="fnlist"></div>
+        </div>
+      </div>
+    </section>
     </div>
   </div>
   <script src="reconcile.js"></script>
@@ -881,6 +921,7 @@
   <script src="lib/update.js"></script>
   <script src="menus/adm/adm.js"></script>
   <script src="menus/crm/crm.js"></script>
+  <script src="menus/fn/fn.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

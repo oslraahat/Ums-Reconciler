@@ -31,6 +31,7 @@ const PANEL = fs.readFileSync(path.join(ROOT, "panel.html"), "utf8");
 const SRC = APP + "\n"
   + fs.readFileSync(path.join(ROOT, "menus", "adm", "adm.js"), "utf8") + "\n"
   + fs.readFileSync(path.join(ROOT, "menus", "crm", "crm.js"), "utf8") + "\n"
+  + fs.readFileSync(path.join(ROOT, "menus", "fn", "fn.js"), "utf8") + "\n"
   + fs.readFileSync(path.join(ROOT, "lib", "update.js"), "utf8");
 
 let fail = 0;

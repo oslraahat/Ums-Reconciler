@@ -149,6 +149,21 @@
     nav_pay: { bn: "Payment History", en: "Payment History" },
     nav_crm: { bn: "CRM", en: "CRM" },
     nav_adm: { bn: "New Admission", en: "New Admission" },
+    nav_fn: { bn: "Function Check", en: "Function Check" },
+    fn_sub: { bn: "Clickable Function Check — সব মেনু/সাব-মেনু পেজ দ্রুত যাচাই", en: "Clickable Function Check — sweep every menu / sub-menu page" },
+    fn_h: { bn: "Clickable Function Check", en: "Clickable Function Check" },
+    fn_intro: { bn: "Base URL দাও, Check Now চাপো — সাইটের সব মেনু/সাব-মেনু পেজ খুলে Pass/Fail দেখাবে (Fail-এ স্ক্রিনশট সহ)। কোনো ফর্ম submit/save/delete হবে না — শুধু পেজ খোলে, সম্পূর্ণ নিরাপদ।", en: "Give a base URL and press Check Now — it opens every menu / sub-menu page and reports Pass/Fail (failures carry a screenshot). It never submits, saves or deletes — it only opens pages, so it is fully safe." },
+    fn_base_l: { bn: "UMS ঠিকানা (Base URL)", en: "UMS address (Base URL)" },
+    fn_start: { bn: "🩺 Check Now", en: "🩺 Check Now" },
+    fn_stop: { bn: "⏹ থামাও", en: "⏹ Stop" },
+    fn_export: { bn: "⬇ CSV", en: "⬇ CSV" },
+    fn_reading: { bn: "মেনু পড়ছি…", en: "Reading the menu…" },
+    fn_checking: { bn: "পেজ যাচাই করছি…", en: "Checking pages…" },
+    fn_shooting: { bn: "Fail-এর স্ক্রিনশট নিচ্ছি…", en: "Capturing failure screenshots…" },
+    fn_done: { bn: "✓ শেষ", en: "✓ Done" },
+    fn_login: { bn: "লগইন দরকার — আগে এই সার্ভারে ব্রাউজারে লগইন করো", en: "Login needed — sign in to this server in the browser first" },
+    fn_fail: { bn: "হোম পেজ আনা গেল না", en: "Could not fetch the home page" },
+    fn_nomenu: { bn: "কোনো মেনু লিংক পাওয়া গেল না — ঠিকানা ঠিক তো?", en: "No menu links found — is the address right?" },
     adm_sub: { bn: "নতুন Admission — যত খুশি, নিজের সেশনে", en: "New Admission — as many as you like, on your session" },
     adm_h: { bn: "New Admission", en: "New Admission" },
     adm_load: { bn: "তথ্য আনো", en: "Fetch Data" },
@@ -2520,17 +2535,17 @@
   let page = "pay";
 
   function showPage(p) {
-    page = (p === "crm" || p === "adm") ? p : "pay";
+    page = (p === "crm" || p === "adm" || p === "fn") ? p : "pay";
     const set = function (id, yes) { const e = $(id); if (e) e.classList.toggle("on", yes); };
-    set("pgPay", page === "pay"); set("pgCrm", page === "crm"); set("pgAdm", page === "adm");
-    set("navPay", page === "pay"); set("navCrm", page === "crm"); set("navAdm", page === "adm");
+    set("pgPay", page === "pay"); set("pgCrm", page === "crm"); set("pgAdm", page === "adm"); set("pgFn", page === "fn");
+    set("navPay", page === "pay"); set("navCrm", page === "crm"); set("navAdm", page === "adm"); set("navFn", page === "fn");
     /* what is inside CRM is listed only while CRM is the open section */
     set("crmSub", page === "crm");
     if (page === "crm") self.APP.crm.show(crmTab);
     if (page === "adm") self.APP.adm.onShow();
     /* The subtitle belongs to whichever section is open. Written as a data-i18n key rather than
        as text, so applyLang() keeps it right when the language changes under it. */
-    const key = page === "pay" ? "subtitle" : page === "crm" ? "crm_sub" : "adm_sub";
+    const key = page === "pay" ? "subtitle" : page === "crm" ? "crm_sub" : page === "fn" ? "fn_sub" : "adm_sub";
     const sub = $("sub");
     if (sub) { sub.setAttribute("data-i18n", key); sub.textContent = t(key); }
     try { chrome.storage.local.set({ page: page }); } catch (e) {}
@@ -2647,6 +2662,7 @@
     $("navCrm").addEventListener("click", function () { if (hasSel()) return; showPage("crm"); });
     $("navCrmDash").addEventListener("click", function () { if (hasSel()) return; showPage("crm"); self.APP.crm.show("dash"); });
     if ($("navAdm")) $("navAdm").addEventListener("click", function () { if (hasSel()) return; showPage("adm"); });
+    if ($("navFn")) $("navFn").addEventListener("click", function () { if (hasSel()) return; showPage("fn"); });
     if ($("admRun")) $("admRun").addEventListener("click", self.APP.adm.run);
     if ($("admStop")) $("admStop").addEventListener("click", self.APP.adm.stop);
     if ($("admSeq")) $("admSeq").addEventListener("click", function () { self.APP.adm.setMode("sequential"); });
@@ -2681,6 +2697,7 @@
     self.APP.crm.setMode(self.APP.crm.getMode());
     if ($("crmCopy")) $("crmCopy").addEventListener("click", self.APP.crm.copy);
     self.APP.crm.render();
+    if (self.APP.fn) self.APP.fn.wire();
     $("stop").addEventListener("click", function () { if (run) { run.stop = true; run.paused = false; if (run.ac) try { run.ac.abort(); } catch (e) {} } this.disabled = true; $("pause").disabled = true; $("prog").textContent = t("stopping"); });
     $("pause").addEventListener("click", function () { if (!run) return; run.paused = !run.paused; this.textContent = run.paused ? t("resume") : t("pause"); });
     if ($("saveSw")) $("saveSw").addEventListener("change", function () {
@@ -2893,7 +2910,7 @@
       if ($("nightConc")) $("nightConc").value = nightConc; if ($("nightCfg")) $("nightCfg").style.display = nightOn ? "" : "none"; })();
     saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
     if ($("singleSw")) { const on = o.singleOn !== false; $("singleSw").checked = on; if ($("singleSw").parentNode) $("singleSw").parentNode.classList.toggle("on", on); }
-    showPage((o.page === "crm" || o.page === "adm") ? o.page : "pay");
+    showPage((o.page === "crm" || o.page === "adm" || o.page === "fn") ? o.page : "pay");
     if (o.crmBase && $("crmBase")) $("crmBase").value = o.crmBase;
     if ($("admBase")) $("admBase").value = o.admBase || "https://ums-4.osl.team";
     self.APP.adm.setConn(null);

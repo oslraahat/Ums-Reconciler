@@ -1,0 +1,83 @@
+/* Function Check — the pass/fail brain (fnClassify).
+ *
+ * The crawl opens every menu/sub-menu page and this decides healthy vs broken. It must FAIL on an
+ * HTTP error, a redirect to the login page, a .NET/UMS error page, or a blank page — and PASS a
+ * normal page, without being fooled by the mere word "error" in a label. parseNav needs a real DOM
+ * (DOMParser), so it is exercised live; this pins the classifier, which is pure.
+ *
+ *   node tests/fn-check.js
+ */
+"use strict";
+const fs = require("fs");
+const path = require("path");
+
+const self = { APP: {} };
+new Function("self", fs.readFileSync(path.join(__dirname, "..", "menus", "fn", "fn.js"), "utf8"))(self);
+const U = self.APP.fn;
+
+let fail = 0;
+const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  " : "FAIL  ") + name + (!ok && extra !== undefined ? "   " + extra : "")); };
+const BASE = "https://ums-4.osl.team/";
+const cl = (res) => U.classify(res, BASE);
+
+/* ---- healthy pages pass ---- */
+{
+  const r = cl({ status: 200, redirected: false, html: "<html><body><h2>Payment History</h2><table><tr><td>x</td></tr></table></body></html>", finalUrl: BASE + "Student/Payment/PaymentHistory" });
+  check("a normal page with a table → Pass", r.pass, r.reason);
+}
+{
+  // a page whose only 'error' is a column label / help text must not be condemned
+  const r = cl({ status: 200, redirected: false, html: "<html><body><form><label>Error Margin</label><input><select><option>A</option></select></form></body></html>" });
+  check("the word 'error' in a label alone → still Pass", r.pass, r.reason);
+}
+
+/* ---- HTTP errors fail ---- */
+{
+  check("HTTP 500 → Fail", cl({ status: 500, html: "oops" }).pass === false);
+  check("HTTP 404 → Fail", cl({ status: 404, html: "" }).pass === false);
+  check("HTTP 403 → Fail", cl({ status: 403, html: "" }).pass === false);
+  const r = cl({ status: 502, html: "" });
+  check("…and the reason names the status", /502/.test(r.reason), r.reason);
+}
+
+/* ---- a redirect to the login page fails ---- */
+{
+  const r = cl({ status: 200, redirected: true, html: "<html><body><form action='/Account/Login'>sign in</form></body></html>", finalUrl: BASE + "Account/Login?ReturnUrl=%2fStudent" });
+  check("redirect to the login page → Fail", r.pass === false && r.kind === "login", r.reason);
+}
+
+/* ---- a .NET / UMS error page fails even at HTTP 200 ---- */
+{
+  const ysod = "<html><body><h1>Server Error in '/' Application.</h1><h2>Exception Details: System.NullReferenceException</h2><b>Stack Trace:</b></body></html>";
+  const r = cl({ status: 200, redirected: false, html: ysod, finalUrl: BASE + "Student/Foo" });
+  check("ASP.NET yellow-screen-of-death → Fail", r.pass === false && r.kind === "page", r.reason);
+}
+{
+  const r = cl({ status: 200, html: "<html><body><div class='validation-summary-errors'><ul><li>Something failed</li></ul></div></body></html>" });
+  check("a validation-summary-errors block → Fail", r.pass === false, r.reason);
+}
+{
+  const r = cl({ status: 200, html: "<html><body><div class='alert'>An unexpected error occurred while processing your request.</div></body></html>" });
+  check("'an unexpected error occurred' → Fail", r.pass === false, r.reason);
+}
+
+/* ---- a blank / contentless page fails ---- */
+{
+  check("empty body → Fail", cl({ status: 200, html: "<html><head></head><body></body></html>" }).pass === false);
+  const r = cl({ status: 200, html: "<html><body>   \n  </body></html>" });
+  check("whitespace-only body → Fail (blank)", r.pass === false && r.kind === "blank", r.reason);
+}
+{
+  // a short page that still has real structure (a form) is NOT blank
+  const r = cl({ status: 200, html: "<html><body><form><input name=q></form></body></html>" });
+  check("short but has a form → Pass (not blank)", r.pass, r.reason);
+}
+
+/* ---- a network/other error carried in → Fail ---- */
+{
+  const r = cl({ error: "timeout after 30s" });
+  check("a fetch error object → Fail with its reason", r.pass === false && /timeout/.test(r.reason), r.reason);
+}
+
+console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
+process.exit(fail ? 1 : 0);

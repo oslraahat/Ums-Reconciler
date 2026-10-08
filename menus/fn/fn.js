@@ -1,0 +1,276 @@
+/* Clickable Function Check (fn*) — a read-only UI health crawl of a UMS site.
+ *
+ * Given a base URL it reads the home page, pulls every menu / sub-menu LINK out of the sidebar, and
+ * opens each one rapidly (concurrent GETs) to see whether the page is healthy. It never clicks an
+ * in-page action — no form is submitted, nothing is saved or deleted — so it is safe against the
+ * live/test UMS. A link that logs out, deletes, exports or downloads is skipped for the same reason.
+ *
+ * A page FAILS when any of these is true:
+ *   • the request errors / does not load — HTTP 4xx/5xx, a redirect to the login page, or a timeout
+ *   • the page itself carries a UMS / .NET error or exception (yellow screen, validation summary…)
+ *   • the page comes back blank / with no real content
+ * Every failure is shown with a screenshot (captured by loading just that page in a side window) and
+ * the reason. Passes are listed too, grouped by menu, so the report reads action-by-action.
+ *
+ * Loads before app.js; resolves shared core helpers lazily through self.APP at call time. */
+(function () {
+  "use strict";
+  var A = self.APP || (self.APP = {});
+  function $(id) { return A.$(id); }
+  function t(k) { return A.t(k); }
+  function fetchHtml() { return A.fetchHtml.apply(null, arguments); }
+  function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); }
+
+  var MAX_LINKS = 600;           // a hard cap so a mis-parsed page can never spawn thousands of fetches
+  var CONC = 8;                  // parallel page checks
+  var fnRun = null;              // { stop } while a crawl is going
+
+  /* ---- what counts as a checkable page link ---- */
+  // state-changing or non-HTML hrefs are never opened, even though they are GETs
+  var SKIP_HREF = /(log\s*-?\s*(out|off)|sign\s*-?\s*out|\/account\/log|\/logout|\/logoff|delete|remove|destroy|\bdrop\b|export|download|\/print|\.(pdf|xlsx?|csv|zip|docx?|pptx?|png|jpe?g|gif)(\?|$))/i;
+  var ORIGIN = function (u) { try { return new URL(u).origin; } catch (e) { return ""; } };
+
+  /* Pull menu / sub-menu links out of a home page. Server-rendered UMS keeps every sidebar <a> in the
+     markup (collapsed ones are only hidden by CSS), so reading all same-origin anchors finds them.
+     The menu group is the nearest enclosing list's own label, so the report can be grouped. */
+  function fnParseNav(html, baseUrl) {
+    var origin = ORIGIN(baseUrl);
+    var doc;
+    try { doc = new DOMParser().parseFromString(html, "text/html"); } catch (e) { return []; }
+    // Prefer a real sidebar/nav if one is recognisable; else fall back to the whole document.
+    var scope = doc.querySelector("nav, .sidebar, #sidebar, .side-menu, .sidebar-menu, .left-menu, .main-menu, aside, ul.nav, #menu, .menu") || doc.body || doc;
+    if (!scope) return [];
+    var seen = {}, out = [];
+    var anchors = scope.querySelectorAll("a[href]");
+    for (var i = 0; i < anchors.length && out.length < MAX_LINKS; i++) {
+      var a = anchors[i];
+      var raw = a.getAttribute("href") || "";
+      if (!raw || raw.charAt(0) === "#" || /^(javascript:|mailto:|tel:|data:)/i.test(raw)) continue;
+      var url;
+      try { url = new URL(raw, baseUrl).href; } catch (e) { continue; }
+      if (ORIGIN(url) !== origin) continue;              // same site only
+      var path = url.slice(origin.length);
+      if (path === "" || path === "/") continue;         // the home page itself
+      if (SKIP_HREF.test(path)) continue;                // logout / delete / export / files
+      var key = url.split("#")[0];
+      if (seen[key]) continue; seen[key] = 1;
+      var label = (a.textContent || "").replace(/\s+/g, " ").trim();
+      out.push({ menu: fnGroupOf(a), label: label || path, url: key, path: path });
+    }
+    return out;
+  }
+  // the nearest ancestor list's heading / toggle text — best-effort grouping, falls back to "Menu"
+  function fnGroupOf(a) {
+    var li = a.closest ? a.closest("li") : null;
+    var hops = 0;
+    while (li && hops < 6) {
+      var parentLi = li.parentElement ? (li.parentElement.closest ? li.parentElement.closest("li") : null) : null;
+      if (parentLi) {
+        var head = parentLi.querySelector("a,span,button,label");
+        var txt = head ? (head.textContent || "").replace(/\s+/g, " ").trim() : "";
+        if (txt && txt.length <= 40) return txt;
+      }
+      li = parentLi; hops++;
+    }
+    // a sidebar heading above the link
+    var h = a.closest ? a.closest("ul,nav,.sidebar") : null;
+    var hd = h ? h.previousElementSibling : null;
+    if (hd && /^(h[1-6]|div|span|a)$/i.test(hd.tagName)) {
+      var ht = (hd.textContent || "").replace(/\s+/g, " ").trim();
+      if (ht && ht.length <= 40) return ht;
+    }
+    return "Menu";
+  }
+
+  /* Decide pass/fail from a fetched page. Only strong, unambiguous error signatures count, so a page
+     that merely has the word "error" in a label is not condemned. */
+  var ERR_MARK = /(server error in\s|exception details:|stack trace:|unhandled exception|runtime error|yellow screen|\bhttp\s?500\b|500 - internal server|403 - forbidden|404 - (not found|file or directory)|an (unexpected )?error (has )?occurred|something went wrong|validation-summary-errors|an error occurred while processing)/i;
+  var LOGIN_URL = /\/(account\/)?(log\s*-?\s*(in|on)|login|signin)\b/i;
+  function fnClassify(res, baseUrl) {
+    var status = res.status || 0;
+    var html = res.html || "";
+    var finalUrl = res.finalUrl || "";
+    if (res.error) return { pass: false, reason: "লোড হয়নি — " + res.error, kind: "net" };
+    if (status >= 400) return { pass: false, reason: "HTTP " + status, kind: "http" };
+    // a redirect that lands on the login page = the session is gone / no access
+    if ((res.redirected && LOGIN_URL.test(finalUrl)) || (LOGIN_URL.test(finalUrl) && ORIGIN(finalUrl) === ORIGIN(baseUrl) && finalUrl !== baseUrl)) {
+      return { pass: false, reason: "লগইন পেজে রিডাইরেক্ট — সেশন/অ্যাক্সেস নেই", kind: "login" };
+    }
+    if (ERR_MARK.test(html)) {
+      var m = ERR_MARK.exec(html);
+      return { pass: false, reason: "পেজে error/exception: “" + (m ? m[0] : "error").slice(0, 60) + "”", kind: "page" };
+    }
+    // blank / no real content: strip tags and script/style, see what text is left
+    var text = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
+    var hasStructure = /<(table|form|canvas|svg|input|select|h[1-3])\b/i.test(html);
+    if (text.length < 40 && !hasStructure) return { pass: false, reason: "খালি/ভাঙা পেজ (কোনো কনটেন্ট নেই)", kind: "blank" };
+    return { pass: true, reason: "ঠিক আছে", kind: "ok" };
+  }
+
+  /* ---- the crawl ---- */
+  function fnBase() {
+    var v = ($("fnBase") && $("fnBase").value || "").trim();
+    if (!v) v = (A.getBaseUrl && A.getBaseUrl()) || "https://ums-4.osl.team";
+    if (!/^https?:\/\//i.test(v)) v = "https://" + v;
+    return v.replace(/\/+$/, "") + "/";
+  }
+
+  var results = [];   // [{menu,label,url,path,pass,reason,kind,shot}]
+  function fnProgress(done, total, phase) {
+    var bar = $("fnBar"), note = $("fnNote");
+    if (bar) bar.style.width = total ? Math.round(done / total * 100) + "%" : "0%";
+    if (note) note.textContent = (phase || "") + (total ? "  " + done + " / " + total : "");
+  }
+  function fnRenderSummary() {
+    var pass = results.filter(function (r) { return r.pass; }).length;
+    var fail = results.length - pass;
+    var s = $("fnSummary");
+    if (s) s.innerHTML = results.length
+      ? '<span class="fnpill ok">✓ ' + pass + ' Pass</span> <span class="fnpill bad">✗ ' + fail + ' Fail</span> <span class="mut">/ ' + results.length + '</span>'
+      : "";
+  }
+  function fnRenderList() {
+    var box = $("fnList"); if (!box) return;
+    if (!results.length) { box.innerHTML = ""; return; }
+    // group by menu, fails first inside each group
+    var groups = {};
+    results.forEach(function (r) { (groups[r.menu] = groups[r.menu] || []).push(r); });
+    var html = "";
+    Object.keys(groups).forEach(function (g) {
+      var rows = groups[g].slice().sort(function (a, b) { return (a.pass ? 1 : 0) - (b.pass ? 1 : 0); });
+      var gf = rows.filter(function (r) { return !r.pass; }).length;
+      html += '<div class="fngrp"><div class="fnghead">' + esc(g) + ' <span class="mut">(' + rows.length + ')</span>' +
+        (gf ? ' <span class="fnpill bad">✗ ' + gf + '</span>' : ' <span class="fnpill ok">✓</span>') + '</div>';
+      rows.forEach(function (r) {
+        html += '<div class="fnrow ' + (r.pass ? "p" : "f") + '">' +
+          '<span class="fnst">' + (r.pass ? "✓" : "✗") + '</span>' +
+          '<a class="fnlk" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.label) + '</a>' +
+          '<span class="fnpath mut">' + esc(r.path) + '</span>' +
+          (r.pass ? "" : '<span class="fnwhy">' + esc(r.reason) + '</span>') +
+          (r.shot ? '<a class="fnshot" href="' + r.shot + '" target="_blank" title="স্ক্রিনশট"><img src="' + r.shot + '" alt="screenshot"></a>' : "") +
+          '</div>';
+      });
+      html += '</div>';
+    });
+    box.innerHTML = html;
+  }
+
+  function pool(items, n, worker, onEach) {
+    return new Promise(function (resolve) {
+      var i = 0, active = 0, done = 0;
+      function next() {
+        if (fnRun && fnRun.stop) { if (active === 0) resolve(); return; }
+        while (active < n && i < items.length) {
+          var idx = i++; active++;
+          worker(items[idx], idx).then(function (r) { onEach(r, idx); }).catch(function () {}).then(function () {
+            active--; done++;
+            if (done === items.length || (fnRun && fnRun.stop && active === 0)) resolve(); else next();
+          });
+        }
+      }
+      if (!items.length) resolve(); else next();
+    });
+  }
+
+  async function fnCheckUrl(item) {
+    try {
+      var r = await fetchHtml(item.url);
+      var res = { status: r.status, html: r.html, redirected: r.redirected, finalUrl: (r.redirected ? item.url : item.url) };
+      // fetchHtml does not expose the final URL; a login redirect still shows up as an HTML login form
+      if (r.redirected && LOGIN_URL.test(r.html.slice(0, 4000))) res.finalUrl = fnBase() + "Account/Login";
+      var c = fnClassify(res, fnBase());
+      return Object.assign({}, item, c);
+    } catch (e) {
+      return Object.assign({}, item, { pass: false, reason: "লোড হয়নি — " + String(e && e.message || e), kind: "net" });
+    }
+  }
+
+  function fnShot(url) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.runtime.sendMessage({ type: "fnShot", url: url }, function (resp) {
+          if (chrome.runtime.lastError) { resolve(null); return; }
+          resolve(resp || null);
+        });
+      } catch (e) { resolve(null); }
+    });
+  }
+
+  async function fnStart() {
+    if (fnRun) return;
+    fnRun = { stop: false };
+    results = [];
+    $("fnStart").style.display = "none"; $("fnStop").style.display = "";
+    $("fnSummary").innerHTML = ""; $("fnList").innerHTML = "";
+    var base = fnBase();
+    fnProgress(0, 0, t("fn_reading"));
+    var links;
+    try {
+      var home = await fetchHtml(base);
+      if (home.redirected && LOGIN_URL.test(home.html.slice(0, 4000))) {
+        $("fnNote").textContent = t("fn_login"); fnDone(); return;
+      }
+      links = fnParseNav(home.html, base);
+    } catch (e) {
+      $("fnNote").textContent = t("fn_fail") + " — " + String(e && e.message || e); fnDone(); return;
+    }
+    if (!links.length) { $("fnNote").textContent = t("fn_nomenu"); fnDone(); return; }
+
+    // 1) rapid pass/fail over every page
+    var total = links.length, done = 0;
+    fnProgress(0, total, t("fn_checking"));
+    await pool(links, CONC, fnCheckUrl, function (r) {
+      results.push(r); done++; fnProgress(done, total, t("fn_checking"));
+      fnRenderSummary(); fnRenderList();
+    });
+    if (fnRun && fnRun.stop) { fnDone(); return; }
+
+    // 2) a screenshot for each failure (sequential — one side window, reused)
+    var fails = results.filter(function (r) { return !r.pass; });
+    for (var k = 0; k < fails.length; k++) {
+      if (fnRun && fnRun.stop) break;
+      fnProgress(k, fails.length, t("fn_shooting"));
+      var s = await fnShot(fails[k].url);
+      if (s && s.shot) {
+        fails[k].shot = s.shot;
+        // refine the reason with what the loaded page actually showed, if the probe found more
+        if (s.probe && s.probe.errText && fails[k].kind !== "page") fails[k].reason += " · " + String(s.probe.errText).slice(0, 60);
+        fnRenderList();
+      }
+    }
+    try { chrome.runtime.sendMessage({ type: "fnShotClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
+    fnProgress(results.length, results.length, t("fn_done"));
+    fnDone();
+  }
+
+  function fnStop() { if (fnRun) fnRun.stop = true; }
+  function fnDone() {
+    fnRun = null;
+    if ($("fnStart")) { $("fnStart").style.display = ""; $("fnStop").style.display = "none"; }
+    fnRenderSummary();
+  }
+
+  function fnExport() {
+    if (!results.length) return;
+    var rows = [["Menu", "Action", "Path", "URL", "Status", "Reason"]];
+    results.forEach(function (r) { rows.push([r.menu, r.label, r.path, r.url, r.pass ? "Pass" : "Fail", r.reason]); });
+    var csv = rows.map(function (row) { return row.map(function (c) { return '"' + String(c == null ? "" : c).replace(/"/g, '""') + '"'; }).join(","); }).join("\r\n");
+    var blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
+    var a = document.createElement("a");
+    a.href = URL.createObjectURL(blob);
+    a.download = "Function Check - " + new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-") + ".csv";
+    document.body.appendChild(a); a.click();
+    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+  }
+
+  function fnWire() {
+    if ($("fnStart")) $("fnStart").addEventListener("click", fnStart);
+    if ($("fnStop")) $("fnStop").addEventListener("click", fnStop);
+    if ($("fnExport")) $("fnExport").addEventListener("click", fnExport);
+    if ($("fnBase") && !$("fnBase").value) $("fnBase").value = (A.getBaseUrl && A.getBaseUrl()) || "https://ums-4.osl.team";
+  }
+
+  A.fn = { wire: fnWire, start: fnStart, stop: fnStop,
+    // pure helpers exposed for tests
+    parseNav: fnParseNav, classify: fnClassify };
+})();
