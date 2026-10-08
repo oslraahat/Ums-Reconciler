@@ -513,13 +513,18 @@ async function fnVisitRun(url, mode, base) {
   try {
     await fnRegisterProbe(base);
     var tabId = await fnEnsureVisit(url, mode);
-    if (tabId == null) return { ok: false };
+    if (tabId == null) return { ok: false, error: "tab/window তৈরি হয়নি" };
     await waitTabComplete(tabId, 25000);
     await bgSleep(600);   // let scripts run and paint
     var probe = null;
     try {
-      var res = await chrome.scripting.executeScript({ target: { tabId: tabId }, world: "MAIN", func: fnProbeDeep });
+      // MAIN world lets the probe read the console-error collector; fall back to the default world
+      // (DOM check still works, just no window.__fnErr) on a Chrome that rejects world:MAIN here.
+      var res;
+      try { res = await chrome.scripting.executeScript({ target: { tabId: tabId }, world: "MAIN", func: fnProbeDeep }); }
+      catch (e1) { res = await chrome.scripting.executeScript({ target: { tabId: tabId }, func: fnProbeDeep }); }
       probe = res && res[0] && res[0].result;
+      if (!probe) probe = { error: "probe ফলাফল পাওয়া যায়নি" };
     } catch (e) { probe = { error: String((e && e.message) || e) }; }
     return { ok: true, probe: probe };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }

@@ -228,10 +228,11 @@
     return new Promise(function (resolve) {
       try {
         chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base }, function (resp) {
-          if (chrome.runtime.lastError) { resolve(null); return; }
-          resolve(resp || null);
+          var le = chrome.runtime.lastError;
+          if (le) { resolve({ ok: false, error: le.message || "no response (এক্সটেনশন পুরো Reload করো)" }); return; }
+          resolve(resp || { ok: false, error: "empty response" });
         });
-      } catch (e) { resolve(null); }
+      } catch (e) { resolve({ ok: false, error: String(e && e.message || e) }); }
     });
   }
 

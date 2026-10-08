@@ -154,7 +154,7 @@
     fn_h: { bn: "Clickable Function Check", en: "Clickable Function Check" },
     fn_intro: { bn: "Base URL দাও, Check Now চাপো — পেজের সব লিংক (menu, সাব-মেনু সহ প্রতিটি href) খুলে Pass/Fail দেখাবে (Fail-এ স্ক্রিনশট সহ)। logout/delete/export/ফাইল লিংক বাদ; কোনো ফর্ম submit/save/delete হবে না — শুধু পেজ খোলে, নিরাপদ।", en: "Give a base URL and press Check Now — it opens every link on the page (menus, sub-menus, every href) and reports Pass/Fail (failures carry a screenshot). Logout/delete/export/file links are skipped; it never submits, saves or deletes — it only opens pages, so it is safe." },
     fn_base_l: { bn: "UMS ঠিকানা (Base URL)", en: "UMS address (Base URL)" },
-    fn_start: { bn: "🩺 Check Now", en: "🩺 Check Now" },
+    fn_start: { bn: "Check Now", en: "Check Now" },
     fn_stop: { bn: "⏹ থামাও", en: "⏹ Stop" },
     fn_export: { bn: "⬇ CSV", en: "⬇ CSV" },
     fn_http_l: { bn: "⚡ HTTP", en: "⚡ HTTP" },
