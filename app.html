@@ -598,6 +598,9 @@
   #fnExport:hover{background:rgba(109,92,240,.24);border-color:#6d5cf0}
   .fnact{display:flex;align-items:flex-start;gap:8px;margin-top:12px;font-size:13px;cursor:pointer;color:var(--mut);line-height:1.45;max-width:640px}
   .fnact input{width:auto;flex:0 0 auto;margin:2px 0 0;padding:0;cursor:pointer}
+  .fnvals{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+  .fnvlbl{font-size:12px;flex:0 0 auto}
+  .fnvals input{width:auto;flex:0 1 130px;min-width:90px;padding:6px 10px;font-size:13px}
   .fnacts{flex:1 1 100%;margin:4px 0 2px 26px;display:flex;flex-direction:column;gap:3px}
   .fnactrow{display:flex;align-items:center;gap:8px;font-size:12px}
   .fnactrow .fnst{width:14px}
@@ -929,6 +932,14 @@
           <label class="fnact" title="শুধু Browser/Headless মোডে কাজ করে — প্রতিটি পেজে field/dropdown auto-fill করে বাটন ক্লিক করে দেখে। Save/Submit/Delete-এর মতো বাটন শুধু osl.team টেস্ট সার্ভারে ক্লিক হবে।">
             <input type="checkbox" id="fnActions"> <span data-i18n="fn_actions_l">🖱️ বাটনও টেস্ট করো (field ভরে ক্লিক) — Browser/Headless মোডে</span>
           </label>
+          <div class="fnvals" id="fnVals">
+            <span class="fnvlbl mut" data-i18n="fn_vals_l">বাটন-টেস্টে এই মানগুলো বসবে:</span>
+            <input id="fnRoll" spellcheck="false" placeholder="Roll No.">
+            <input id="fnReg" spellcheck="false" placeholder="Reg No.">
+            <input id="fnMobile" spellcheck="false" placeholder="Mobile No.">
+            <input id="fnTpin" spellcheck="false" placeholder="TPIN">
+            <input id="fnPin" spellcheck="false" placeholder="PIN">
+          </div>
           <div class="fnprog"><div class="fnbarwrap"><div id="fnBar" class="fnbar"></div></div><span id="fnNote" class="mut"></span></div>
           <div id="fnList" class="fnlist"></div>
         </div>

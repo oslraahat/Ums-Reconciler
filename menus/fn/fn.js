@@ -232,10 +232,10 @@
       } catch (e) { resolve(null); }
     });
   }
-  function fnVisit(url, mode, base, actions) {
+  function fnVisit(url, mode, base, actions, vals) {
     return new Promise(function (resolve) {
       try {
-        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions }, function (resp) {
+        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals }, function (resp) {
           var le = chrome.runtime.lastError;
           if (le) { resolve({ ok: false, error: le.message || "no response (এক্সটেনশন পুরো Reload করো)" }); return; }
           resolve(resp || { ok: false, error: "empty response" });
@@ -277,10 +277,17 @@
       // Browser / Headless: load each page for real (JS runs), classify from the rendered DOM +
       // console errors. Sequential — one tab/window reused.
       var doActions = !!($("fnActions") && $("fnActions").checked);
+      var vals = {
+        roll: ($("fnRoll") && $("fnRoll").value || "").trim(),
+        reg: ($("fnReg") && $("fnReg").value || "").trim(),
+        mobile: ($("fnMobile") && $("fnMobile").value || "").trim(),
+        tpin: ($("fnTpin") && $("fnTpin").value || "").trim(),
+        pin: ($("fnPin") && $("fnPin").value || "").trim()
+      };
       fnProgress(0, total, t("fn_visiting"));
       for (var vi = 0; vi < links.length; vi++) {
         if (fnRun && fnRun.stop) break;
-        var v = await fnVisit(links[vi].url, fnMode, base, doActions);
+        var v = await fnVisit(links[vi].url, fnMode, base, doActions, vals);
         var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
         var row = Object.assign({}, links[vi], c);
         if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
@@ -341,8 +348,18 @@
     if ($("fnBrowser")) $("fnBrowser").addEventListener("click", function () { fnSetMode("browser"); });
     if ($("fnHeadless")) $("fnHeadless").addEventListener("click", function () { fnSetMode("headless"); });
     if ($("fnActions")) $("fnActions").addEventListener("change", function () { try { chrome.storage.local.set({ fnActions: this.checked }); } catch (e) {} });
+    var VKEYS = { fnRoll: "fnRoll", fnReg: "fnReg", fnMobile: "fnMobile", fnTpin: "fnTpin", fnPin: "fnPin" };
+    Object.keys(VKEYS).forEach(function (id) {
+      var e = $(id); if (e) e.addEventListener("input", function () { var o = {}; o[id] = this.value; try { chrome.storage.local.set(o); } catch (err) {} });
+    });
     if ($("fnBase") && !$("fnBase").value) $("fnBase").value = (A.getBaseUrl && A.getBaseUrl()) || "https://ums-4.osl.team";
-    try { chrome.storage.local.get(["fnMode", "fnActions"], function (o) { fnSetMode(o && o.fnMode); if ($("fnActions")) $("fnActions").checked = !!(o && o.fnActions); }); } catch (e) { fnSetMode("http"); }
+    try {
+      chrome.storage.local.get(["fnMode", "fnActions"].concat(Object.keys(VKEYS)), function (o) {
+        fnSetMode(o && o.fnMode);
+        if ($("fnActions")) $("fnActions").checked = !!(o && o.fnActions);
+        Object.keys(VKEYS).forEach(function (id) { if (o && o[id] != null && $(id)) $(id).value = o[id]; });
+      });
+    } catch (e) { fnSetMode("http"); }
   }
 
   A.fn = { wire: fnWire, start: fnStart, stop: fnStop, setMode: fnSetMode,

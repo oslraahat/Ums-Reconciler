@@ -554,12 +554,14 @@ async function fnActionProbe(opts) {
         // plus any numeric hint (inputmode / pattern / maxlength).
         var k = ((i.name || "") + " " + (i.id || "") + " " + (i.placeholder || "") + " " + (i.getAttribute("inputmode") || "") + " " + (i.getAttribute("pattern") || "") + " " + (i.className || "")).toLowerCase();
         var wantNum = /numeric|digit|[0-9\]\}]\*|\[0-9/.test(k) || i.getAttribute("inputmode") === "numeric";
+        var V = opts.vals || {};
         if (ty === "date") i.value = ds;
         else if (ty === "email") i.value = "test@test.com";
-        else if (/mobile|phone|contact|\bcell\b|whatsapp|guardian.?no|\bsms\b/.test(k)) i.value = "01700000000";
-        else if (/roll/.test(k)) i.value = "123456";
-        else if (/reg(istration)?|regno|reg[_-]?no|\brn\b/.test(k)) i.value = "1234567";
-        else if (/tpin|t[_-]?pin|\bpin\b|otp|\bcode\b|verification/.test(k)) i.value = "1234";
+        else if (/mobile|phone|contact|\bcell\b|whatsapp|guardian.?no|\bsms\b/.test(k)) i.value = V.mobile || "01700000000";
+        else if (/roll/.test(k)) i.value = V.roll || "123456";
+        else if (/reg(istration)?|regno|reg[_-]?no|\brn\b/.test(k)) i.value = V.reg || "1234567";
+        else if (/tpin|t[_-]?pin/.test(k)) i.value = V.tpin || "1234";
+        else if (/\bpin\b|otp|\bcode\b|verification/.test(k)) i.value = V.pin || V.tpin || "1234";
         else if (/mrn|crn|receipt|voucher|trx|transaction|cheque|amount|\bfee\b|taka|bkash|nagad|nid|birth.?cert|account/.test(k)) i.value = "100000";
         else if (ty === "number" || ty === "tel" || wantNum) i.value = i.min || "1";
         else i.value = "test";
@@ -589,7 +591,7 @@ async function fnActionProbe(opts) {
   } catch (e) { actions.push({ label: "(action probe)", pass: false, reason: String((e && e.message) || e) }); }
   return actions;
 }
-async function fnVisitRun(url, mode, base, actions) {
+async function fnVisitRun(url, mode, base, actions, vals) {
   try {
     await fnRegisterProbe(base);
     var tabId = await fnEnsureVisit(url, mode);
@@ -599,7 +601,7 @@ async function fnVisitRun(url, mode, base, actions) {
     // write-gate: state-changing buttons fire only on the osl.team test server
     var allowWrite = false;
     try { allowWrite = /(^|\.)osl\.team$/i.test(new URL(base).hostname); } catch (e) {}
-    var opts = { actions: !!actions, allowWrite: allowWrite };
+    var opts = { actions: !!actions, allowWrite: allowWrite, vals: vals || {} };
     var probe = null;
     var useMain = true;
     try {
@@ -636,6 +638,6 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === "admBrowserClose") { admCloseRun(msg.slot).then(function () { sendResponse({ ok: true }); }); return true; }
   if (msg && msg.type === "fnShot") { fnShotRun(msg.url).then(sendResponse); return true; }
   if (msg && msg.type === "fnShotClose") { fnShotClose().then(function () { sendResponse({ ok: true }); }); return true; }
-  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions).then(sendResponse); return true; }
+  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions, msg.vals).then(sendResponse); return true; }
   if (msg && msg.type === "fnVisitClose") { fnVisitClose().then(function () { sendResponse({ ok: true }); }); return true; }
 });
