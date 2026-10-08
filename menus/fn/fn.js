@@ -212,7 +212,9 @@
   async function fnCheckUrl(item) {
     try {
       var r = await fetchHtml(item.url);
-      var res = { status: r.status, html: r.html, redirected: r.redirected, finalUrl: (r.redirected ? item.url : item.url) };
+      // fetchHtml does not expose the redirected-to URL, so finalUrl stays the requested URL; a login
+      // redirect is instead detected from the returned HTML just below.
+      var res = { status: r.status, html: r.html, redirected: r.redirected, finalUrl: item.url };
       // fetchHtml does not expose the final URL; a login redirect still shows up as an HTML login form
       if (r.redirected && LOGIN_URL.test(r.html.slice(0, 4000))) res.finalUrl = fnBase() + "Account/Login";
       var c = fnClassify(res, fnBase());

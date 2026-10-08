@@ -460,6 +460,9 @@ let fnProbeReg = "";   // origin the console collector is registered for ("" = n
 async function fnRegisterProbe(base) {
   var origin; try { origin = new URL(base).origin; } catch (e) { return; }
   if (fnProbeReg === origin) return;
+  // A dynamic registration survives service-worker restarts while fnProbeReg resets to "", so ALWAYS
+  // clear "fnprobe" by id first — gating this on the in-memory flag would leave a stale registration
+  // and every later register would throw "Duplicate script ID", killing console-error collection.
   await fnUnregisterProbe();
   try {
     await chrome.scripting.registerContentScripts([{
@@ -470,7 +473,6 @@ async function fnRegisterProbe(base) {
   } catch (e) { fnProbeReg = ""; }   // old Chrome without world:MAIN → console errors just won't be collected
 }
 async function fnUnregisterProbe() {
-  if (!fnProbeReg) return;
   try { await chrome.scripting.unregisterContentScripts({ ids: ["fnprobe"] }); } catch (e) {}
   fnProbeReg = "";
 }
@@ -535,26 +537,29 @@ async function fnActionProbe(opts) {
       document.addEventListener("submit", function (e) { try { e.preventDefault(); e.stopImmediatePropagation(); } catch (_) {} }, true);
       window.addEventListener("beforeunload", function (e) { try { e.preventDefault(); e.returnValue = ""; } catch (_) {} });
     } catch (e) {}
-    // auto-fill
-    try {
+    var V = opts.vals || {};
+    var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+    function fillSelects() {
+      var did = 0;
       document.querySelectorAll("select").forEach(function (s) {
         if (!vis(s) || s.disabled || (s.value && s.value.trim())) return;
         var opt = Array.prototype.find.call(s.options, function (o) { return o.value && o.value.trim(); });
-        if (opt) { s.value = opt.value; fire(s, "change"); }
+        if (opt) { s.value = opt.value; fire(s, "input"); fire(s, "change"); did++; }
       });
+      return did;
+    }
+    function fillInputs() {
       document.querySelectorAll("input,textarea").forEach(function (i) {
         if (!vis(i) || i.disabled || i.readOnly) return;
         var ty = (i.type || "text").toLowerCase();
         if (ty === "hidden" || ty === "file" || ty === "submit" || ty === "button" || ty === "image" || ty === "checkbox") return;
+        if (ty === "password") return;   // NEVER fill a password — a submit/AJAX would change real credentials
         if (ty === "radio") { var g = document.querySelectorAll('input[type=radio][name="' + (i.name || "") + '"]'); if (!Array.prototype.some.call(g, function (r) { return r.checked; })) { i.checked = true; fire(i, "change"); } return; }
         if (i.value && i.value.trim()) return;
         var d = new Date(), ds = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
-        // what the field is asking for — a Roll/Reg/Mobile/TPIN/PIN must get DIGITS, never "test",
-        // even when it is a plain type=text (UMS uses text inputs for these). Read name/id/placeholder
-        // plus any numeric hint (inputmode / pattern / maxlength).
+        // Roll/Reg/Mobile/TPIN/PIN must get DIGITS, never "test" (UMS uses type=text for these).
         var k = ((i.name || "") + " " + (i.id || "") + " " + (i.placeholder || "") + " " + (i.getAttribute("inputmode") || "") + " " + (i.getAttribute("pattern") || "") + " " + (i.className || "")).toLowerCase();
         var wantNum = /numeric|digit|[0-9\]\}]\*|\[0-9/.test(k) || i.getAttribute("inputmode") === "numeric";
-        var V = opts.vals || {};
         if (ty === "date") i.value = ds;
         else if (ty === "email") i.value = "test@test.com";
         else if (/mobile|phone|contact|\bcell\b|whatsapp|guardian.?no|\bsms\b/.test(k)) i.value = V.mobile || "01700000000";
@@ -567,26 +572,47 @@ async function fnActionProbe(opts) {
         else i.value = "test";
         fire(i, "input"); fire(i, "change");
       });
+    }
+    function dataRows() {   // visible table rows that actually hold data (a <td>)
+      var n = 0;
+      document.querySelectorAll("table tr").forEach(function (tr) { if (vis(tr) && tr.querySelector("td")) n++; });
+      return n;
+    }
+    // several passes so cascading dropdowns (one selection loads the next via AJAX) ALL get set
+    try {
+      for (var pass = 0; pass < 4; pass++) { var changed = fillSelects(); fillInputs(); await sleep(changed ? 500 : 250); }
     } catch (e) {}
-    // click each button
-    var WRITE = /\b(save|submit|create|add|update|edit|delete|remove|destroy|confirm|send|issue|approve|reject|block|reset|import|sync|generate|pay|void|settle|distribute|transfer|assign|post|enable|disable)\b/i;
-    var cand = [].slice.call(document.querySelectorAll("button, input[type=submit], input[type=button], [role=button]"));
+
+    // Changing a password would lock the real user out, so on any page carrying a password box the
+    // write buttons are left untouched — even on the osl.team test server.
+    var hasPassword = !!document.querySelector("input[type=password]");
+    var WRITE = /\b(save|submit|create|add|update|edit|delete|remove|destroy|confirm|send|issue|approve|reject|block|reset|import|sync|generate|pay|void|settle|distribute|transfer|assign|post|enable|disable|process|finalize|publish|freeze|promote|migrate|merge|lock|unlock)\b|সংরক্ষণ|জমা|হালনাগাদ|মুছ|পাঠা/i;
+    var VIEW = /\b(view|search|find|show|report|load|filter|list|get|display|preview|check|go|ok)\b|খুঁজ|দেখ|অনুসন্ধান/i;
+    var cand = [].slice.call(document.querySelectorAll("button, input[type=submit], input[type=button], [role=button], a.btn"));
     var btns = cand.filter(function (b) { return vis(b) && !b.disabled; });
     for (var bi = 0; bi < btns.length && bi < 15; bi++) {
       var b = btns[bi];
       var label = ((b.value || b.textContent || b.title || "").replace(/\s+/g, " ").trim() || "button").slice(0, 40);
       var isWrite = WRITE.test(label) || /submit/i.test(b.type || "");
-      if (isWrite && !opts.allowWrite) { actions.push({ label: label, pass: true, reason: "skipped (write-guard: শুধু osl.team-এ)" }); continue; }
-      var before = location.href;
+      if (isWrite && (hasPassword || /password|change.?pass|credential/i.test(label))) { actions.push({ label: label, pass: true, reason: "skipped — password/credential (নিরাপত্তা)" }); continue; }
+      var isView = VIEW.test(label) && !isWrite;
+      var before = location.href, rowsBefore = dataRows();
       try { if (window.__fnErr) window.__fnErr.length = 0; } catch (e) {}
       try { b.click(); } catch (e) { actions.push({ label: label, pass: false, reason: "click error: " + ((e && e.message) || e) }); continue; }
-      await new Promise(function (r) { setTimeout(r, 800); });
+      // wait for the result — poll a little longer for a view/search that loads a table over AJAX
+      var waited = 0, step = 300, cap = isView ? 3000 : 900;
+      while (waited < cap) { await sleep(step); waited += step; if (location.href !== before) break; if (isView && dataRows() > rowsBefore) break; }
       if (location.href !== before) { actions.push({ label: label, pass: true, reason: "action triggered (পেজ বদলেছে)" }); break; }
       var er = pageErr();
       var ce = ""; try { if (window.__fnErr && window.__fnErr.length) ce = window.__fnErr.slice(0, 2).join(" | "); } catch (e) {}
-      if (er) actions.push({ label: label, pass: false, reason: "error: " + er.slice(0, 70) });
-      else if (ce) actions.push({ label: label, pass: false, reason: "JS error: " + ce.slice(0, 70) });
-      else actions.push({ label: label, pass: true, reason: "ok" });
+      if (er) { actions.push({ label: label, pass: false, reason: "error: " + er.slice(0, 70) }); continue; }
+      if (ce) { actions.push({ label: label, pass: false, reason: "JS error: " + ce.slice(0, 70) }); continue; }
+      if (isView) {
+        var rowsAfter = dataRows(), hasTable = !!document.querySelector("table");
+        if (rowsAfter > 0) actions.push({ label: label, pass: true, reason: "✓ টেবিল এলো — " + rowsAfter + " row" });
+        else if (hasTable) actions.push({ label: label, pass: true, reason: "টেবিল আছে, কিন্তু কোনো data row নেই (০ row)" });
+        else actions.push({ label: label, pass: false, reason: "⚠ View চাপার পরও কোনো data table এলো না" });
+      } else actions.push({ label: label, pass: true, reason: "ok" });
     }
   } catch (e) { actions.push({ label: "(action probe)", pass: false, reason: String((e && e.message) || e) }); }
   return actions;
@@ -615,8 +641,14 @@ async function fnVisitRun(url, mode, base, actions, vals) {
     } catch (e) { probe = { error: String((e && e.message) || e) }; }
     // second, separate injection: fill the form and click the buttons (page verdict already captured
     // above, so a button that navigates can't erase it). Skipped on a login/error/blank page.
+    // FAIL-CLOSED: filling fires change events and clicking fires handlers, either of which can write
+    // via AJAX (the submit/beforeunload hold-back does NOT stop AJAX). So the whole fill+click only
+    // runs on the osl.team TEST server (allowWrite). On any other host it is skipped entirely — no
+    // field is touched, no button is clicked — so production data can never be mutated.
     if (opts.actions && probe && !probe.error && !probe.isLogin && !probe.serverErr) {
-      try {
+      if (!opts.allowWrite) {
+        probe.actions = [{ label: "(button test)", pass: true, reason: "skipped — বাটন-টেস্ট শুধু *.osl.team টেস্ট সার্ভারে চলে (নিরাপত্তা)" }];
+      } else try {
         var ar;
         var tgt = { target: { tabId: tabId }, func: fnActionProbe, args: [opts] };
         if (useMain) tgt.world = "MAIN";
@@ -641,3 +673,11 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions, msg.vals).then(sendResponse); return true; }
   if (msg && msg.type === "fnVisitClose") { fnVisitClose().then(function () { sendResponse({ ok: true }); }); return true; }
 });
+/* If the user closes a Function-Check window by hand (or the panel goes away mid-crawl and its close
+   message never arrives), drop our state and unregister the console collector so nothing leaks. */
+if (chrome.windows && chrome.windows.onRemoved) {
+  chrome.windows.onRemoved.addListener(function (winId) {
+    if (fnVisit && fnVisit.winId === winId) { fnVisit = { tabId: null, winId: null, mode: null }; fnUnregisterProbe(); }
+    if (fnShot && fnShot.winId === winId) { fnShot = { tabId: null, winId: null }; }
+  });
+}
