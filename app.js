@@ -152,7 +152,7 @@
     nav_fn: { bn: "Function Check", en: "Function Check" },
     fn_sub: { bn: "Clickable Function Check — পেজের সব লিংক (menu/সাব-মেনু সহ) দ্রুত যাচাই", en: "Clickable Function Check — sweep every link on the page (menus & sub-menus included)" },
     fn_h: { bn: "Clickable Function Check", en: "Clickable Function Check" },
-    fn_intro: { bn: "Base URL দাও, Check Now চাপো — পেজের সব লিংক (menu, সাব-মেনু সহ প্রতিটি href) খুলে Pass/Fail দেখাবে (Fail-এ স্ক্রিনশট সহ)। logout/delete/export/ফাইল লিংক বাদ; কোনো ফর্ম submit/save/delete হবে না — শুধু পেজ খোলে, নিরাপদ।", en: "Give a base URL and press Check Now — it opens every link on the page (menus, sub-menus, every href) and reports Pass/Fail (failures carry a screenshot). Logout/delete/export/file links are skipped; it never submits, saves or deletes — it only opens pages, so it is safe." },
+    fn_intro: { bn: "UMS ঠিকানা দাও, Check Now চাপো। প্রতিটা menu ও সাব-মেনু পেজ খুলে Pass/Fail দেখাবে (Fail হলে স্ক্রিনশট সহ)। শুধু পেজ খোলে — কিছু save/delete হয় না, তাই নিরাপদ।", en: "Enter a UMS address and press Check Now. It opens every menu and sub-menu page and marks each Pass or Fail (with a screenshot on failure). It only opens pages — nothing is saved or deleted — so it's safe." },
     fn_base_l: { bn: "UMS ঠিকানা (Base URL)", en: "UMS address (Base URL)" },
     fn_start: { bn: "Check Now", en: "Check Now" },
     fn_stop: { bn: "⏹ থামাও", en: "⏹ Stop" },
