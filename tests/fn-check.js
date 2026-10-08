@@ -53,12 +53,28 @@ const cl = (res) => U.classify(res, BASE);
   check("ASP.NET yellow-screen-of-death → Fail", r.pass === false && r.kind === "page", r.reason);
 }
 {
-  const r = cl({ status: 200, html: "<html><body><div class='validation-summary-errors'><ul><li>Something failed</li></ul></div></body></html>" });
-  check("a validation-summary-errors block → Fail", r.pass === false, r.reason);
+  const r = cl({ status: 200, html: "<html><body><h2>IIS detail</h2><p>Parser Error Message: could not load type 'Foo'</p></body></html>" });
+  check("ASP.NET parser/'could not load type' error → Fail", r.pass === false, r.reason);
+}
+
+/* ---- false-positive guards: generic phrases HIDDEN in a healthy page must NOT fail ----
+   reg: /Student/NextPaymentDateSettings/Index opens fine, but its markup carries a hidden toast
+   template "Something went wrong" — matching that in raw HTML wrongly condemned a working page. */
+{
+  const page = "<html><body><h2>Next Payment Date Settings</h2><table><tr><td>row</td></tr></table>" +
+    "<div class='toast' style='display:none'>Something went wrong</div>" +
+    "<div class='validation-summary-errors' style='display:none'><ul></ul></div>" +
+    "<script>var m='An error occurred'; function fail(){alert('Something went wrong');}</script></body></html>";
+  const r = cl({ status: 200, redirected: false, html: page, finalUrl: BASE + "Student/NextPaymentDateSettings/Index" });
+  check("hidden 'Something went wrong' toast on a working page → Pass (not a false fail)", r.pass, r.reason);
 }
 {
-  const r = cl({ status: 200, html: "<html><body><div class='alert'>An unexpected error occurred while processing your request.</div></body></html>" });
-  check("'an unexpected error occurred' → Fail", r.pass === false, r.reason);
+  const r = cl({ status: 200, html: "<html><body><h3>Report</h3><div class='validation-summary-errors'></div><form><input></form></body></html>" });
+  check("an EMPTY validation-summary-errors div → Pass", r.pass, r.reason);
+}
+{
+  const r = cl({ status: 200, html: "<html><body><h2>Settings</h2><p>If something goes wrong, contact admin.</p><table><tr><td>x</td></tr></table></body></html>" });
+  check("help text mentioning errors → Pass", r.pass, r.reason);
 }
 
 /* ---- a blank / contentless page fails ---- */

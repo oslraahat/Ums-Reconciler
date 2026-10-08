@@ -408,11 +408,19 @@ async function fnEnsureTab(url) {
   return fnShot.tabId;
 }
 function fnProbePage() {
-  // runs in the page: report a visible error message and whether the page is essentially empty
+  // runs in the page: report a VISIBLE error message and whether the page is essentially empty.
+  // Visibility matters — a hidden toast/template ("Something went wrong") carries text but is not a
+  // real error, so only an element the user would actually see counts.
   try {
     var sel = ".validation-summary-errors, .text-danger, .alert-danger, .field-validation-error, #boardInfoErrorMessage, .exception, .yellow-screen";
-    var e = document.querySelector(sel);
-    var errText = e ? (e.textContent || "").replace(/\s+/g, " ").trim() : "";
+    var errText = "";
+    var cands = document.querySelectorAll(sel);
+    for (var i = 0; i < cands.length; i++) {
+      var el = cands[i];
+      if (!el.offsetParent && el.offsetWidth === 0 && el.offsetHeight === 0) continue;   // hidden
+      var tx = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (tx) { errText = tx; break; }
+    }
     if (!errText) {
       var b = (document.body && document.body.innerText || "");
       if (/Server Error in|Exception Details:|Stack Trace:|Runtime Error/i.test(b)) errText = b.replace(/\s+/g, " ").trim().slice(0, 120);

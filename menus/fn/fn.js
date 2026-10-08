@@ -87,7 +87,12 @@
 
   /* Decide pass/fail from a fetched page. Only strong, unambiguous error signatures count, so a page
      that merely has the word "error" in a label is not condemned. */
-  var ERR_MARK = /(server error in\s|exception details:|stack trace:|unhandled exception|runtime error|yellow screen|\bhttp\s?500\b|500 - internal server|403 - forbidden|404 - (not found|file or directory)|an (unexpected )?error (has )?occurred|something went wrong|validation-summary-errors|an error occurred while processing)/i;
+  /* ONLY hard server-error signatures that appear on a real .NET/IIS error page. Generic phrases
+     like "Something went wrong" / "An error occurred" / an empty .validation-summary-errors div sit
+     HIDDEN in the markup of almost every healthy UMS page (toast templates, SweetAlert strings, JS),
+     so matching them in raw HTML condemns working pages. A VISIBLE error is caught instead by the
+     rendered-DOM probe during the screenshot pass. */
+  var ERR_MARK = /(server error in\s|exception details:|stack trace:|unhandled exception|runtime error|the resource cannot be found|http error 5\d\d|500 - internal server|503 - service unavailable|could not load (type|file)|parser error)/i;
   var LOGIN_URL = /\/(account\/)?(log\s*-?\s*(in|on)|login|signin)\b/i;
   function fnClassify(res, baseUrl) {
     var status = res.status || 0;
