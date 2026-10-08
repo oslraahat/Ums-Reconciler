@@ -26,19 +26,22 @@
   var fnRun = null;              // { stop } while a crawl is going
 
   /* ---- what counts as a checkable page link ---- */
-  // state-changing or non-HTML hrefs are never opened, even though they are GETs
-  var SKIP_HREF = /(log\s*-?\s*(out|off)|sign\s*-?\s*out|\/account\/log|\/logout|\/logoff|delete|remove|destroy|\bdrop\b|export|download|\/print|\.(pdf|xlsx?|csv|zip|docx?|pptx?|png|jpe?g|gif)(\?|$))/i;
+  // state-changing or non-HTML hrefs are never opened, even though they are GETs — the crawl only
+  // OPENS pages, so anything that could save/delete/send or hand back a file is skipped for safety
+  var SKIP_HREF = /(log\s*-?\s*(out|off)|sign\s*-?\s*out|\/account\/log|\/logout|\/logoff|delete|remove|destroy|\bdrop\b|approve|activate|deactivate|\bvoid\b|\benable\b|\bdisable\b|\breset\b|generate|\bsend\b|export|download|\/print|\.(pdf|xlsx?|csv|zip|docx?|pptx?|png|jpe?g|gif)(\?|$))/i;
   var ORIGIN = function (u) { try { return new URL(u).origin; } catch (e) { return ""; } };
 
-  /* Pull menu / sub-menu links out of a home page. Server-rendered UMS keeps every sidebar <a> in the
-     markup (collapsed ones are only hidden by CSS), so reading all same-origin anchors finds them.
-     The menu group is the nearest enclosing list's own label, so the report can be grouped. */
+  /* Pull EVERY link out of the page — menus, sub-menus and any other navigational <a href>. Server-
+     rendered UMS keeps every sidebar/submenu <a> in the markup (collapsed ones are only hidden by
+     CSS), and sub-menus can sit outside the main nav container, so the whole document is scanned
+     rather than one sidebar box — that is why some sub-menus were missed before. Same-origin,
+     navigational links only; logout/delete/export/file links are dropped (see SKIP_HREF). The menu
+     group is the nearest enclosing list's own label, so the report can still be grouped. */
   function fnParseNav(html, baseUrl) {
     var origin = ORIGIN(baseUrl);
     var doc;
     try { doc = new DOMParser().parseFromString(html, "text/html"); } catch (e) { return []; }
-    // Prefer a real sidebar/nav if one is recognisable; else fall back to the whole document.
-    var scope = doc.querySelector("nav, .sidebar, #sidebar, .side-menu, .sidebar-menu, .left-menu, .main-menu, aside, ul.nav, #menu, .menu") || doc.body || doc;
+    var scope = doc.body || doc;
     if (!scope) return [];
     var seen = {}, out = [];
     var anchors = scope.querySelectorAll("a[href]");
