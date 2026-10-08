@@ -349,18 +349,33 @@
     if ($("fnHeadless")) $("fnHeadless").addEventListener("click", function () { fnSetMode("headless"); });
     if ($("fnActions")) $("fnActions").addEventListener("change", function () { try { chrome.storage.local.set({ fnActions: this.checked }); } catch (e) {} });
     var VKEYS = { fnRoll: "fnRoll", fnReg: "fnReg", fnMobile: "fnMobile", fnTpin: "fnTpin", fnPin: "fnPin" };
+    // Roll/Reg/Mobile keep a native <datalist> of numbers used before — selecting one RELIABLY sets
+    // the field, unlike the browser's flaky tel-autofill (same trick as New Admission's mobile box).
+    var DL = { fnRoll: { dl: "fnRollDl", key: "fnRolls" }, fnReg: { dl: "fnRegDl", key: "fnRegs" }, fnMobile: { dl: "fnMobileDl", key: "fnMobiles" } };
+    function fillDl(dlId, list) { var dl = $(dlId); if (!dl) return; dl.innerHTML = (list || []).map(function (v) { return '<option value="' + String(v).replace(/"/g, "&quot;") + '">'; }).join(""); }
+    function remember(id) {
+      var cfg = DL[id]; if (!cfg) return;
+      var v = ($(id) && $(id).value || "").trim(); if (!v) return;
+      try { chrome.storage.local.get(cfg.key, function (o) {
+        var list = (o && o[cfg.key]) || [];
+        list = list.filter(function (x) { return x !== v; }); list.unshift(v); if (list.length > 12) list = list.slice(0, 12);
+        var s = {}; s[cfg.key] = list; try { chrome.storage.local.set(s); } catch (e) {} fillDl(cfg.dl, list);
+      }); } catch (e) {}
+    }
     Object.keys(VKEYS).forEach(function (id) {
       var e = $(id); if (!e) return;
-      // input covers typing; change/blur catch a browser autofill/suggestion that doesn't fire input
+      // input covers typing; change/blur catch a browser autofill/datalist pick that doesn't fire input
       var save = function () { var o = {}; o[id] = e.value; try { chrome.storage.local.set(o); } catch (err) {} };
       ["input", "change", "blur"].forEach(function (ev) { e.addEventListener(ev, save); });
+      e.addEventListener("blur", function () { remember(id); });
     });
     if ($("fnBase") && !$("fnBase").value) $("fnBase").value = (A.getBaseUrl && A.getBaseUrl()) || "https://ums-4.osl.team";
     try {
-      chrome.storage.local.get(["fnMode", "fnActions"].concat(Object.keys(VKEYS)), function (o) {
+      chrome.storage.local.get(["fnMode", "fnActions", "fnRolls", "fnRegs", "fnMobiles"].concat(Object.keys(VKEYS)), function (o) {
         fnSetMode(o && o.fnMode);
         if ($("fnActions")) $("fnActions").checked = !!(o && o.fnActions);
         Object.keys(VKEYS).forEach(function (id) { if (o && o[id] != null && $(id)) $(id).value = o[id]; });
+        Object.keys(DL).forEach(function (id) { fillDl(DL[id].dl, (o && o[DL[id].key]) || []); });
       });
     } catch (e) { fnSetMode("http"); }
   }
