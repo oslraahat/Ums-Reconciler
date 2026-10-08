@@ -592,6 +592,15 @@
   .fnwhy{color:#e14b5e;font-size:12px;flex:1 1 100%;margin-left:26px}
   .fnshot{margin-left:auto;flex:0 0 auto}
   .fnshot img{height:46px;border-radius:5px;border:1px solid rgba(127,127,127,.3);display:block}
+  .fnact{display:inline-flex;align-items:center;gap:7px;margin-top:10px;font-size:13px;cursor:pointer;color:var(--mut)}
+  .fnact input{cursor:pointer}
+  .fnacts{flex:1 1 100%;margin:4px 0 2px 26px;display:flex;flex-direction:column;gap:3px}
+  .fnactrow{display:flex;align-items:center;gap:8px;font-size:12px}
+  .fnactrow .fnst{width:14px}
+  .fnactrow.f .fnst{color:#e14b5e}.fnactrow.p .fnst{color:#2fa368}
+  .fnactlbl{font-weight:600}
+  .fnactwhy{color:var(--mut)}
+  .fnactrow.f .fnactwhy{color:#e14b5e}
 </style>
 </head>
 <body>
@@ -913,6 +922,9 @@
             <button class="btn" id="fnStop" style="height:var(--ctl-h);display:none" data-i18n="fn_stop">⏹ Stop</button>
             <button class="btn" id="fnExport" style="height:var(--ctl-h)" data-i18n="fn_export">⬇ CSV</button>
           </div>
+          <label class="fnact" title="শুধু Browser/Headless মোডে কাজ করে — প্রতিটি পেজে field/dropdown auto-fill করে বাটন ক্লিক করে দেখে। Save/Submit/Delete-এর মতো বাটন শুধু osl.team টেস্ট সার্ভারে ক্লিক হবে।">
+            <input type="checkbox" id="fnActions"> <span data-i18n="fn_actions_l">🖱️ বাটনও টেস্ট করো (field ভরে ক্লিক) — Browser/Headless মোডে</span>
+          </label>
           <div class="fnprog"><div class="fnbarwrap"><div id="fnBar" class="fnbar"></div></div><span id="fnNote" class="mut"></span></div>
           <div id="fnList" class="fnlist"></div>
         </div>

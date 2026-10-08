@@ -171,12 +171,20 @@
       html += '<div class="fngrp"><div class="fnghead">' + esc(g) + ' <span class="mut">(' + rows.length + ')</span>' +
         (gf ? ' <span class="fnpill bad">✗ ' + gf + '</span>' : ' <span class="fnpill ok">✓</span>') + '</div>';
       rows.forEach(function (r) {
+        var acts = "";
+        if (r.actions && r.actions.length) {
+          acts = '<div class="fnacts">' + r.actions.map(function (a) {
+            return '<div class="fnactrow ' + (a.pass ? "p" : "f") + '"><span class="fnst">' + (a.pass ? "✓" : "✗") +
+              '</span><span class="fnactlbl">' + esc(a.label) + '</span><span class="fnactwhy">— ' + esc(a.reason) + '</span></div>';
+          }).join("") + '</div>';
+        }
         html += '<div class="fnrow ' + (r.pass ? "p" : "f") + '">' +
           '<span class="fnst">' + (r.pass ? "✓" : "✗") + '</span>' +
           '<a class="fnlk" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.label) + '</a>' +
           '<span class="fnpath mut">' + esc(r.path) + '</span>' +
           (r.pass ? "" : '<span class="fnwhy">' + esc(r.reason) + '</span>') +
           (r.shot ? '<a class="fnshot" href="' + r.shot + '" target="_blank" title="স্ক্রিনশট"><img src="' + r.shot + '" alt="screenshot"></a>' : "") +
+          acts +
           '</div>';
       });
       html += '</div>';
@@ -224,10 +232,10 @@
       } catch (e) { resolve(null); }
     });
   }
-  function fnVisit(url, mode, base) {
+  function fnVisit(url, mode, base, actions) {
     return new Promise(function (resolve) {
       try {
-        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base }, function (resp) {
+        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions }, function (resp) {
           var le = chrome.runtime.lastError;
           if (le) { resolve({ ok: false, error: le.message || "no response (এক্সটেনশন পুরো Reload করো)" }); return; }
           resolve(resp || { ok: false, error: "empty response" });
@@ -268,12 +276,15 @@
     } else {
       // Browser / Headless: load each page for real (JS runs), classify from the rendered DOM +
       // console errors. Sequential — one tab/window reused.
+      var doActions = !!($("fnActions") && $("fnActions").checked);
       fnProgress(0, total, t("fn_visiting"));
       for (var vi = 0; vi < links.length; vi++) {
         if (fnRun && fnRun.stop) break;
-        var v = await fnVisit(links[vi].url, fnMode, base);
+        var v = await fnVisit(links[vi].url, fnMode, base, doActions);
         var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
-        results.push(Object.assign({}, links[vi], c));
+        var row = Object.assign({}, links[vi], c);
+        if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
+        results.push(row);
         done++; fnProgress(done, total, t("fn_visiting"));
         fnRenderSummary(); fnRenderList();
       }
@@ -308,8 +319,11 @@
 
   function fnExport() {
     if (!results.length) return;
-    var rows = [["Menu", "Action", "Path", "URL", "Status", "Reason"]];
-    results.forEach(function (r) { rows.push([r.menu, r.label, r.path, r.url, r.pass ? "Pass" : "Fail", r.reason]); });
+    var rows = [["Menu", "Action", "Path", "URL", "Status", "Reason", "Button"]];
+    results.forEach(function (r) {
+      rows.push([r.menu, r.label, r.path, r.url, r.pass ? "Pass" : "Fail", r.reason, ""]);
+      (r.actions || []).forEach(function (a) { rows.push([r.menu, r.label, r.path, r.url, a.pass ? "Pass" : "Fail", a.reason, a.label]); });
+    });
     var csv = rows.map(function (row) { return row.map(function (c) { return '"' + String(c == null ? "" : c).replace(/"/g, '""') + '"'; }).join(","); }).join("\r\n");
     var blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
     var a = document.createElement("a");
@@ -326,8 +340,9 @@
     if ($("fnHttp")) $("fnHttp").addEventListener("click", function () { fnSetMode("http"); });
     if ($("fnBrowser")) $("fnBrowser").addEventListener("click", function () { fnSetMode("browser"); });
     if ($("fnHeadless")) $("fnHeadless").addEventListener("click", function () { fnSetMode("headless"); });
+    if ($("fnActions")) $("fnActions").addEventListener("change", function () { try { chrome.storage.local.set({ fnActions: this.checked }); } catch (e) {} });
     if ($("fnBase") && !$("fnBase").value) $("fnBase").value = (A.getBaseUrl && A.getBaseUrl()) || "https://ums-4.osl.team";
-    try { chrome.storage.local.get(["fnMode"], function (o) { fnSetMode(o && o.fnMode); }); } catch (e) { fnSetMode("http"); }
+    try { chrome.storage.local.get(["fnMode", "fnActions"], function (o) { fnSetMode(o && o.fnMode); if ($("fnActions")) $("fnActions").checked = !!(o && o.fnActions); }); } catch (e) { fnSetMode("http"); }
   }
 
   A.fn = { wire: fnWire, start: fnStart, stop: fnStop, setMode: fnSetMode,

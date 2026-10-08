@@ -157,6 +157,7 @@
     fn_start: { bn: "Check Now", en: "Check Now" },
     fn_stop: { bn: "⏹ থামাও", en: "⏹ Stop" },
     fn_export: { bn: "⬇ CSV", en: "⬇ CSV" },
+    fn_actions_l: { bn: "🖱️ বাটনও টেস্ট করো (field ভরে ক্লিক) — Browser/Headless মোডে", en: "🖱️ Test buttons too (fill & click) — in Browser/Headless mode" },
     fn_http_l: { bn: "⚡ HTTP", en: "⚡ HTTP" },
     fn_browser_l: { bn: "🌐 Browser", en: "🌐 Browser" },
     fn_headless_l: { bn: "⚙️ Headless", en: "⚙️ Headless" },

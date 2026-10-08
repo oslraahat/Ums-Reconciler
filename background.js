@@ -489,40 +489,95 @@ async function fnEnsureVisit(url, mode) {
   }
   return fnVisit.tabId;
 }
-function fnProbeDeep() {
-  // runs in the loaded page (MAIN world): classify from what actually rendered
-  try {
-    var errText = "";
+async function fnProbeDeep(opts) {
+  // runs in the loaded page (MAIN world): classify from what actually rendered, and — when opts.actions
+  // — auto-fill the form and click each button to see whether the action works. opts.allowWrite gates
+  // state-changing buttons (Save/Submit/Delete…) so they fire only on the osl.team test server.
+  opts = opts || {};
+  function vis(el) { return !!(el && (el.offsetParent || el.offsetWidth || el.offsetHeight)); }
+  function fire(el, type) { try { el.dispatchEvent(new Event(type, { bubbles: true })); } catch (e) {} }
+  function pageErr() {
     var cands = document.querySelectorAll(".validation-summary-errors, .alert-danger, .exception, .yellow-screen, .swal2-html-container, .toast-error");
-    for (var i = 0; i < cands.length; i++) {
-      var el = cands[i];
-      if (!el.offsetParent && !el.offsetWidth && !el.offsetHeight) continue;   // hidden
-      var tx = (el.textContent || "").replace(/\s+/g, " ").trim();
-      if (tx) { errText = tx; break; }
-    }
+    for (var i = 0; i < cands.length; i++) { var el = cands[i]; if (!vis(el)) continue; var tx = (el.textContent || "").replace(/\s+/g, " ").trim(); if (tx) return tx; }
+    return "";
+  }
+  try {
+    var errText = pageErr();
     var bodyText = (document.body && (document.body.innerText || "").replace(/\s+/g, " ").trim()) || "";
     var serverErr = /Server Error in|Exception Details:|Stack Trace:|Runtime Error|could not load type|Parser Error/i.test(bodyText);
     var isLogin = /\/(account\/)?(log\s*-?\s*(in|on)|login|signin)\b/i.test(location.href);
     var hasStructure = !!document.querySelector("table,form,canvas,svg,input,select,h1,h2,h3");
     var consoleErr = "";
     try { if (window.__fnErr && window.__fnErr.length) consoleErr = window.__fnErr.slice(0, 3).join(" | ").slice(0, 160); } catch (e) {}
-    return { errText: errText, serverErr: serverErr, isLogin: isLogin, bodyLen: bodyText.length, hasStructure: hasStructure, consoleErr: consoleErr, title: document.title || "" };
+    var out = { errText: errText, serverErr: serverErr, isLogin: isLogin, bodyLen: bodyText.length, hasStructure: hasStructure, consoleErr: consoleErr, title: document.title || "" };
+    if (!opts.actions || isLogin || serverErr) return out;
+
+    // ---- auto-fill every empty, visible, enabled field ----
+    try {
+      document.querySelectorAll("select").forEach(function (s) {
+        if (!vis(s) || s.disabled || (s.value && s.value.trim())) return;
+        var opt = Array.prototype.find.call(s.options, function (o) { return o.value && o.value.trim(); });
+        if (opt) { s.value = opt.value; fire(s, "change"); }
+      });
+      document.querySelectorAll("input,textarea").forEach(function (i) {
+        if (!vis(i) || i.disabled || i.readOnly) return;
+        var ty = (i.type || "text").toLowerCase();
+        if (ty === "hidden" || ty === "file" || ty === "submit" || ty === "button" || ty === "image" || ty === "checkbox") return;
+        if (ty === "radio") { var g = document.querySelectorAll('input[type=radio][name="' + (i.name || "") + '"]'); if (!Array.prototype.some.call(g, function (r) { return r.checked; })) { i.checked = true; fire(i, "change"); } return; }
+        if (i.value && i.value.trim()) return;
+        var d = new Date(), ds = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+        if (ty === "date") i.value = ds;
+        else if (ty === "number") i.value = i.min || "1";
+        else if (ty === "email") i.value = "test@test.com";
+        else if (ty === "tel") i.value = "01700000000";
+        else i.value = "test";
+        fire(i, "input"); fire(i, "change");
+      });
+    } catch (e) {}
+
+    // ---- click each button, newest page state checked after each ----
+    var WRITE = /\b(save|submit|create|add|update|edit|delete|remove|destroy|confirm|send|issue|approve|reject|block|reset|import|sync|generate|pay|void|settle|distribute|transfer|assign|post|enable|disable)\b/i;
+    var cand = [].slice.call(document.querySelectorAll("button, input[type=submit], input[type=button], [role=button]"));
+    var btns = cand.filter(function (b) { return vis(b) && !b.disabled; });
+    var actions = [];
+    for (var bi = 0; bi < btns.length && bi < 12; bi++) {
+      var b = btns[bi];
+      var label = ((b.value || b.textContent || b.title || "").replace(/\s+/g, " ").trim() || "button").slice(0, 40);
+      var isWrite = WRITE.test(label) || /submit/i.test(b.type || "");
+      if (isWrite && !opts.allowWrite) { actions.push({ label: label, pass: true, reason: "skipped (write-guard: শুধু osl.team-এ)" }); continue; }
+      var before = location.href;
+      try { if (window.__fnErr) window.__fnErr.length = 0; } catch (e) {}
+      try { b.click(); } catch (e) { actions.push({ label: label, pass: false, reason: "click error: " + ((e && e.message) || e) }); continue; }
+      await new Promise(function (r) { setTimeout(r, 900); });
+      if (location.href !== before) { actions.push({ label: label, pass: true, reason: "action triggered (পেজ বদলেছে)" }); break; }
+      var er = pageErr();
+      var ce = ""; try { if (window.__fnErr && window.__fnErr.length) ce = window.__fnErr.slice(0, 2).join(" | "); } catch (e) {}
+      if (er) actions.push({ label: label, pass: false, reason: "error: " + er.slice(0, 70) });
+      else if (ce) actions.push({ label: label, pass: false, reason: "JS error: " + ce.slice(0, 70) });
+      else actions.push({ label: label, pass: true, reason: "ok" });
+    }
+    out.actions = actions;
+    return out;
   } catch (err) { return { error: String((err && err.message) || err) }; }
 }
-async function fnVisitRun(url, mode, base) {
+async function fnVisitRun(url, mode, base, actions) {
   try {
     await fnRegisterProbe(base);
     var tabId = await fnEnsureVisit(url, mode);
     if (tabId == null) return { ok: false, error: "tab/window তৈরি হয়নি" };
     await waitTabComplete(tabId, 25000);
     await bgSleep(600);   // let scripts run and paint
+    // write-gate: state-changing buttons fire only on the osl.team test server
+    var allowWrite = false;
+    try { allowWrite = /(^|\.)osl\.team$/i.test(new URL(base).hostname); } catch (e) {}
+    var opts = { actions: !!actions, allowWrite: allowWrite };
     var probe = null;
     try {
       // MAIN world lets the probe read the console-error collector; fall back to the default world
       // (DOM check still works, just no window.__fnErr) on a Chrome that rejects world:MAIN here.
       var res;
-      try { res = await chrome.scripting.executeScript({ target: { tabId: tabId }, world: "MAIN", func: fnProbeDeep }); }
-      catch (e1) { res = await chrome.scripting.executeScript({ target: { tabId: tabId }, func: fnProbeDeep }); }
+      try { res = await chrome.scripting.executeScript({ target: { tabId: tabId }, world: "MAIN", func: fnProbeDeep, args: [opts] }); }
+      catch (e1) { res = await chrome.scripting.executeScript({ target: { tabId: tabId }, func: fnProbeDeep, args: [opts] }); }
       probe = res && res[0] && res[0].result;
       if (!probe) probe = { error: "probe ফলাফল পাওয়া যায়নি" };
     } catch (e) { probe = { error: String((e && e.message) || e) }; }
@@ -540,6 +595,6 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === "admBrowserClose") { admCloseRun(msg.slot).then(function () { sendResponse({ ok: true }); }); return true; }
   if (msg && msg.type === "fnShot") { fnShotRun(msg.url).then(sendResponse); return true; }
   if (msg && msg.type === "fnShotClose") { fnShotClose().then(function () { sendResponse({ ok: true }); }); return true; }
-  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base).then(sendResponse); return true; }
+  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions).then(sendResponse); return true; }
   if (msg && msg.type === "fnVisitClose") { fnVisitClose().then(function () { sendResponse({ ok: true }); }); return true; }
 });
