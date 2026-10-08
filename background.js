@@ -509,10 +509,33 @@ async function fnProbeDeep(opts) {
     var hasStructure = !!document.querySelector("table,form,canvas,svg,input,select,h1,h2,h3");
     var consoleErr = "";
     try { if (window.__fnErr && window.__fnErr.length) consoleErr = window.__fnErr.slice(0, 3).join(" | ").slice(0, 160); } catch (e) {}
-    var out = { errText: errText, serverErr: serverErr, isLogin: isLogin, bodyLen: bodyText.length, hasStructure: hasStructure, consoleErr: consoleErr, title: document.title || "" };
-    if (!opts.actions || isLogin || serverErr) return out;
+    return { errText: errText, serverErr: serverErr, isLogin: isLogin, bodyLen: bodyText.length, hasStructure: hasStructure, consoleErr: consoleErr, title: document.title || "" };
+  } catch (err) { return { error: String((err && err.message) || err) }; }
+}
 
-    // ---- auto-fill every empty, visible, enabled field ----
+/* Second, SEPARATE injection (so a button that still navigates can't take the page verdict down with
+   it): auto-fill the form, then click every visible enabled button and record a per-button verdict.
+   Navigation is held back best-effort (form submits / beforeunload are cancelled) so the page context
+   survives and EVERY button gets tested — and, as a bonus, a held-back submit means even a write
+   button does not actually commit to the server. opts.allowWrite still gates which buttons are clicked
+   at all. Returns the actions array (or whatever was collected before an unavoidable navigation). */
+async function fnActionProbe(opts) {
+  opts = opts || {};
+  function vis(el) { return !!(el && (el.offsetParent || el.offsetWidth || el.offsetHeight)); }
+  function fire(el, type) { try { el.dispatchEvent(new Event(type, { bubbles: true })); } catch (e) {} }
+  function pageErr() {
+    var c = document.querySelectorAll(".validation-summary-errors, .alert-danger, .exception, .swal2-html-container, .toast-error, .field-validation-error");
+    for (var i = 0; i < c.length; i++) { var el = c[i]; if (!vis(el)) continue; var tx = (el.textContent || "").replace(/\s+/g, " ").trim(); if (tx) return tx; }
+    return "";
+  }
+  var actions = [];
+  try {
+    // hold navigation back so the context survives and nothing is actually committed
+    try {
+      document.addEventListener("submit", function (e) { try { e.preventDefault(); e.stopImmediatePropagation(); } catch (_) {} }, true);
+      window.addEventListener("beforeunload", function (e) { try { e.preventDefault(); e.returnValue = ""; } catch (_) {} });
+    } catch (e) {}
+    // auto-fill
     try {
       document.querySelectorAll("select").forEach(function (s) {
         if (!vis(s) || s.disabled || (s.value && s.value.trim())) return;
@@ -534,13 +557,11 @@ async function fnProbeDeep(opts) {
         fire(i, "input"); fire(i, "change");
       });
     } catch (e) {}
-
-    // ---- click each button, newest page state checked after each ----
+    // click each button
     var WRITE = /\b(save|submit|create|add|update|edit|delete|remove|destroy|confirm|send|issue|approve|reject|block|reset|import|sync|generate|pay|void|settle|distribute|transfer|assign|post|enable|disable)\b/i;
     var cand = [].slice.call(document.querySelectorAll("button, input[type=submit], input[type=button], [role=button]"));
     var btns = cand.filter(function (b) { return vis(b) && !b.disabled; });
-    var actions = [];
-    for (var bi = 0; bi < btns.length && bi < 12; bi++) {
+    for (var bi = 0; bi < btns.length && bi < 15; bi++) {
       var b = btns[bi];
       var label = ((b.value || b.textContent || b.title || "").replace(/\s+/g, " ").trim() || "button").slice(0, 40);
       var isWrite = WRITE.test(label) || /submit/i.test(b.type || "");
@@ -548,7 +569,7 @@ async function fnProbeDeep(opts) {
       var before = location.href;
       try { if (window.__fnErr) window.__fnErr.length = 0; } catch (e) {}
       try { b.click(); } catch (e) { actions.push({ label: label, pass: false, reason: "click error: " + ((e && e.message) || e) }); continue; }
-      await new Promise(function (r) { setTimeout(r, 900); });
+      await new Promise(function (r) { setTimeout(r, 800); });
       if (location.href !== before) { actions.push({ label: label, pass: true, reason: "action triggered (পেজ বদলেছে)" }); break; }
       var er = pageErr();
       var ce = ""; try { if (window.__fnErr && window.__fnErr.length) ce = window.__fnErr.slice(0, 2).join(" | "); } catch (e) {}
@@ -556,9 +577,8 @@ async function fnProbeDeep(opts) {
       else if (ce) actions.push({ label: label, pass: false, reason: "JS error: " + ce.slice(0, 70) });
       else actions.push({ label: label, pass: true, reason: "ok" });
     }
-    out.actions = actions;
-    return out;
-  } catch (err) { return { error: String((err && err.message) || err) }; }
+  } catch (e) { actions.push({ label: "(action probe)", pass: false, reason: String((e && e.message) || e) }); }
+  return actions;
 }
 async function fnVisitRun(url, mode, base, actions) {
   try {
@@ -572,15 +592,27 @@ async function fnVisitRun(url, mode, base, actions) {
     try { allowWrite = /(^|\.)osl\.team$/i.test(new URL(base).hostname); } catch (e) {}
     var opts = { actions: !!actions, allowWrite: allowWrite };
     var probe = null;
+    var useMain = true;
     try {
       // MAIN world lets the probe read the console-error collector; fall back to the default world
       // (DOM check still works, just no window.__fnErr) on a Chrome that rejects world:MAIN here.
       var res;
       try { res = await chrome.scripting.executeScript({ target: { tabId: tabId }, world: "MAIN", func: fnProbeDeep, args: [opts] }); }
-      catch (e1) { res = await chrome.scripting.executeScript({ target: { tabId: tabId }, func: fnProbeDeep, args: [opts] }); }
+      catch (e1) { useMain = false; res = await chrome.scripting.executeScript({ target: { tabId: tabId }, func: fnProbeDeep, args: [opts] }); }
       probe = res && res[0] && res[0].result;
       if (!probe) probe = { error: "probe ফলাফল পাওয়া যায়নি" };
     } catch (e) { probe = { error: String((e && e.message) || e) }; }
+    // second, separate injection: fill the form and click the buttons (page verdict already captured
+    // above, so a button that navigates can't erase it). Skipped on a login/error/blank page.
+    if (opts.actions && probe && !probe.error && !probe.isLogin && !probe.serverErr) {
+      try {
+        var ar;
+        var tgt = { target: { tabId: tabId }, func: fnActionProbe, args: [opts] };
+        if (useMain) tgt.world = "MAIN";
+        ar = await chrome.scripting.executeScript(tgt);
+        probe.actions = (ar && ar[0] && ar[0].result) || [];
+      } catch (e) { probe.actions = [{ label: "(buttons)", pass: false, reason: "navigation বা inject সমস্যা — " + String((e && e.message) || e) }]; }
+    }
     return { ok: true, probe: probe };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
