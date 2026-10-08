@@ -451,9 +451,90 @@ async function fnShotClose() {
   fnShot = { tabId: null, winId: null };
 }
 
+/* ── Function Check · deep visit (Browser / Headless) ──
+   Load each page for real so its JavaScript runs, then read the rendered DOM + any uncaught console
+   errors. Browser = a visible front tab; Headless = an off-screen window that never takes focus.
+   Still read-only: it only opens the page. */
+let fnVisit = { tabId: null, winId: null, mode: null };
+let fnProbeReg = "";   // origin the console collector is registered for ("" = not registered)
+async function fnRegisterProbe(base) {
+  var origin; try { origin = new URL(base).origin; } catch (e) { return; }
+  if (fnProbeReg === origin) return;
+  await fnUnregisterProbe();
+  try {
+    await chrome.scripting.registerContentScripts([{
+      id: "fnprobe", matches: [origin + "/*"], js: ["menus/fn/fnprobe.js"],
+      runAt: "document_start", world: "MAIN", persistAcrossSessions: false
+    }]);
+    fnProbeReg = origin;
+  } catch (e) { fnProbeReg = ""; }   // old Chrome without world:MAIN → console errors just won't be collected
+}
+async function fnUnregisterProbe() {
+  if (!fnProbeReg) return;
+  try { await chrome.scripting.unregisterContentScripts({ ids: ["fnprobe"] }); } catch (e) {}
+  fnProbeReg = "";
+}
+async function fnEnsureVisit(url, mode) {
+  if (fnVisit.tabId != null && fnVisit.mode === mode && await getTab(fnVisit.tabId)) { await chrome.tabs.update(fnVisit.tabId, { url: url }); return fnVisit.tabId; }
+  await fnVisitClose();
+  if (mode === "browser") {
+    const tb = await chrome.tabs.create({ url: url, active: true });
+    fnVisit = { tabId: tb.id, winId: tb.windowId, mode: mode };
+  } else {
+    let win;
+    try { win = await chrome.windows.create({ url: url, focused: false, left: 30000, top: 30000, width: 1200, height: 820 }); }
+    catch (e) { win = await chrome.windows.create({ url: url, focused: false, width: 1200, height: 820 }); }
+    try { await chrome.windows.update(win.id, { left: 30000, top: 30000, focused: false }); } catch (e) {}
+    fnVisit = { tabId: win && win.tabs && win.tabs[0] && win.tabs[0].id, winId: win.id, mode: mode };
+  }
+  return fnVisit.tabId;
+}
+function fnProbeDeep() {
+  // runs in the loaded page (MAIN world): classify from what actually rendered
+  try {
+    var errText = "";
+    var cands = document.querySelectorAll(".validation-summary-errors, .alert-danger, .exception, .yellow-screen, .swal2-html-container, .toast-error");
+    for (var i = 0; i < cands.length; i++) {
+      var el = cands[i];
+      if (!el.offsetParent && !el.offsetWidth && !el.offsetHeight) continue;   // hidden
+      var tx = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (tx) { errText = tx; break; }
+    }
+    var bodyText = (document.body && (document.body.innerText || "").replace(/\s+/g, " ").trim()) || "";
+    var serverErr = /Server Error in|Exception Details:|Stack Trace:|Runtime Error|could not load type|Parser Error/i.test(bodyText);
+    var isLogin = /\/(account\/)?(log\s*-?\s*(in|on)|login|signin)\b/i.test(location.href);
+    var hasStructure = !!document.querySelector("table,form,canvas,svg,input,select,h1,h2,h3");
+    var consoleErr = "";
+    try { if (window.__fnErr && window.__fnErr.length) consoleErr = window.__fnErr.slice(0, 3).join(" | ").slice(0, 160); } catch (e) {}
+    return { errText: errText, serverErr: serverErr, isLogin: isLogin, bodyLen: bodyText.length, hasStructure: hasStructure, consoleErr: consoleErr, title: document.title || "" };
+  } catch (err) { return { error: String((err && err.message) || err) }; }
+}
+async function fnVisitRun(url, mode, base) {
+  try {
+    await fnRegisterProbe(base);
+    var tabId = await fnEnsureVisit(url, mode);
+    if (tabId == null) return { ok: false };
+    await waitTabComplete(tabId, 25000);
+    await bgSleep(600);   // let scripts run and paint
+    var probe = null;
+    try {
+      var res = await chrome.scripting.executeScript({ target: { tabId: tabId }, world: "MAIN", func: fnProbeDeep });
+      probe = res && res[0] && res[0].result;
+    } catch (e) { probe = { error: String((e && e.message) || e) }; }
+    return { ok: true, probe: probe };
+  } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
+}
+async function fnVisitClose() {
+  try { if (fnVisit.winId != null && fnVisit.mode !== "browser") await chrome.windows.remove(fnVisit.winId); else if (fnVisit.tabId != null) await chrome.tabs.remove(fnVisit.tabId); } catch (e) {}
+  fnVisit = { tabId: null, winId: null, mode: null };
+  await fnUnregisterProbe();
+}
+
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === "admBrowser") { admBrowserRun(msg.params || {}).then(sendResponse); return true; }
   if (msg && msg.type === "admBrowserClose") { admCloseRun(msg.slot).then(function () { sendResponse({ ok: true }); }); return true; }
   if (msg && msg.type === "fnShot") { fnShotRun(msg.url).then(sendResponse); return true; }
   if (msg && msg.type === "fnShotClose") { fnShotClose().then(function () { sendResponse({ ok: true }); }); return true; }
+  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base).then(sendResponse); return true; }
+  if (msg && msg.type === "fnVisitClose") { fnVisitClose().then(function () { sendResponse({ ok: true }); }); return true; }
 });

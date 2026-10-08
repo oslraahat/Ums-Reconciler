@@ -95,5 +95,23 @@ const cl = (res) => U.classify(res, BASE);
   check("a fetch error object → Fail with its reason", r.pass === false && /timeout/.test(r.reason), r.reason);
 }
 
+/* ---- Browser / Headless verdict (fnClassifyProbe) — from the rendered page ---- */
+{
+  const ok = U.classifyProbe({ errText: "", serverErr: false, isLogin: false, bodyLen: 500, hasStructure: true, consoleErr: "" });
+  check("probe: a healthy rendered page → Pass", ok.pass, ok.reason);
+  const login = U.classifyProbe({ isLogin: true, bodyLen: 300, hasStructure: true });
+  check("probe: login page → Fail", login.pass === false && login.kind === "login", login.reason);
+  const srv = U.classifyProbe({ serverErr: true, errText: "System.NullReferenceException", bodyLen: 200, hasStructure: true });
+  check("probe: rendered .NET error → Fail", srv.pass === false && srv.kind === "page", srv.reason);
+  const toast = U.classifyProbe({ errText: "Could not save the record", bodyLen: 400, hasStructure: true });
+  check("probe: a VISIBLE error toast → Fail", toast.pass === false && toast.kind === "page", toast.reason);
+  const js = U.classifyProbe({ consoleErr: "Uncaught TypeError: x is not a function (app.js:12)", bodyLen: 400, hasStructure: true });
+  check("probe: an uncaught JS console error → Fail", js.pass === false && js.kind === "js", js.reason);
+  const blank = U.classifyProbe({ bodyLen: 5, hasStructure: false });
+  check("probe: blank rendered page → Fail", blank.pass === false && blank.kind === "blank", blank.reason);
+  const none = U.classifyProbe(null);
+  check("probe: no result at all → Fail", none.pass === false, none.reason);
+}
+
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
 process.exit(fail ? 1 : 0);

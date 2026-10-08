@@ -22,8 +22,17 @@
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) { return ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]; }); }
 
   var MAX_LINKS = 600;           // a hard cap so a mis-parsed page can never spawn thousands of fetches
-  var CONC = 8;                  // parallel page checks
+  var CONC = 8;                  // parallel page checks (HTTP mode)
   var fnRun = null;              // { stop } while a crawl is going
+  var fnMode = "http";           // http | browser | headless
+
+  function fnSetMode(m) {
+    fnMode = (m === "browser" || m === "headless") ? m : "http";
+    [["fnHttp", "http"], ["fnBrowser", "browser"], ["fnHeadless", "headless"]].forEach(function (p) {
+      var b = $(p[0]); if (b) b.classList.toggle("on", fnMode === p[1]);
+    });
+    try { chrome.storage.local.set({ fnMode: fnMode }); } catch (e) {}
+  }
 
   /* ---- what counts as a checkable page link ---- */
   // state-changing or non-HTML hrefs are never opened, even though they are GETs — the crawl only
@@ -115,6 +124,18 @@
     return { pass: true, reason: "ঠিক আছে", kind: "ok" };
   }
 
+  /* Browser / Headless verdict — from what actually rendered (the page's JS ran). Catches a visible
+     error toast, a .NET error, a login redirect, a blank page, and uncaught JS console errors. */
+  function fnClassifyProbe(probe) {
+    if (!probe || probe.error) return { pass: false, reason: "লোড হয়নি — " + ((probe && probe.error) || "page error"), kind: "net" };
+    if (probe.isLogin) return { pass: false, reason: "লগইন পেজ — সেশন/অ্যাক্সেস নেই", kind: "login" };
+    if (probe.serverErr) return { pass: false, reason: "পেজে server error/exception" + (probe.errText ? ": " + String(probe.errText).slice(0, 60) : ""), kind: "page" };
+    if (probe.errText) return { pass: false, reason: "দৃশ্যমান error: " + String(probe.errText).slice(0, 70), kind: "page" };
+    if (probe.consoleErr) return { pass: false, reason: "JS console error: " + String(probe.consoleErr), kind: "js" };
+    if ((probe.bodyLen || 0) < 40 && !probe.hasStructure) return { pass: false, reason: "খালি/ভাঙা পেজ (কোনো কনটেন্ট নেই)", kind: "blank" };
+    return { pass: true, reason: "ঠিক আছে", kind: "ok" };
+  }
+
   /* ---- the crawl ---- */
   function fnBase() {
     var v = ($("fnBase") && $("fnBase").value || "").trim();
@@ -203,6 +224,16 @@
       } catch (e) { resolve(null); }
     });
   }
+  function fnVisit(url, mode, base) {
+    return new Promise(function (resolve) {
+      try {
+        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base }, function (resp) {
+          if (chrome.runtime.lastError) { resolve(null); return; }
+          resolve(resp || null);
+        });
+      } catch (e) { resolve(null); }
+    });
+  }
 
   async function fnStart() {
     if (fnRun) return;
@@ -224,13 +255,29 @@
     }
     if (!links.length) { $("fnNote").textContent = t("fn_nomenu"); fnDone(); return; }
 
-    // 1) rapid pass/fail over every page
+    // 1) pass/fail over every page
     var total = links.length, done = 0;
-    fnProgress(0, total, t("fn_checking"));
-    await pool(links, CONC, fnCheckUrl, function (r) {
-      results.push(r); done++; fnProgress(done, total, t("fn_checking"));
-      fnRenderSummary(); fnRenderList();
-    });
+    if (fnMode === "http") {
+      // rapid: concurrent GETs, classify from the HTML
+      fnProgress(0, total, t("fn_checking"));
+      await pool(links, CONC, fnCheckUrl, function (r) {
+        results.push(r); done++; fnProgress(done, total, t("fn_checking"));
+        fnRenderSummary(); fnRenderList();
+      });
+    } else {
+      // Browser / Headless: load each page for real (JS runs), classify from the rendered DOM +
+      // console errors. Sequential — one tab/window reused.
+      fnProgress(0, total, t("fn_visiting"));
+      for (var vi = 0; vi < links.length; vi++) {
+        if (fnRun && fnRun.stop) break;
+        var v = await fnVisit(links[vi].url, fnMode, base);
+        var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
+        results.push(Object.assign({}, links[vi], c));
+        done++; fnProgress(done, total, t("fn_visiting"));
+        fnRenderSummary(); fnRenderList();
+      }
+      try { chrome.runtime.sendMessage({ type: "fnVisitClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
+    }
     if (fnRun && fnRun.stop) { fnDone(); return; }
 
     // 2) a screenshot for each failure (sequential — one side window, reused)
@@ -275,10 +322,14 @@
     if ($("fnStart")) $("fnStart").addEventListener("click", fnStart);
     if ($("fnStop")) $("fnStop").addEventListener("click", fnStop);
     if ($("fnExport")) $("fnExport").addEventListener("click", fnExport);
+    if ($("fnHttp")) $("fnHttp").addEventListener("click", function () { fnSetMode("http"); });
+    if ($("fnBrowser")) $("fnBrowser").addEventListener("click", function () { fnSetMode("browser"); });
+    if ($("fnHeadless")) $("fnHeadless").addEventListener("click", function () { fnSetMode("headless"); });
     if ($("fnBase") && !$("fnBase").value) $("fnBase").value = (A.getBaseUrl && A.getBaseUrl()) || "https://ums-4.osl.team";
+    try { chrome.storage.local.get(["fnMode"], function (o) { fnSetMode(o && o.fnMode); }); } catch (e) { fnSetMode("http"); }
   }
 
-  A.fn = { wire: fnWire, start: fnStart, stop: fnStop,
+  A.fn = { wire: fnWire, start: fnStart, stop: fnStop, setMode: fnSetMode,
     // pure helpers exposed for tests
-    parseNav: fnParseNav, classify: fnClassify };
+    parseNav: fnParseNav, classify: fnClassify, classifyProbe: fnClassifyProbe };
 })();
