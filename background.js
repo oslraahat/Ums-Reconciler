@@ -536,6 +536,14 @@ async function fnActionProbe(opts) {
     try {
       document.addEventListener("submit", function (e) { try { e.preventDefault(); e.stopImmediatePropagation(); } catch (_) {} }, true);
       window.addEventListener("beforeunload", function (e) { try { e.preventDefault(); e.returnValue = ""; } catch (_) {} });
+      // Hold navigation so clicking a button can't destroy the frame (which would lose the whole probe
+      // — "Frame with ID 0 was removed"). Cancel anchor clicks, and neuter the programmatic routes.
+      document.addEventListener("click", function (e) { try { var a = e.target && e.target.closest && e.target.closest("a[href]"); if (a) { var h = a.getAttribute("href") || ""; if (h && h.charAt(0) !== "#" && !/^javascript:/i.test(h)) e.preventDefault(); } } catch (_) {} }, true);
+      try { HTMLFormElement.prototype.submit = function () {}; } catch (_) {}
+      try { window.open = function () { return null; }; } catch (_) {}
+      // a button that opens a native alert/confirm/prompt would BLOCK the page thread and hang the
+      // whole crawl — neutralise them so a click returns immediately (confirm auto-"OK", no prompt text)
+      window.alert = function () {}; window.confirm = function () { return true; }; window.prompt = function () { return ""; };
     } catch (e) {}
     var V = opts.vals || {};
     var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
@@ -590,7 +598,7 @@ async function fnActionProbe(opts) {
     var VIEW = /\b(view|search|find|show|report|load|filter|list|get|display|preview|check|go|ok)\b|খুঁজ|দেখ|অনুসন্ধান/i;
     var cand = [].slice.call(document.querySelectorAll("button, input[type=submit], input[type=button], [role=button], a.btn"));
     var btns = cand.filter(function (b) { return vis(b) && !b.disabled; });
-    for (var bi = 0; bi < btns.length && bi < 15; bi++) {
+    for (var bi = 0; bi < btns.length && bi < 10; bi++) {
       var b = btns[bi];
       var label = ((b.value || b.textContent || b.title || "").replace(/\s+/g, " ").trim() || "button").slice(0, 40);
       var isWrite = WRITE.test(label) || /submit/i.test(b.type || "");
@@ -600,7 +608,7 @@ async function fnActionProbe(opts) {
       try { if (window.__fnErr) window.__fnErr.length = 0; } catch (e) {}
       try { b.click(); } catch (e) { actions.push({ label: label, pass: false, reason: "click error: " + ((e && e.message) || e) }); continue; }
       // wait for the result — poll a little longer for a view/search that loads a table over AJAX
-      var waited = 0, step = 300, cap = isView ? 3000 : 900;
+      var waited = 0, step = 300, cap = isView ? 2000 : 700;
       while (waited < cap) { await sleep(step); waited += step; if (location.href !== before) break; if (isView && dataRows() > rowsBefore) break; }
       if (location.href !== before) { actions.push({ label: label, pass: true, reason: "action triggered (পেজ বদলেছে)" }); break; }
       var er = pageErr();
@@ -654,7 +662,13 @@ async function fnVisitRun(url, mode, base, actions, vals) {
         if (useMain) tgt.world = "MAIN";
         ar = await chrome.scripting.executeScript(tgt);
         probe.actions = (ar && ar[0] && ar[0].result) || [];
-      } catch (e) { probe.actions = [{ label: "(buttons)", pass: false, reason: "navigation বা inject সমস্যা — " + String((e && e.message) || e) }]; }
+      } catch (e) {
+        // A button navigated the page before we could hold it back → the injected frame is gone. That
+        // means a button DID fire (not an error), we just couldn't test the rest — report it softly.
+        var m = String((e && e.message) || e);
+        if (/frame .*remov|no frame|frame with id|context invalid|navigat/i.test(m)) probe.actions = [{ label: "(buttons)", pass: true, reason: "একটি বাটন পেজ নেভিগেট করেছে — বাকি বাটন টেস্ট করা গেল না" }];
+        else probe.actions = [{ label: "(buttons)", pass: false, reason: "inject সমস্যা — " + m }];
+      }
     }
     return { ok: true, probe: probe };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }

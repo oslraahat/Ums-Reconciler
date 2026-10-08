@@ -162,6 +162,13 @@
   }
 
   var results = [];   // [{menu,label,url,path,pass,reason,kind,shot}]
+  var fnT0 = 0, fnTimer = null;
+  function fnElapsed() {
+    var s = Math.round(((fnRun ? Date.now() : fnEnd) - fnT0) / 1000); if (s < 0) s = 0;
+    var m = Math.floor(s / 60);
+    return (m ? m + "m " : "") + (s % 60) + "s";
+  }
+  var fnEnd = 0;
   function fnProgress(done, total, phase) {
     var bar = $("fnBar"), note = $("fnNote");
     if (bar) bar.style.width = total ? Math.round(done / total * 100) + "%" : "0%";
@@ -170,10 +177,11 @@
   function fnRenderSummary() {
     var pass = results.filter(function (r) { return r.pass; }).length;
     var fail = results.length - pass;
-    var s = $("fnSummary");
-    if (s) s.innerHTML = results.length
-      ? '<span class="fnpill ok">✓ ' + pass + ' Pass</span> <span class="fnpill bad">✗ ' + fail + ' Fail</span> <span class="mut">/ ' + results.length + '</span>'
-      : "";
+    var s = $("fnSummary"); if (!s) return;
+    var time = (fnT0 ? '<span class="fnpill" style="background:rgba(127,127,127,.14);color:var(--mut)">⏱ ' + fnElapsed() + '</span> ' : "");
+    s.innerHTML = results.length
+      ? time + '<span class="fnpill ok">✓ ' + pass + ' Pass</span> <span class="fnpill bad">✗ ' + fail + ' Fail</span> <span class="mut">/ ' + results.length + '</span>'
+      : (fnRun ? time : "");
   }
   function fnRenderList() {
     var box = $("fnList"); if (!box) return;
@@ -254,13 +262,18 @@
   }
   function fnVisit(url, mode, base, actions, vals) {
     return new Promise(function (resolve) {
+      var done = false;
+      // a page that blocks (a native dialog, an endless script) must NOT hang the whole crawl — if the
+      // background does not answer in time, give up on this one and move on.
+      var to = setTimeout(function () { if (!done) { done = true; resolve({ ok: false, error: "timeout — পেজ সাড়া দেয়নি (৬০s)" }); } }, 60000);
       try {
         chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals }, function (resp) {
+          if (done) return; done = true; clearTimeout(to);
           var le = chrome.runtime.lastError;
           if (le) { resolve({ ok: false, error: le.message || "no response (এক্সটেনশন পুরো Reload করো)" }); return; }
           resolve(resp || { ok: false, error: "empty response" });
         });
-      } catch (e) { resolve({ ok: false, error: String(e && e.message || e) }); }
+      } catch (e) { if (!done) { done = true; clearTimeout(to); resolve({ ok: false, error: String(e && e.message || e) }); } }
     });
   }
 
@@ -276,9 +289,13 @@
     if (fnRun) return;
     fnRun = { stop: false, paused: false };
     results = [];
+    fnT0 = Date.now(); fnEnd = 0;
+    if (fnTimer) clearInterval(fnTimer);
+    fnTimer = setInterval(fnRenderSummary, 1000);   // live elapsed clock
     $("fnStart").style.display = "none"; $("fnStop").style.display = "";
     if ($("fnPause")) { $("fnPause").style.display = ""; $("fnPause").textContent = t("fn_pause"); }
     $("fnSummary").innerHTML = ""; $("fnList").innerHTML = "";
+    fnRenderSummary();
     var base = fnBase();
     fnProgress(0, 0, t("fn_reading"));
     var links;
@@ -359,6 +376,8 @@
     if (!fnRun.paused) fnReleasePause();   // Resume → release the parked loop immediately
   }
   function fnDone() {
+    fnEnd = Date.now();
+    if (fnTimer) { clearInterval(fnTimer); fnTimer = null; }
     fnRun = null;
     if ($("fnStart")) { $("fnStart").style.display = ""; $("fnStop").style.display = "none"; }
     if ($("fnPause")) { $("fnPause").style.display = "none"; $("fnPause").textContent = t("fn_pause"); }
