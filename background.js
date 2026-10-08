@@ -549,10 +549,19 @@ async function fnActionProbe(opts) {
         if (ty === "radio") { var g = document.querySelectorAll('input[type=radio][name="' + (i.name || "") + '"]'); if (!Array.prototype.some.call(g, function (r) { return r.checked; })) { i.checked = true; fire(i, "change"); } return; }
         if (i.value && i.value.trim()) return;
         var d = new Date(), ds = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+        // what the field is asking for — a Roll/Reg/Mobile/TPIN/PIN must get DIGITS, never "test",
+        // even when it is a plain type=text (UMS uses text inputs for these). Read name/id/placeholder
+        // plus any numeric hint (inputmode / pattern / maxlength).
+        var k = ((i.name || "") + " " + (i.id || "") + " " + (i.placeholder || "") + " " + (i.getAttribute("inputmode") || "") + " " + (i.getAttribute("pattern") || "") + " " + (i.className || "")).toLowerCase();
+        var wantNum = /numeric|digit|[0-9\]\}]\*|\[0-9/.test(k) || i.getAttribute("inputmode") === "numeric";
         if (ty === "date") i.value = ds;
-        else if (ty === "number") i.value = i.min || "1";
         else if (ty === "email") i.value = "test@test.com";
-        else if (ty === "tel") i.value = "01700000000";
+        else if (/mobile|phone|contact|\bcell\b|whatsapp|guardian.?no|\bsms\b/.test(k)) i.value = "01700000000";
+        else if (/roll/.test(k)) i.value = "123456";
+        else if (/reg(istration)?|regno|reg[_-]?no|\brn\b/.test(k)) i.value = "1234567";
+        else if (/tpin|t[_-]?pin|\bpin\b|otp|\bcode\b|verification/.test(k)) i.value = "1234";
+        else if (/mrn|crn|receipt|voucher|trx|transaction|cheque|amount|\bfee\b|taka|bkash|nagad|nid|birth.?cert|account/.test(k)) i.value = "100000";
+        else if (ty === "number" || ty === "tel" || wantNum) i.value = i.min || "1";
         else i.value = "test";
         fire(i, "input"); fire(i, "change");
       });
