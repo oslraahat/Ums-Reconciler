@@ -581,6 +581,10 @@
   .fnpill.fnf{cursor:pointer;user-select:none}
   .fnpill.fnf:hover{filter:brightness(1.15)}
   .fnpill.fnon{outline:2px solid currentColor;outline-offset:1px}
+  .fnconn{font-size:12px;font-weight:700}
+  .fnconn.ok{color:#2fa368}
+  .fnconn.no{color:#e14b5e}
+  .fnconn.chk{color:var(--mut);font-weight:400}
   .fnlist{margin-top:10px;display:flex;flex-direction:column;gap:12px}
   .fngrp{border:1px solid rgba(127,127,127,.18);border-radius:10px;overflow:hidden}
   .fnghead{padding:7px 12px;font-weight:800;background:rgba(127,127,127,.07);border-bottom:1px solid rgba(127,127,127,.14)}
@@ -924,7 +928,7 @@
           <div class="ch"><h2 data-i18n="fn_h">Clickable Function Check</h2><span id="fnSummary" style="margin-left:auto"></span></div>
           <p class="hint" data-i18n="fn_intro" style="margin:0 0 14px"></p>
           <div class="row-actions" style="align-items:end;gap:12px;flex-wrap:wrap">
-            <div style="flex:1 1 300px;min-width:180px"><label data-i18n="fn_base_l">UMS ঠিকানা (Base URL)</label>
+            <div style="flex:1 1 300px;min-width:180px"><label data-i18n="fn_base_l">UMS ঠিকানা (Base URL)</label> <span id="fnConn" class="fnconn"></span>
               <input id="fnBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
             <div class="seg segeq" style="height:var(--ctl-h)" title="HTTP = দ্রুত, শুধু পেজ GET করে যাচাই · Browser = সামনের ট্যাবে সত্যিকারভাবে লোড করে (JS/console error ধরে) · Headless = ব্যাকগ্রাউন্ডে (focus কাড়ে না)">
               <button type="button" id="fnHttp" class="on" data-i18n="fn_http_l">⚡ HTTP</button>

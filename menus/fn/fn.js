@@ -162,6 +162,24 @@
     return v.replace(/\/+$/, "") + "/";
   }
 
+  // login status next to the Base URL: open the base and see if it serves a page or bounces to login
+  var fnConnSeq = 0, fnConnTimer = null;
+  function fnSetConn(state) {
+    var el = $("fnConn"); if (!el) return;
+    el.className = "fnconn" + (state ? " " + state : "");
+    el.textContent = state === "ok" ? t("fn_logged") : state === "no" ? t("fn_notlogged") : state === "chk" ? t("fn_conn_chk") : "";
+  }
+  function fnCheckConn() {
+    var base = fnBase(), mine = ++fnConnSeq;
+    fnSetConn("chk");
+    fetchHtml(base).then(function (r) {
+      if (mine !== fnConnSeq) return;
+      var loginish = !r || !r.ok || (r.redirected && LOGIN_URL.test((r.html || "").slice(0, 4000)));
+      fnSetConn(loginish ? "no" : "ok");
+    }).catch(function () { if (mine === fnConnSeq) fnSetConn("no"); });
+  }
+  function fnConnDebounced() { if (fnConnTimer) clearTimeout(fnConnTimer); fnConnTimer = setTimeout(fnCheckConn, 600); }
+
   var results = [];   // [{menu,label,url,path,pass,reason,kind,shot}]
   var fnFilter = "all";   // all | pass | fail — clicking the summary pills filters the list
   var fnT0 = 0, fnTimer = null;
@@ -489,6 +507,8 @@
       e.addEventListener("blur", function () { remember(id); });
     });
     if ($("fnBase") && !$("fnBase").value) $("fnBase").value = (A.getBaseUrl && A.getBaseUrl()) || "https://ums-4.osl.team";
+    if ($("fnBase")) $("fnBase").addEventListener("input", fnConnDebounced);
+    fnCheckConn();   // show the login status right away
     try {
       chrome.storage.local.get(["fnMode", "fnActions", "fnRolls", "fnRegs", "fnMobiles"].concat(Object.keys(VKEYS)), function (o) {
         fnSetMode(o && o.fnMode);
