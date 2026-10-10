@@ -201,7 +201,9 @@
         if (r.actions && r.actions.length) {
           acts = '<div class="fnacts">' + r.actions.map(function (a) {
             return '<div class="fnactrow ' + (a.pass ? "p" : "f") + '"><span class="fnst">' + (a.pass ? "✓" : "✗") +
-              '</span><span class="fnactlbl">' + esc(a.label) + '</span><span class="fnactwhy">— ' + esc(a.reason) + '</span></div>';
+              '</span><span class="fnactlbl">' + esc(a.label) + '</span><span class="fnactwhy">— ' + esc(a.reason) + '</span>' +
+              (a.shot ? '<a class="fnshot" href="' + a.shot + '" target="_blank" title="স্ক্রিনশট"><img src="' + a.shot + '" alt="screenshot"></a>' : "") +
+              '</div>';
           }).join("") + '</div>';
         }
         html += '<div class="fnrow ' + (r.pass ? "p" : "f") + '">' +
@@ -380,16 +382,23 @@
     // Headless (= stay hidden) the screenshot pass is skipped — no window pops up. Use Browser/HTTP
     // mode if you want failure screenshots.
     if (fnMode !== "headless") {
-      var fails = results.filter(function (r) { return !r.pass; });
+      // screenshot any page that failed OR has a failing button/action (the error is often the action)
+      var actFail = function (r) { return r.actions && r.actions.some(function (a) { return !a.pass; }); };
+      var fails = results.filter(function (r) { return !r.pass || actFail(r); });
       for (var k = 0; k < fails.length; k++) {
         if (fnRun && fnRun.stop) break;
         await waitIfPaused(); if (fnRun && fnRun.stop) break;
         fnProgress(k, fails.length, t("fn_shooting"));
         var s = await fnShot(fails[k].url);
         if (s && s.shot) {
-          fails[k].shot = s.shot;
-          // refine the reason with what the loaded page actually showed, if the probe found more
-          if (s.probe && s.probe.errText && fails[k].kind !== "page") fails[k].reason += " · " + String(s.probe.errText).slice(0, 60);
+          if (!fails[k].pass) {
+            fails[k].shot = s.shot;
+            if (s.probe && s.probe.errText && fails[k].kind !== "page") fails[k].reason += " · " + String(s.probe.errText).slice(0, 60);
+          } else {
+            // page itself is fine — the error is an action; hang the shot on the first failing action
+            var fa = (fails[k].actions || []).filter(function (a) { return !a.pass; })[0];
+            if (fa) fa.shot = s.shot;
+          }
           fnRenderList();
         }
       }
