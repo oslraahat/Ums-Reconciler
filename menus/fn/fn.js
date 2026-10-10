@@ -172,11 +172,19 @@
   function fnCheckConn() {
     var base = fnBase(), mine = ++fnConnSeq;
     fnSetConn("chk");
-    fetchHtml(base).then(function (r) {
-      if (mine !== fnConnSeq) return;
-      var loginish = !r || !r.ok || (r.redirected && LOGIN_URL.test((r.html || "").slice(0, 4000)));
-      fnSetConn(loginish ? "no" : "ok");
-    }).catch(function () { if (mine === fnConnSeq) fnSetConn("no"); });
+    // one direct request with its own timeout — fetchHtml retries with backoff and would leave the
+    // status stuck on "checking" for a long time when the server is slow/unreachable.
+    var ctrl = (typeof AbortController !== "undefined") ? new AbortController() : null;
+    var to = setTimeout(function () { if (ctrl) try { ctrl.abort(); } catch (e) {} }, 10000);
+    fetch(base, { credentials: "include", signal: ctrl ? ctrl.signal : undefined }).then(function (r) {
+      clearTimeout(to); if (mine !== fnConnSeq) return;
+      // the final URL after following redirects is the reliable tell: bounced to login → not logged in
+      if (!r.ok || LOGIN_URL.test(r.url || "")) { fnSetConn("no"); return; }
+      return r.text().then(function (h) {
+        if (mine !== fnConnSeq) return;
+        fnSetConn(/name=["']?password|type=["']?password|\/account\/log/i.test((h || "").slice(0, 4000)) ? "no" : "ok");
+      });
+    }).catch(function () { clearTimeout(to); if (mine === fnConnSeq) fnSetConn("no"); });
   }
   function fnConnDebounced() { if (fnConnTimer) clearTimeout(fnConnTimer); fnConnTimer = setTimeout(fnCheckConn, 600); }
 
