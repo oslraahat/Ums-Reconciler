@@ -97,6 +97,10 @@ chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(function () {
    close it. (A run in progress keeps the worker alive, so this never closes an active window.) */
 chrome.runtime.onSuspend && chrome.runtime.onSuspend.addListener(function () {
   try { admCloseRun(); } catch (e) {}
+  // if the tool tab was closed mid-crawl its close messages never arrived — clean up here too, so the
+  // off-screen/minimized check windows and the dynamically-registered fnprobe content script don't leak
+  try { fnVisitClose(); } catch (e) {}
+  try { fnShotClose(); } catch (e) {}
 });
 
 /* ───────────────────────── New Admission · Browser mode ─────────────────────────
@@ -309,7 +313,7 @@ async function admDriver(p) {
 function bgSleep(ms) { return new Promise(function (r) { setTimeout(r, ms); }); }
 // resolve a promise, but reject if it has not settled in `ms` — so a hung executeScript (e.g. the
 // page thread blocked by a dialog) is given up on instead of hanging the whole visit for 60s.
-function fnRace(p, ms) { return Promise.race([p, new Promise(function (_, rej) { setTimeout(function () { rej(new Error("probe timeout")); }, ms); })]); }
+function fnRace(p, ms) { var tm; var g = new Promise(function (_, rej) { tm = setTimeout(function () { rej(new Error("probe timeout")); }, ms); }); return Promise.race([p, g]).finally(function () { clearTimeout(tm); }); }
 function getTab(id) { return new Promise(function (r) { chrome.tabs.get(id, function (t) { r(chrome.runtime.lastError ? null : t); }); }); }
 const RECEIPT_RE = /GenerateMoneyReciept|GenerateCoursewiseMoneyReciept/i;
 function receiptId(url) { const m = url && url.match(/[?&](?:id|studentPaymentIdList)=(\d+)/); return m ? m[1] : ""; }
@@ -748,7 +752,7 @@ async function fnVisitRun(url, mode, base, actions, vals, slot) {
         var ar;
         var tgt = { target: { tabId: tabId }, func: fnActionProbe, args: [opts] };
         if (useMain) tgt.world = "MAIN";
-        ar = await fnRace(chrome.scripting.executeScript(tgt), 40000);
+        ar = await fnRace(chrome.scripting.executeScript(tgt), 55000);   // Headless (minimized) throttles timers, so give the action probe more room
         probe.actions = (ar && ar[0] && ar[0].result) || [];
       } catch (e) {
         // A button navigated the page before we could hold it back → the injected frame is gone. That

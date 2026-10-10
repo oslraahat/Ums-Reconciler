@@ -302,7 +302,9 @@
       var done = false;
       // a page that blocks (a native dialog, an endless script) must NOT hang the whole crawl — if the
       // background does not answer in time, give up on this one and move on.
-      var to = setTimeout(function () { if (!done) { done = true; resolve({ ok: false, error: "timeout — পেজ সাড়া দেয়নি (৬০s)" }); } }, 60000);
+      // must exceed the background worst case (waitTabComplete 25s + probe 12s + action probe race),
+      // or the slot would be freed and reused while the background is still driving that window
+      var to = setTimeout(function () { if (!done) { done = true; resolve({ ok: false, error: "timeout — পেজ সাড়া দেয়নি (120s)" }); } }, 120000);
       try {
         chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals, slot: slot || 0 }, function (resp) {
           if (done) { void chrome.runtime.lastError; return; } done = true; clearTimeout(to);
@@ -355,6 +357,7 @@
       var rootList = Object.keys(roots);
       for (var ri = 0; ri < rootList.length; ri++) {
         if (fnRun && fnRun.stop) break;
+        await waitIfPaused(); if (fnRun && fnRun.stop) break;
         fnProgress(ri, rootList.length, t("fn_sections"));
         try {
           var secUrl = new URL(roots[rootList[ri]], base).href;
