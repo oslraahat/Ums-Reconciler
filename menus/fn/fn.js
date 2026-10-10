@@ -262,7 +262,7 @@
     return new Promise(function (resolve) {
       var i = 0, active = 0, done = 0;
       function next() {
-        if (fnRun && fnRun.stop) { if (active === 0) resolve(); return; }
+        if (fnRun && fnRun.stop) { resolve(); return; }   // stop immediately — don't wait for in-flight visits to drain
         if (fnRun && fnRun.paused) { fnRun._resume = next; return; }   // park until Resume fires next()
         while (active < n && i < items.length) {
           var idx = i++; active++;
@@ -308,15 +308,18 @@
       // background does not answer in time, give up on this one and move on.
       // must exceed the background worst case (waitTabComplete 25s + probe 12s + action probe race),
       // or the slot would be freed and reused while the background is still driving that window
-      var to = setTimeout(function () { if (!done) { done = true; resolve({ ok: false, error: "timeout — পেজ সাড়া দেয়নি (120s)" }); } }, 120000);
+      var fin = function (r) { if (done) return; done = true; clearTimeout(to); if (stopChk) clearInterval(stopChk); resolve(r); };
+      var to = setTimeout(function () { fin({ ok: false, error: "timeout — পেজ সাড়া দেয়নি (120s)" }); }, 120000);
+      // Stop must feel instant: give up on this visit within 200ms of Stop instead of waiting for the
+      // background (the windows are closed by fnStop, so the in-flight visit ends on its own).
+      var stopChk = setInterval(function () { if (fnRun && fnRun.stop) fin({ ok: false, error: "stopped" }); }, 200);
       try {
         chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals, slot: slot || 0 }, function (resp) {
-          if (done) { void chrome.runtime.lastError; return; } done = true; clearTimeout(to);
+          if (done) { void chrome.runtime.lastError; return; }
           var le = chrome.runtime.lastError;
-          if (le) { resolve({ ok: false, error: le.message || "no response (এক্সটেনশন পুরো Reload করো)" }); return; }
-          resolve(resp || { ok: false, error: "empty response" });
+          fin(le ? { ok: false, error: le.message || "no response (এক্সটেনশন পুরো Reload করো)" } : (resp || { ok: false, error: "empty response" }));
         });
-      } catch (e) { if (!done) { done = true; clearTimeout(to); resolve({ ok: false, error: String(e && e.message || e) }); } }
+      } catch (e) { fin({ ok: false, error: String(e && e.message || e) }); }
     });
   }
 
@@ -522,16 +525,18 @@
       e.addEventListener("blur", function () { remember(id); });
     });
     if ($("fnBase") && !$("fnBase").value) $("fnBase").value = (A.getBaseUrl && A.getBaseUrl()) || "https://ums-4.osl.team";
-    if ($("fnBase")) $("fnBase").addEventListener("input", fnConnDebounced);
-    fnCheckConn();   // show the login status right away
+    // remember the last-used Base URL and restore it on load
+    if ($("fnBase")) $("fnBase").addEventListener("input", function () { try { chrome.storage.local.set({ fnBaseUrl: this.value }); } catch (e) {} fnConnDebounced(); });
     try {
-      chrome.storage.local.get(["fnMode", "fnActions", "fnRolls", "fnRegs", "fnMobiles"].concat(Object.keys(VKEYS)), function (o) {
+      chrome.storage.local.get(["fnMode", "fnActions", "fnBaseUrl", "fnRolls", "fnRegs", "fnMobiles"].concat(Object.keys(VKEYS)), function (o) {
         fnSetMode(o && o.fnMode);
         if ($("fnActions")) $("fnActions").checked = !!(o && o.fnActions);
+        if (o && o.fnBaseUrl && $("fnBase")) $("fnBase").value = o.fnBaseUrl;
         Object.keys(VKEYS).forEach(function (id) { if (o && o[id] != null && $(id)) $(id).value = o[id]; });
         Object.keys(DL).forEach(function (id) { fillDl(DL[id].dl, (o && o[DL[id].key]) || []); });
+        fnCheckConn();   // check login with the restored address
       });
-    } catch (e) { fnSetMode("http"); }
+    } catch (e) { fnSetMode("http"); fnCheckConn(); }
   }
 
   A.fn = { wire: fnWire, start: fnStart, stop: fnStop, setMode: fnSetMode, relang: fnRelang,
