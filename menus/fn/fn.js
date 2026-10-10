@@ -167,8 +167,9 @@
   var fnT0 = 0, fnTimer = null;
   function fnElapsed() {
     var s = Math.round(((fnRun ? Date.now() : fnEnd) - fnT0) / 1000); if (s < 0) s = 0;
-    var m = Math.floor(s / 60);
-    return (m ? m + "m " : "") + (s % 60) + "s";
+    var h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = s % 60;
+    var p = function (n) { return (n < 10 ? "0" : "") + n; };
+    return h > 0 ? p(h) + ":" + p(m) + ":" + p(sec) : p(m) + ":" + p(sec);   // mm:ss, or hh:mm:ss past 60m
   }
   var fnEnd = 0;
   function fnProgress(done, total, phase) {
