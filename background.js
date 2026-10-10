@@ -672,6 +672,18 @@ async function fnActionProbe(opts) {
       var b = nextBtn(); if (!b) break;
       tested.push(b); count++;
       var label = ((b.value || b.textContent || b.title || "").replace(/\s+/g, " ").trim() || "button").slice(0, 40);
+      // several buttons can share a label (e.g. many "Select All") — tag each with context so it is
+      // clear WHICH one: its id/name, else the nearest column/section heading, else a running number.
+      var ctx = (b.id || b.name || "").trim();
+      if (!ctx) {
+        try {
+          var host = b.closest && b.closest("td, th, fieldset, .card, .panel, .box, .form-group, .tab-pane, section");
+          var h = host && host.querySelector && host.querySelector("legend, .card-header, .card-title, .panel-heading, th, h1, h2, h3, h4, label");
+          if (h && h !== b) ctx = (h.textContent || "").replace(/\s+/g, " ").trim().slice(0, 24);
+        } catch (e) {}
+      }
+      if (!ctx) ctx = "#" + count;
+      if (ctx && label.toLowerCase().indexOf(ctx.toLowerCase()) < 0) label = label + " · " + ctx;
       var isWrite = WRITE.test(label) || /submit/i.test(b.type || "");
       if (isWrite && (hasPassword || /password|change.?pass|credential/i.test(label))) { actions.push({ label: label, pass: true, reason: "skipped — password/credential (নিরাপত্তা)" }); continue; }
       // a plain navigational link (<a class=btn href=/page>) only changes location — which we hold
