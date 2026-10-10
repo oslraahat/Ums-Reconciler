@@ -209,16 +209,26 @@
     var pass = results.filter(function (r) { return r.pass; }).length;
     var fail = results.length - pass;
     var s = $("fnSummary"); if (!s) return;
-    var time = (fnT0 ? '<span class="fnpill" style="background:rgba(245,179,1,.16);color:#e0a81e">⏱ ' + fnElapsed() + '</span> ' : "");
-    var on = function (f) { return fnFilter === f ? " fnon" : ""; };
-    // show Pass/Fail whenever a run is going or any result exists — not only after the first result,
-    // so the badges never vanish leaving just the clock during the early (menu/section) phase
-    s.innerHTML = (results.length || fnRun)
-      ? time
-        + '<span class="fnpill ok fnf' + on("pass") + '" data-fnf="pass" title="শুধু Pass দেখাও">✓ ' + pass + ' Pass</span> '
-        + '<span class="fnpill bad fnf' + on("fail") + '" data-fnf="fail" title="শুধু Fail দেখাও">✗ ' + fail + ' Fail</span> '
-        + '<span class="fnpill fnf' + on("all") + '" data-fnf="all" title="সব দেখাও" style="background:rgba(127,127,127,.14);color:var(--mut)">/ ' + results.length + '</span>'
-      : "";
+    if (!(results.length || fnRun)) { s.innerHTML = ""; return; }
+    // Build the pills ONCE, then update text/active-class IN PLACE. Rebuilding innerHTML every result
+    // (many per second) kept destroying the element under the user's click, so filtering "didn't
+    // select" during a run. Keeping the elements stable means a click always lands.
+    var tp = s.querySelector(".fntime"), pp = s.querySelector('[data-fnf="pass"]'),
+        fp = s.querySelector('[data-fnf="fail"]'), ap = s.querySelector('[data-fnf="all"]');
+    if (!pp) {
+      s.innerHTML =
+        '<span class="fnpill fntime" style="background:rgba(245,179,1,.16);color:#e0a81e"></span> '
+        + '<span class="fnpill ok fnf" data-fnf="pass" title="শুধু Pass দেখাও"></span> '
+        + '<span class="fnpill bad fnf" data-fnf="fail" title="শুধু Fail দেখাও"></span> '
+        + '<span class="fnpill fnf" data-fnf="all" title="সব দেখাও" style="background:rgba(127,127,127,.14);color:var(--mut)"></span>';
+      tp = s.querySelector(".fntime"); pp = s.querySelector('[data-fnf="pass"]');
+      fp = s.querySelector('[data-fnf="fail"]'); ap = s.querySelector('[data-fnf="all"]');
+    }
+    if (tp) tp.style.display = fnT0 ? "" : "none";
+    if (tp) tp.textContent = "⏱ " + fnElapsed();
+    pp.textContent = "✓ " + pass + " Pass"; pp.classList.toggle("fnon", fnFilter === "pass");
+    fp.textContent = "✗ " + fail + " Fail"; fp.classList.toggle("fnon", fnFilter === "fail");
+    ap.textContent = "/ " + results.length; ap.classList.toggle("fnon", fnFilter === "all");
   }
   function fnRenderList() {
     var box = $("fnList"); if (!box) return;
