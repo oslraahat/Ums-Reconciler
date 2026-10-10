@@ -1918,7 +1918,10 @@
     });
     return out;
   }
-  function ver() { try { return "v" + chrome.runtime.getManifest().version; } catch (e) { return ""; } }
+  // display each version part zero-padded to 2 digits: 14.1.6 → v14.01.06 (manifest keeps 14.1.6,
+  // since Chrome rejects leading zeros in the manifest version itself)
+  function padVer(v) { return String(v || "").split(".").map(function (p) { return p.length === 1 ? "0" + p : p; }).join("."); }
+  function ver() { try { return "v" + padVer(chrome.runtime.getManifest().version); } catch (e) { return ""; } }
   function stamp() { const d = new Date(); const p = function (n) { return String(n).padStart(2, "0"); }; return d.getFullYear() + p(d.getMonth() + 1) + p(d.getDate()) + "-" + p(d.getHours()) + p(d.getMinutes()); }
   /* What the file is about, in its name — the selected chip's own label, so a download says at a
      glance which bucket it holds (Matched / Mismatch / CW Empty / Program Not Found / Zero Pay /
@@ -2585,7 +2588,7 @@
     const b = $("theme"); if (b) b.textContent = (t === "light" ? "🌙 Dark" : "☀ Light");
   }
   function wire() {
-    try { const v = chrome.runtime.getManifest().version; const el = $("ver"); if (el) el.textContent = "v" + v; } catch (e) {}
+    try { const v = chrome.runtime.getManifest().version; const el = $("ver"); if (el) el.textContent = "v" + padVer(v); } catch (e) {}
     $("base").value = baseUrl; $("conc").value = conc; $("tol").value = tol;
     /* Remember the last-used addresses on their own, without waiting for the Save button — so a
        reload comes back to the server you were actually using, not the default. Debounced so it is
