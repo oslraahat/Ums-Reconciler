@@ -421,6 +421,7 @@
     /* the reachability pills are written by JS (no data-i18n), so repaint them in the new language */
     if (self.APP.crm) self.APP.crm.setConn(self.APP.crm.getConn());
     if (self.APP.adm) self.APP.adm.setConn(self.APP.adm.getConn());
+    if (self.APP.fn && self.APP.fn.relang) self.APP.fn.relang();
     const pv = $("preview"); if (pv) pv.removeAttribute("data-col"); // force head rebuild in the new language
     /* Everything whose words are written by JS rather than by a data-i18n node has to be
        repainted here too, or it keeps the language it was first drawn in. paintSaveRow() runs

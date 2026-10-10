@@ -163,12 +163,14 @@
   }
 
   // login status next to the Base URL: open the base and see if it serves a page or bounces to login
-  var fnConnSeq = 0, fnConnTimer = null;
+  var fnConnSeq = 0, fnConnTimer = null, fnConnState = "";
   function fnSetConn(state) {
+    fnConnState = state || "";
     var el = $("fnConn"); if (!el) return;
-    el.className = "fnconn" + (state ? " " + state : "");
-    el.textContent = state === "ok" ? t("fn_logged") : state === "no" ? t("fn_notlogged") : state === "chk" ? t("fn_conn_chk") : "";
+    el.className = "fnconn" + (fnConnState ? " " + fnConnState : "");
+    el.textContent = fnConnState === "ok" ? t("fn_logged") : fnConnState === "no" ? t("fn_notlogged") : fnConnState === "chk" ? t("fn_conn_chk") : "";
   }
+  function fnRelang() { fnSetConn(fnConnState); }   // re-render the status text in the new language
   function fnCheckConn() {
     var base = fnBase(), mine = ++fnConnSeq;
     fnSetConn("chk");
@@ -209,12 +211,14 @@
     var s = $("fnSummary"); if (!s) return;
     var time = (fnT0 ? '<span class="fnpill" style="background:rgba(245,179,1,.16);color:#e0a81e">⏱ ' + fnElapsed() + '</span> ' : "");
     var on = function (f) { return fnFilter === f ? " fnon" : ""; };
-    s.innerHTML = results.length
+    // show Pass/Fail whenever a run is going or any result exists — not only after the first result,
+    // so the badges never vanish leaving just the clock during the early (menu/section) phase
+    s.innerHTML = (results.length || fnRun)
       ? time
         + '<span class="fnpill ok fnf' + on("pass") + '" data-fnf="pass" title="শুধু Pass দেখাও">✓ ' + pass + ' Pass</span> '
         + '<span class="fnpill bad fnf' + on("fail") + '" data-fnf="fail" title="শুধু Fail দেখাও">✗ ' + fail + ' Fail</span> '
         + '<span class="fnpill fnf' + on("all") + '" data-fnf="all" title="সব দেখাও" style="background:rgba(127,127,127,.14);color:var(--mut)">/ ' + results.length + '</span>'
-      : (fnRun ? time : "");
+      : "";
   }
   function fnRenderList() {
     var box = $("fnList"); if (!box) return;
@@ -530,7 +534,7 @@
     } catch (e) { fnSetMode("http"); }
   }
 
-  A.fn = { wire: fnWire, start: fnStart, stop: fnStop, setMode: fnSetMode,
+  A.fn = { wire: fnWire, start: fnStart, stop: fnStop, setMode: fnSetMode, relang: fnRelang,
     // pure helpers exposed for tests
     parseNav: fnParseNav, classify: fnClassify, classifyProbe: fnClassifyProbe };
 })();
