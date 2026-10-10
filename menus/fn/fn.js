@@ -408,7 +408,12 @@
     fnDone();
   }
 
-  function fnStop() { if (fnRun) { fnRun.stop = true; fnRun.paused = false; fnReleasePause(); } }
+  function fnStop() {
+    if (fnRun) { fnRun.stop = true; fnRun.paused = false; fnReleasePause(); }
+    // close the check windows right away — don't wait for an in-flight visit (up to 60s) to return
+    try { chrome.runtime.sendMessage({ type: "fnVisitClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
+    try { chrome.runtime.sendMessage({ type: "fnShotClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
+  }
   function fnPause() {
     if (!fnRun) return;
     fnRun.paused = !fnRun.paused;
