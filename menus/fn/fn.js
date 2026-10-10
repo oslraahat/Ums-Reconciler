@@ -240,7 +240,7 @@
           acts = '<div class="fnacts">' + r.actions.map(function (a) {
             return '<div class="fnactrow ' + (a.pass ? "p" : "f") + '"><span class="fnst">' + (a.pass ? "✓" : "✗") +
               '</span><span class="fnactlbl">' + esc(a.label) + '</span><span class="fnactwhy">— ' + esc(a.reason) + '</span>' +
-              (a.shot ? '<a class="fnshot" href="' + a.shot + '" target="_blank" title="স্ক্রিনশট"><img src="' + a.shot + '" alt="screenshot"></a>' : "") +
+              (a.shot ? '<a class="fnshot" href="' + a.shot + '" target="_blank" title="স্ক্রিনশট — খুলতে ক্লিক করো">📷 Screenshot ↗</a>' : "") +
               '</div>';
           }).join("") + '</div>';
         }
@@ -248,7 +248,7 @@
           '<span class="fnst">' + (r.pass ? "✓" : "✗") + '</span>' +
           '<a class="fnlk" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.label) + '</a>' +
           '<span class="fnpath mut">' + esc(r.path) + '</span>' +
-          (r.shot ? '<a class="fnshot" href="' + r.shot + '" target="_blank" title="স্ক্রিনশট"><img src="' + r.shot + '" alt="screenshot"></a>' : "") +
+          (r.shot ? '<a class="fnshot" href="' + r.shot + '" target="_blank" title="স্ক্রিনশট — খুলতে ক্লিক করো">📷 Screenshot ↗</a>' : "") +
           (r.pass ? "" : '<span class="fnwhy">' + esc(r.reason) + '</span>') +
           acts +
           '</div>';
