@@ -163,6 +163,7 @@
   }
 
   var results = [];   // [{menu,label,url,path,pass,reason,kind,shot}]
+  var fnFilter = "all";   // all | pass | fail — clicking the summary pills filters the list
   var fnT0 = 0, fnTimer = null;
   function fnElapsed() {
     var s = Math.round(((fnRun ? Date.now() : fnEnd) - fnT0) / 1000); if (s < 0) s = 0;
@@ -180,16 +181,22 @@
     var fail = results.length - pass;
     var s = $("fnSummary"); if (!s) return;
     var time = (fnT0 ? '<span class="fnpill" style="background:rgba(127,127,127,.14);color:var(--mut)">⏱ ' + fnElapsed() + '</span> ' : "");
+    var on = function (f) { return fnFilter === f ? " fnon" : ""; };
     s.innerHTML = results.length
-      ? time + '<span class="fnpill ok">✓ ' + pass + ' Pass</span> <span class="fnpill bad">✗ ' + fail + ' Fail</span> <span class="mut">/ ' + results.length + '</span>'
+      ? time
+        + '<span class="fnpill ok fnf' + on("pass") + '" data-fnf="pass" title="শুধু Pass দেখাও">✓ ' + pass + ' Pass</span> '
+        + '<span class="fnpill bad fnf' + on("fail") + '" data-fnf="fail" title="শুধু Fail দেখাও">✗ ' + fail + ' Fail</span> '
+        + '<span class="fnpill fnf' + on("all") + '" data-fnf="all" title="সব দেখাও" style="background:rgba(127,127,127,.14);color:var(--mut)">/ ' + results.length + '</span>'
       : (fnRun ? time : "");
   }
   function fnRenderList() {
     var box = $("fnList"); if (!box) return;
     if (!results.length) { box.innerHTML = ""; return; }
-    // group by menu, fails first inside each group
+    // group by menu, fails first inside each group; honour the Pass/Fail filter
+    var shown = results.filter(function (r) { return fnFilter === "all" || (fnFilter === "pass" ? r.pass : !r.pass); });
+    if (!shown.length) { box.innerHTML = '<div class="mut" style="padding:10px">' + (fnFilter === "fail" ? "কোনো Fail নেই 🎉" : "কিছু দেখানোর নেই") + '</div>'; return; }
     var groups = {};
-    results.forEach(function (r) { (groups[r.menu] = groups[r.menu] || []).push(r); });
+    shown.forEach(function (r) { (groups[r.menu] = groups[r.menu] || []).push(r); });
     var html = "";
     Object.keys(groups).forEach(function (g) {
       var rows = groups[g].slice().sort(function (a, b) { return (a.pass ? 1 : 0) - (b.pass ? 1 : 0); });
@@ -291,7 +298,7 @@
   async function fnStart() {
     if (fnRun) return;
     fnRun = { stop: false, paused: false };
-    results = [];
+    results = []; fnFilter = "all";
     fnT0 = Date.now(); fnEnd = 0;
     if (fnTimer) clearInterval(fnTimer);
     fnTimer = setInterval(fnRenderSummary, 1000);   // live elapsed clock
@@ -378,10 +385,9 @@
     }
     if (fnRun && fnRun.stop) { fnDone(); return; }
 
-    // 2) a screenshot for each failure. The capture window must be visible to be captured, so in
-    // Headless (= stay hidden) the screenshot pass is skipped — no window pops up. Use Browser/HTTP
-    // mode if you want failure screenshots.
-    if (fnMode !== "headless") {
+    // 2) a screenshot for each failure (in every mode). The capture window is parked off-screen; in
+    // Headless it may flash briefly since capturing needs a non-minimized window.
+    {
       // screenshot any page that failed OR has a failing button/action (the error is often the action)
       var actFail = function (r) { return r.actions && r.actions.some(function (a) { return !a.pass; }); };
       var fails = results.filter(function (r) { return !r.pass || actFail(r); });
@@ -450,6 +456,12 @@
     if ($("fnStop")) $("fnStop").addEventListener("click", fnStop);
     if ($("fnPause")) $("fnPause").addEventListener("click", fnPause);
     if ($("fnExport")) $("fnExport").addEventListener("click", fnExport);
+    if ($("fnSummary")) $("fnSummary").addEventListener("click", function (e) {
+      var p = e.target && e.target.closest && e.target.closest("[data-fnf]");
+      if (!p) return;
+      fnFilter = p.getAttribute("data-fnf") || "all";
+      fnRenderSummary(); fnRenderList();
+    });
     if ($("fnHttp")) $("fnHttp").addEventListener("click", function () { fnSetMode("http"); });
     if ($("fnBrowser")) $("fnBrowser").addEventListener("click", function () { fnSetMode("browser"); });
     if ($("fnHeadless")) $("fnHeadless").addEventListener("click", function () { fnSetMode("headless"); });
