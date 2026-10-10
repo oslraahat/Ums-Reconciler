@@ -181,13 +181,13 @@
     var pass = results.filter(function (r) { return r.pass; }).length;
     var fail = results.length - pass;
     var s = $("fnSummary"); if (!s) return;
-    var time = (fnT0 ? '<span class="fnpill" style="background:rgba(127,127,127,.14);color:var(--mut)">⏱ ' + fnElapsed() + '</span> ' : "");
+    var time = (fnT0 ? '<span class="fnpill" style="background:rgba(245,179,1,.16);color:#e0a81e">⏱ ' + fnElapsed() + '</span> ' : "");
     var on = function (f) { return fnFilter === f ? " fnon" : ""; };
     s.innerHTML = results.length
       ? time
         + '<span class="fnpill ok fnf' + on("pass") + '" data-fnf="pass" title="শুধু Pass দেখাও">✓ ' + pass + ' Pass</span> '
         + '<span class="fnpill bad fnf' + on("fail") + '" data-fnf="fail" title="শুধু Fail দেখাও">✗ ' + fail + ' Fail</span> '
-        + '<span class="fnpill fnf' + on("all") + '" data-fnf="all" title="সব দেখাও" style="background:rgba(127,127,127,.14);color:var(--mut)">/ ' + results.length + '</span>'
+        + '<span class="fnpill fnf' + on("all") + '" data-fnf="all" title="সব দেখাও" style="background:rgba(245,179,1,.16);color:#e0a81e">/ ' + results.length + '</span>'
       : (fnRun ? time : "");
   }
   function fnRenderList() {
