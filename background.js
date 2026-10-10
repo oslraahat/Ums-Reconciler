@@ -581,11 +581,20 @@ async function fnActionProbe(opts) {
         if (ty === "password") return;   // NEVER fill a password — a submit/AJAX would change real credentials
         if (ty === "radio") { var g = document.querySelectorAll('input[type=radio][name="' + (i.name || "") + '"]'); if (!Array.prototype.some.call(g, function (r) { return r.checked; })) { i.checked = true; fire(i, "change"); } return; }
         if (i.value && i.value.trim()) return;
-        var d = new Date(), ds = d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+        var fmtDate = function (dt, slash) { var y = dt.getFullYear(), mo = String(dt.getMonth() + 1).padStart(2, "0"), da = String(dt.getDate()).padStart(2, "0"); return slash ? da + "/" + mo + "/" + y : y + "-" + mo + "-" + da; };
+        var today = new Date(), d45 = new Date(); d45.setDate(d45.getDate() - 45);
+        var ds = fmtDate(today, false);
         // Roll/Reg/Mobile/TPIN/PIN must get DIGITS, never "test" (UMS uses type=text for these).
         var k = ((i.name || "") + " " + (i.id || "") + " " + (i.placeholder || "") + " " + (i.getAttribute("inputmode") || "") + " " + (i.getAttribute("pattern") || "") + " " + (i.className || "")).toLowerCase();
         var wantNum = /numeric|digit|[0-9\]\}]\*|\[0-9/.test(k) || i.getAttribute("inputmode") === "numeric";
-        if (ty === "date") i.value = ds;
+        // A "From / Start" date opens a report range — set it 45 days back so the range is not empty
+        // (To/End and plain dates stay today). UMS text datepickers use dd/mm/yyyy; type=date uses ISO.
+        var isFromDate = /from|start|begin|\bsince\b|হইতে|থেকে|শুরু/.test(k);
+        // match real date fields (fromDate/toDate/startDate/dateFrom/"date"/datepicker/dd-mm-yyyy)
+        // without being fooled by candidate / update / validate (which merely contain "date")
+        var isDateField = /datepicker|তারিখ|date[_ -]?(from|to|range|picker)|(from|to|start|end)[_ -]?date|(^|[^a-z])date([^a-z]|$)|dd[\/.\-]mm|yyyy/.test(k);
+        if (ty === "date") i.value = fmtDate(isFromDate ? d45 : today, false);
+        else if (isDateField) i.value = fmtDate(isFromDate ? d45 : today, true);
         else if (ty === "email") i.value = "test@test.com";
         else if (/mobile|phone|contact|\bcell\b|whatsapp|guardian.?no|\bsms\b/.test(k)) i.value = V.mobile || "01700000000";
         else if (/roll/.test(k)) i.value = V.roll || "123456";
