@@ -936,10 +936,9 @@
               <button type="button" id="fnBrowser" data-i18n="fn_browser_l">🌐 Browser</button>
               <button type="button" id="fnHeadless" data-i18n="fn_headless_l">⚙️ Headless</button>
             </div>
-            <button class="btn g" id="fnStart" style="height:var(--ctl-h);gap:7px"><span>🩺</span><span data-i18n="fn_start">Check Now</span></button>
+            <button class="btn g" id="fnStart" style="height:var(--ctl-h)" data-i18n="fn_start">Check Now</button>
             <button class="btn" id="fnPause" style="height:var(--ctl-h);display:none" data-i18n="fn_pause">⏸ Pause</button>
             <button class="btn" id="fnStop" style="height:var(--ctl-h);display:none" data-i18n="fn_stop">⏹ Stop</button>
-            <button class="btn" id="fnExport" style="height:var(--ctl-h)" data-i18n="fn_export">⬇ Excel</button>
           </div>
           <label class="fnact" title="শুধু Browser/Headless মোডে কাজ করে — প্রতিটি পেজে field/dropdown auto-fill করে বাটন ক্লিক করে দেখে। Save/Submit/Delete-এর মতো বাটন শুধু osl.team টেস্ট সার্ভারে ক্লিক হবে।">
             <input type="checkbox" id="fnActions"> <span data-i18n="fn_actions_l">🖱️ বাটনও টেস্ট করো (field ভরে ক্লিক) — Browser/Headless মোডে</span>
@@ -951,6 +950,7 @@
             <input id="fnMobile" spellcheck="false" autocomplete="off" list="fnMobileDl" placeholder="Mobile No."><datalist id="fnMobileDl"></datalist>
             <input id="fnTpin" spellcheck="false" autocomplete="off" placeholder="TPIN">
             <input id="fnPin" spellcheck="false" autocomplete="off" placeholder="PIN">
+            <button class="btn" id="fnExport" style="margin-left:auto" data-i18n="fn_export">⬇ Excel</button>
           </div>
           <div class="fnprog"><div class="fnbarwrap"><div id="fnBar" class="fnbar"></div></div><span id="fnNote" class="mut"></span></div>
           <div id="fnList" class="fnlist"></div>
