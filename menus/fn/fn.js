@@ -33,7 +33,7 @@
     [["fnHttp", "http"], ["fnBrowser", "browser"], ["fnHeadless", "headless"]].forEach(function (p) {
       var b = $(p[0]); if (b) b.classList.toggle("on", fnMode === p[1]);
     });
-    if ($("fnSpeedSeg")) $("fnSpeedSeg").style.display = (fnMode === "browser") ? "" : "none";   // speed only matters for the visible Browser mode
+    if ($("fnSpeedSeg")) $("fnSpeedSeg").style.display = (fnMode === "browser" || fnMode === "headless") ? "" : "none";   // Fast/Slow applies to the real-load modes
     try { chrome.storage.local.set({ fnMode: fnMode }); } catch (e) {}
   }
   function fnSetSpeed(s) {
@@ -448,8 +448,8 @@
           var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
           var row = Object.assign({}, link, c);
           if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
-          // Slow pacing (Browser only): linger on each page so it can be watched, unless stopped
-          if (fnMode === "browser" && fnSpeed === "slow" && !(fnRun && fnRun.stop)) return new Promise(function (r) { setTimeout(function () { r(row); }, 1800); });
+          // Slow pacing (Browser/Headless): linger on each page (watch it / be gentler), unless stopped
+          if (fnSpeed === "slow" && (fnMode === "browser" || fnMode === "headless") && !(fnRun && fnRun.stop)) return new Promise(function (r) { setTimeout(function () { r(row); }, 1800); });
           return row;
         }, function (e) { freeSlots.push(slot); return Object.assign({}, link, { pass: false, reason: "লোড হয়নি — " + String(e && e.message || e), kind: "net" }); });
       }, function (row) {
