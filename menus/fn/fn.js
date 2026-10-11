@@ -72,6 +72,41 @@
      rather than one sidebar box — that is why some sub-menus were missed before. Same-origin,
      navigational links only; logout/delete/export/file links are dropped (see SKIP_HREF). The menu
      group is the nearest enclosing list's own label, so the report can still be grouped. */
+  // Turn a bare/uninformative link label into something a person can read in the report. Many UMS
+  // links use the figure itself as their text (e.g. an achievement count "2 (2%)"), which tells the
+  // reader nothing about WHICH page it is — so when the label has no real word we build a name from
+  // the URL path (the action, de-camel-cased) and keep the original figure + a branch/session hint.
+  function fnDecamel(s) {
+    return String(s || "").replace(/([a-z0-9])([A-Z])/g, "$1 $2").replace(/[_\-]+/g, " ").replace(/\s+/g, " ").trim();
+  }
+  function fnPathName(path) {
+    var p = String(path || "").split("#")[0].split("?")[0].replace(/\/+$/, "");
+    var segs = p.split("/").filter(Boolean);
+    var last = segs.length ? segs[segs.length - 1] : p;
+    if (/^(index|list|home|default|report)$/i.test(last) && segs.length >= 2) last = segs[segs.length - 2];
+    try { last = decodeURIComponent(last); } catch (e) {}
+    return fnDecamel(last) || p;
+  }
+  function fnQueryHint(path) {
+    var q = String(path || "").split("?")[1]; if (!q) return "";
+    var m = {};
+    q.split("&").forEach(function (kv) { var i = kv.indexOf("="); if (i > 0) { try { m[kv.slice(0, i).toLowerCase()] = decodeURIComponent(kv.slice(i + 1)); } catch (e) {} } });
+    var h = [];
+    if (m.branchid) h.push("branch " + m.branchid);
+    if (m.sessionid) h.push("session " + m.sessionid);
+    if (!h.length && m.id) h.push("#" + m.id);
+    return h.join(", ");
+  }
+  function fnLabelGood(s) { return !!s && /[A-Za-zঀ-৿]{3,}/.test(s); }   // has a real word (latin or bangla)
+  function fnNiceName(label, path) {
+    label = (label || "").trim();
+    if (fnLabelGood(label)) return label;
+    var base = fnPathName(path);
+    var extra = [];
+    if (label) extra.push(label);              // keep the raw figure, e.g. "2 (2%)"
+    var hint = fnQueryHint(path); if (hint) extra.push(hint);
+    return extra.length ? base + " — " + extra.join(" · ") : base;
+  }
   function fnParseNav(html, baseUrl) {
     var origin = ORIGIN(baseUrl);
     var doc;
@@ -93,7 +128,7 @@
       var key = url.split("#")[0];
       if (seen[key]) continue; seen[key] = 1;
       var label = (a.textContent || "").replace(/\s+/g, " ").trim();
-      out.push({ menu: fnGroupOf(a), label: label || path, url: key, path: path });
+      out.push({ menu: fnGroupOf(a), label: fnNiceName(label, path), url: key, path: path });
     }
     // Also follow GET-form "Add / Create" buttons (e.g. Branch's Add → /…/Branch/Create), which are
     // not <a href> so the anchor scan misses them. Only GET forms — a POST form would submit data.
@@ -111,7 +146,7 @@
       if (seen[fkey]) continue; seen[fkey] = 1;
       var sb = f.querySelector('[type="submit"], button');
       var flabel = ((sb && (sb.value || sb.textContent)) || "").replace(/\s+/g, " ").trim();
-      out.push({ menu: fnGroupOf(f), label: flabel || fpath, url: fkey, path: fpath });
+      out.push({ menu: fnGroupOf(f), label: fnNiceName(flabel, fpath), url: fkey, path: fpath });
     }
     return out;
   }
