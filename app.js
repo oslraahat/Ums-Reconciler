@@ -161,7 +161,7 @@
     fn_export: { bn: "⬇ Excel", en: "⬇ Excel" },
     fn_actions_l: { bn: "বাটনও টেস্ট করো — field ভরে প্রতিটি বাটনে ক্লিক (Browser/Headless মোডে)", en: "Test buttons too — fill fields & click each button (Browser/Headless mode)" },
     fn_vals_l: { bn: "বাটন-টেস্টে এই মানগুলো বসবে:", en: "Button test uses these values:" },
-    fn_fast_l: { bn: "⏩ Fast", en: "⏩ Fast" },
+    fn_fast_l: { bn: "🚀 Fast", en: "🚀 Fast" },
     fn_slow_l: { bn: "⏳ Slow", en: "⏳ Slow" },
     fn_http_l: { bn: "⚡ HTTP", en: "⚡ HTTP" },
     fn_browser_l: { bn: "🌐 Browser", en: "🌐 Browser" },
