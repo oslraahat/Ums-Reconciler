@@ -801,7 +801,17 @@ async function fnVisitRun(url, mode, base, actions, vals, slot, speed) {
         else probe.actions = [{ label: "(buttons)", pass: false, reason: "inject সমস্যা — " + m }];
       }
     }
-    return { ok: true, probe: probe };
+    // Headless: grab the failure screenshot right here, on the already-open hidden slot window, so the
+    // post-run pass never has to open a SEPARATE window (which would surface on screen). Mirror the
+    // client's fail test (fnClassifyProbe) so a capture is spent only on pages that will read as failed.
+    var shot = null;
+    if (mode === "headless" && probe) {
+      var actBad = probe.actions && probe.actions.some(function (a) { return a && a.pass === false; });
+      var pageBad = probe.error || probe.isLogin || probe.serverErr || probe.errText || probe.consoleErr ||
+                    ((probe.bodyLen || 0) < 40 && !probe.hasStructure);
+      if (pageBad || actBad) { try { shot = await fnCdpShot(tabId); } catch (e) {} }
+    }
+    return { ok: true, probe: probe, shot: shot };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
 async function fnVisitClose() {

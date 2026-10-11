@@ -483,6 +483,7 @@
           var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
           var row = Object.assign({}, link, c);
           if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
+          if (v && v.ok && v.shot) row._inlineShot = v.shot;   // Headless: shot already taken on the hidden visit window
           // Slow pacing: linger ~2s per page so it can be watched comfortably in Browser (gentler in
           // Headless); Fast has no extra pause — just the minimal background settle = max speed.
           if (fnSpeed === "slow" && (fnMode === "browser" || fnMode === "headless") && !(fnRun && fnRun.stop)) return new Promise(function (r) { setTimeout(function () { r(row); }, 2000); });
@@ -496,9 +497,9 @@
     }
     if (fnRun && fnRun.stop) { fnDone(); return; }
 
-    // 2) a screenshot for each failure. Capture goes through the DevTools Protocol
-    // (Page.captureScreenshot), which renders a minimized/hidden window too — so this runs in every
-    // mode, Headless included, without anything popping up on screen.
+    // 2) a screenshot for each failure. In HEADLESS the shot was already captured DURING the visit,
+    // on the hidden slot window (via CDP) — so nothing extra opens here. In HTTP/Browser it is taken
+    // now in one reused shot window.
     {
       // screenshot any page that failed OR has a failing button/action (the error is often the action)
       var actFail = function (r) { return r.actions && r.actions.some(function (a) { return !a.pass; }); };
@@ -507,7 +508,7 @@
         if (fnRun && fnRun.stop) break;
         await waitIfPaused(); if (fnRun && fnRun.stop) break;
         fnProgress(k, fails.length, t("fn_shooting"));
-        var s = await fnShot(fails[k].url);
+        var s = (fnMode === "headless") ? (fails[k]._inlineShot ? { shot: fails[k]._inlineShot } : null) : await fnShot(fails[k].url);
         if (s && s.shot) {
           if (!fails[k].pass) {
             fails[k].shot = s.shot;
@@ -520,7 +521,7 @@
           fnRenderList();
         }
       }
-      try { chrome.runtime.sendMessage({ type: "fnShotClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
+      if (fnMode !== "headless") { try { chrome.runtime.sendMessage({ type: "fnShotClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {} }
     }
     fnProgress(results.length, results.length, t("fn_done"));
     fnDone();
