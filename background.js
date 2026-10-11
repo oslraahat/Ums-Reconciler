@@ -397,22 +397,53 @@ async function admBrowserRun(p) {
 }
 
 /* ───────────────────────── Function Check · screenshot ─────────────────────────
-   For a page that failed the rapid HTTP check, load it in ONE reused side window (parked off-screen
-   so it never takes focus, but NOT minimized — a minimized/hidden window cannot be captured) and
-   grab a JPEG of it, plus a quick DOM probe for a visible error message. Read-only: it only opens
-   the page, never clicks anything. osl.team is in host_permissions, which is what captureVisibleTab
-   needs for that tab; if a particular Chrome still refuses, the shot comes back null and the check
-   simply shows the failure without a picture. */
+   For a page that failed the rapid HTTP check, load it in ONE reused MINIMIZED side window (never
+   takes focus, stays hidden) and grab a JPEG of it via the DevTools Protocol, plus a quick DOM probe
+   for a visible error message. CDP (Page.captureScreenshot) renders from the page compositor, so it
+   works while the window is minimized/off-screen — the same way headless automation screenshots. If
+   capture still refuses, the shot comes back null and the check simply shows the failure without a
+   picture. Read-only: it only opens the page, never clicks anything. */
 let fnShot = { tabId: null, winId: null };
 async function fnEnsureTab(url) {
   if (fnShot.tabId != null && await getTab(fnShot.tabId)) { await chrome.tabs.update(fnShot.tabId, { url: url }); return fnShot.tabId; }
   let win;
-  try { win = await chrome.windows.create({ url: url, focused: false, left: 30000, top: 30000, width: 1200, height: 820 }); }
+  try { win = await chrome.windows.create({ url: url, focused: false, state: "minimized" }); }
   catch (e) { win = await chrome.windows.create({ url: url, focused: false, width: 1200, height: 820 }); }
-  try { await chrome.windows.update(win.id, { left: 30000, top: 30000, focused: false }); } catch (e) {}
+  try { await chrome.windows.update(win.id, { state: "minimized", focused: false }); } catch (e) {}
   fnShot.tabId = win && win.tabs && win.tabs[0] && win.tabs[0].id;
   fnShot.winId = win.id;
   return fnShot.tabId;
+}
+/* Capture a tab via the DevTools Protocol (chrome.debugger → Page.captureScreenshot). Unlike
+   chrome.tabs.captureVisibleTab, this renders from the page's own compositor, so it works even when
+   the window is MINIMIZED / off-screen / not the active tab — the same mechanism real headless
+   automation uses. Attach, grab one JPEG, always detach. Returns a data URL or null. */
+function cdpSend(target, method, params) {
+  return new Promise(function (resolve, reject) {
+    chrome.debugger.sendCommand(target, method, params || {}, function (r) {
+      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message)); else resolve(r);
+    });
+  });
+}
+async function fnCdpShot(tabId) {
+  var target = { tabId: tabId };
+  var attached = false;
+  try {
+    await new Promise(function (resolve, reject) {
+      chrome.debugger.attach(target, "1.3", function () {
+        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message)); else resolve();
+      });
+    });
+    attached = true;
+    var r = await cdpSend(target, "Page.captureScreenshot", { format: "jpeg", quality: 55, captureBeyondViewport: true });
+    return r && r.data ? "data:image/jpeg;base64," + r.data : null;
+  } catch (e) {
+    return null;
+  } finally {
+    if (attached) {
+      try { await new Promise(function (resolve) { chrome.debugger.detach(target, function () { void chrome.runtime.lastError; resolve(); }); }); } catch (e) {}
+    }
+  }
 }
 function fnProbePage() {
   // runs in the page: report a VISIBLE error message and whether the page is essentially empty.
@@ -447,9 +478,13 @@ async function fnShotRun(url) {
       var res = await chrome.scripting.executeScript({ target: { tabId: tabId }, func: fnProbePage });
       probe = res && res[0] && res[0].result;
     } catch (e) {}
-    var shot = null;
-    try { shot = await chrome.tabs.captureVisibleTab(fnShot.winId, { format: "jpeg", quality: 55 }); }
-    catch (e) { shot = null; }
+    // Capture via CDP first (works on the minimized/off-screen window); fall back to captureVisibleTab
+    // only if that fails and the window happens to be visible.
+    var shot = await fnCdpShot(tabId);
+    if (!shot) {
+      try { shot = await chrome.tabs.captureVisibleTab(fnShot.winId, { format: "jpeg", quality: 55 }); }
+      catch (e) { shot = null; }
+    }
     return { ok: true, shot: shot, probe: probe };
   } catch (e) { return { ok: false, error: String(e && e.message || e) }; }
 }

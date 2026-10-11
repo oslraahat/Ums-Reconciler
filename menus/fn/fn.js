@@ -461,9 +461,10 @@
     }
     if (fnRun && fnRun.stop) { fnDone(); return; }
 
-    // 2) a screenshot for each failure. Capturing needs a visible window, so in Headless (= stay
-    // completely hidden) the screenshot pass is skipped — nothing pops up. Use Browser/HTTP for shots.
-    if (fnMode !== "headless") {
+    // 2) a screenshot for each failure. Capture goes through the DevTools Protocol
+    // (Page.captureScreenshot), which renders a minimized/hidden window too — so this runs in every
+    // mode, Headless included, without anything popping up on screen.
+    {
       // screenshot any page that failed OR has a failing button/action (the error is often the action)
       var actFail = function (r) { return r.actions && r.actions.some(function (a) { return !a.pass; }); };
       var fails = results.filter(function (r) { return !r.pass || actFail(r); });
