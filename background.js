@@ -415,9 +415,10 @@ async function fnEnsureTab(url) {
   return fnShot.tabId;
 }
 /* Capture a tab via the DevTools Protocol (chrome.debugger → Page.captureScreenshot). Unlike
-   chrome.tabs.captureVisibleTab, this renders from the page's own compositor, so it works even when
-   the window is MINIMIZED / off-screen / not the active tab — the same mechanism real headless
-   automation uses. Attach, grab one JPEG, always detach. Returns a data URL or null. */
+   chrome.tabs.captureVisibleTab, this renders from the page's own compositor, so it can capture a
+   background / off-screen / minimized tab — the mechanism headless automation uses. A minimized tab
+   is occluded and its compositor throttled, so capture is bounded by fnRace: a stalled frame yields
+   a null shot instead of hanging. Attach, grab one JPEG, always detach. Returns a data URL or null. */
 function cdpSend(target, method, params) {
   return new Promise(function (resolve, reject) {
     chrome.debugger.sendCommand(target, method, params || {}, function (r) {
@@ -427,20 +428,22 @@ function cdpSend(target, method, params) {
 }
 async function fnCdpShot(tabId) {
   var target = { tabId: tabId };
-  var attached = false;
+  var tried = false;   // attach was requested — always try to detach, even if attach timed out but later landed
   try {
-    await new Promise(function (resolve, reject) {
+    tried = true;
+    await fnRace(new Promise(function (resolve, reject) {
       chrome.debugger.attach(target, "1.3", function () {
         if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message)); else resolve();
       });
-    });
-    attached = true;
-    var r = await cdpSend(target, "Page.captureScreenshot", { format: "jpeg", quality: 55, captureBeyondViewport: true });
+    }), 8000);
+    // A minimized tab is occluded, so its compositor is throttled; cap the capture so a stalled frame
+    // can never hang the whole Function Check (it just yields a null shot and the failure is still reported).
+    var r = await fnRace(cdpSend(target, "Page.captureScreenshot", { format: "jpeg", quality: 55, captureBeyondViewport: true }), 10000);
     return r && r.data ? "data:image/jpeg;base64," + r.data : null;
   } catch (e) {
     return null;
   } finally {
-    if (attached) {
+    if (tried) {
       try { await new Promise(function (resolve) { chrome.debugger.detach(target, function () { void chrome.runtime.lastError; resolve(); }); }); } catch (e) {}
     }
   }
