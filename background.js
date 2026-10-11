@@ -506,8 +506,9 @@ async function fnEnsureVisit(url, mode, slot) {
     // minimize (window shows). Pass state alone — minimized is inactive by definition.
     let win;
     try { win = await chrome.windows.create({ url: url, state: "minimized" }); }
-    catch (e) { win = await chrome.windows.create({ url: url, focused: false, left: 30000, top: 30000, width: 1200, height: 820 }); }
+    catch (e) { win = await chrome.windows.create({ url: url, focused: false }); }   // fallback: inactive, THEN minimize (never off-screen — that gets clamped on-screen)
     try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}
+    try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}   // a second nudge — some builds ignore minimize on the create call
     fnVisitSlots[slot] = { tabId: win && win.tabs && win.tabs[0] && win.tabs[0].id, winId: win.id, mode: mode };
   }
   return fnVisitSlots[slot].tabId;
