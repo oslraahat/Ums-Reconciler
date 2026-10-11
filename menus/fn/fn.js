@@ -543,7 +543,11 @@
     });
     if ($("fnBase") && !$("fnBase").value) $("fnBase").value = (A.getBaseUrl && A.getBaseUrl()) || "https://ums-4.osl.team";
     // remember the last-used Base URL and restore it on load
-    if ($("fnBase")) $("fnBase").addEventListener("input", function () { try { chrome.storage.local.set({ fnBaseUrl: this.value }); } catch (e) {} fnConnDebounced(); });
+    if ($("fnBase")) {
+      var onBase = function () { try { chrome.storage.local.set({ fnBaseUrl: $("fnBase").value }); } catch (e) {} fnConnDebounced(); };
+      // input = typing; change/blur catch a paste or an autocomplete pick that skips the input event
+      ["input", "change", "blur"].forEach(function (ev) { $("fnBase").addEventListener(ev, onBase); });
+    }
     try {
       chrome.storage.local.get(["fnMode", "fnActions", "fnBaseUrl", "fnRolls", "fnRegs", "fnMobiles"].concat(Object.keys(VKEYS)), function (o) {
         fnSetMode(o && o.fnMode);
