@@ -419,9 +419,11 @@ async function fnEnsureTab(url) {
 }
 /* Capture a tab via the DevTools Protocol (chrome.debugger → Page.captureScreenshot). Unlike
    chrome.tabs.captureVisibleTab, this renders from the page's own compositor, so it can capture a
-   background / off-screen / minimized tab — the mechanism headless automation uses. A minimized tab
-   is occluded and its compositor throttled, so capture is bounded by fnRace: a stalled frame yields
-   a null shot instead of hanging. Attach, grab one JPEG, always detach. Returns a data URL or null. */
+   background / off-screen / minimized tab — the mechanism headless automation uses. A hidden tab
+   produces no painted frames on its own, so Page.captureScreenshot alone comes back BLANK. The fix
+   (what Puppeteer does) is Emulation.setDeviceMetricsOverride: forcing a viewport makes the renderer
+   lay out and paint a frame regardless of the window's visibility. Bounded by fnRace so a stalled
+   frame can't hang the crawl. Attach, override metrics, grab one JPEG, clear, always detach. */
 function cdpSend(target, method, params) {
   return new Promise(function (resolve, reject) {
     chrome.debugger.sendCommand(target, method, params || {}, function (r) {
@@ -432,6 +434,7 @@ function cdpSend(target, method, params) {
 async function fnCdpShot(tabId) {
   var target = { tabId: tabId };
   var tried = false;   // attach was requested — always try to detach, even if attach timed out but later landed
+  var overrode = false;
   try {
     tried = true;
     await fnRace(new Promise(function (resolve, reject) {
@@ -439,13 +442,17 @@ async function fnCdpShot(tabId) {
         if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message)); else resolve();
       });
     }), 8000);
-    // A minimized tab is occluded, so its compositor is throttled; cap the capture so a stalled frame
-    // can never hang the whole Function Check (it just yields a null shot and the failure is still reported).
+    // Force a viewport so a hidden/off-screen tab actually paints (otherwise the shot is blank).
+    try { await fnRace(cdpSend(target, "Emulation.setDeviceMetricsOverride", { width: 1200, height: 820, deviceScaleFactor: 1, mobile: false }), 5000); overrode = true; } catch (e) {}
+    await bgSleep(250);   // give the forced relayout a beat to paint before grabbing the frame
+    // Cap the capture so a stalled frame can never hang the whole Function Check (it just yields a
+    // null shot and the failure is still reported).
     var r = await fnRace(cdpSend(target, "Page.captureScreenshot", { format: "jpeg", quality: 55, captureBeyondViewport: true }), 10000);
     return r && r.data ? "data:image/jpeg;base64," + r.data : null;
   } catch (e) {
     return null;
   } finally {
+    if (overrode) { try { await cdpSend(target, "Emulation.clearDeviceMetricsOverride"); } catch (e) {} }
     if (tried) {
       try { await new Promise(function (resolve) { chrome.debugger.detach(target, function () { void chrome.runtime.lastError; resolve(); }); }); } catch (e) {}
     }
