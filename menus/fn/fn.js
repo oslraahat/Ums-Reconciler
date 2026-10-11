@@ -87,6 +87,24 @@
       var label = (a.textContent || "").replace(/\s+/g, " ").trim();
       out.push({ menu: fnGroupOf(a), label: label || path, url: key, path: path });
     }
+    // Also follow GET-form "Add / Create" buttons (e.g. Branch's Add → /…/Branch/Create), which are
+    // not <a href> so the anchor scan misses them. Only GET forms — a POST form would submit data.
+    var forms = scope.querySelectorAll("form");
+    for (var fi = 0; fi < forms.length && out.length < MAX_LINKS; fi++) {
+      var f = forms[fi];
+      if (((f.getAttribute("method") || "get").toLowerCase()) !== "get") continue;
+      var act = f.getAttribute("action") || "";
+      if (!act) continue;
+      var furl; try { furl = new URL(act, baseUrl).href; } catch (e) { continue; }
+      if (ORIGIN(furl) !== origin) continue;
+      var fpath = furl.slice(origin.length);
+      if (fpath === "" || fpath === "/" || SKIP_HREF.test(fpath)) continue;
+      var fkey = furl.split("#")[0];
+      if (seen[fkey]) continue; seen[fkey] = 1;
+      var sb = f.querySelector('[type="submit"], button');
+      var flabel = ((sb && (sb.value || sb.textContent)) || "").replace(/\s+/g, " ").trim();
+      out.push({ menu: fnGroupOf(f), label: flabel || fpath, url: fkey, path: fpath });
+    }
     return out;
   }
   // the nearest ancestor list's heading / toggle text — best-effort grouping, falls back to "Menu"
