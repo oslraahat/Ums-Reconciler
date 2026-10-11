@@ -27,12 +27,20 @@
   var fnRun = null;              // { stop } while a crawl is going
   var fnMode = "http";           // http | browser | headless
 
+  var fnSpeed = "fast";   // fast | slow — Browser-mode pacing
   function fnSetMode(m) {
     fnMode = (m === "browser" || m === "headless") ? m : "http";
     [["fnHttp", "http"], ["fnBrowser", "browser"], ["fnHeadless", "headless"]].forEach(function (p) {
       var b = $(p[0]); if (b) b.classList.toggle("on", fnMode === p[1]);
     });
+    if ($("fnSpeedSeg")) $("fnSpeedSeg").style.display = (fnMode === "browser") ? "" : "none";   // speed only matters for the visible Browser mode
     try { chrome.storage.local.set({ fnMode: fnMode }); } catch (e) {}
+  }
+  function fnSetSpeed(s) {
+    fnSpeed = (s === "slow") ? "slow" : "fast";
+    if ($("fnFast")) $("fnFast").classList.toggle("on", fnSpeed === "fast");
+    if ($("fnSlow")) $("fnSlow").classList.toggle("on", fnSpeed === "slow");
+    try { chrome.storage.local.set({ fnSpeed: fnSpeed }); } catch (e) {}
   }
 
   /* ---- what counts as a checkable page link ---- */
@@ -440,6 +448,8 @@
           var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
           var row = Object.assign({}, link, c);
           if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
+          // Slow pacing (Browser only): linger on each page so it can be watched, unless stopped
+          if (fnMode === "browser" && fnSpeed === "slow" && !(fnRun && fnRun.stop)) return new Promise(function (r) { setTimeout(function () { r(row); }, 1800); });
           return row;
         }, function (e) { freeSlots.push(slot); return Object.assign({}, link, { pass: false, reason: "লোড হয়নি — " + String(e && e.message || e), kind: "net" }); });
       }, function (row) {
@@ -537,6 +547,8 @@
     if ($("fnHttp")) $("fnHttp").addEventListener("click", function () { fnSetMode("http"); });
     if ($("fnBrowser")) $("fnBrowser").addEventListener("click", function () { fnSetMode("browser"); });
     if ($("fnHeadless")) $("fnHeadless").addEventListener("click", function () { fnSetMode("headless"); });
+    if ($("fnFast")) $("fnFast").addEventListener("click", function () { fnSetSpeed("fast"); });
+    if ($("fnSlow")) $("fnSlow").addEventListener("click", function () { fnSetSpeed("slow"); });
     if ($("fnActions")) $("fnActions").addEventListener("change", function () { try { chrome.storage.local.set({ fnActions: this.checked }); } catch (e) {} });
     var VKEYS = { fnRoll: "fnRoll", fnReg: "fnReg", fnMobile: "fnMobile", fnTpin: "fnTpin", fnPin: "fnPin" };
     // Roll/Reg/Mobile keep a native <datalist> of numbers used before — selecting one RELIABLY sets
@@ -567,8 +579,9 @@
       ["input", "change", "blur"].forEach(function (ev) { $("fnBase").addEventListener(ev, onBase); });
     }
     try {
-      chrome.storage.local.get(["fnMode", "fnActions", "fnBaseUrl", "fnRolls", "fnRegs", "fnMobiles"].concat(Object.keys(VKEYS)), function (o) {
+      chrome.storage.local.get(["fnMode", "fnSpeed", "fnActions", "fnBaseUrl", "fnRolls", "fnRegs", "fnMobiles"].concat(Object.keys(VKEYS)), function (o) {
         fnSetMode(o && o.fnMode);
+        fnSetSpeed(o && o.fnSpeed);
         if ($("fnActions")) $("fnActions").checked = !!(o && o.fnActions);
         if (o && o.fnBaseUrl && $("fnBase")) $("fnBase").value = o.fnBaseUrl;
         Object.keys(VKEYS).forEach(function (id) { if (o && o[id] != null && $(id)) $(id).value = o[id]; });
