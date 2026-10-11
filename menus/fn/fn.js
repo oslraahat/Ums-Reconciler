@@ -482,20 +482,27 @@
     fnRenderSummary();
   }
 
-  function fnExport() {
-    if (!results.length) return;
-    var rows = [["Menu", "Action", "Path", "URL", "Status", "Reason", "Button"]];
+  async function fnExport() {
+    if (!results.length || !A.buildBook) return;
+    // XLSX with a clickable HYPERLINK to each page (the Link column); Fail rows red, Pass green
+    var header = ["Menu", "Action", "Path", "Status", "Reason", "Button", "Link"];
+    var mat = [], colors = [];
     results.forEach(function (r) {
-      rows.push([r.menu, r.label, r.path, r.url, r.pass ? "Pass" : "Fail", r.reason, ""]);
-      (r.actions || []).forEach(function (a) { rows.push([r.menu, r.label, r.path, r.url, a.pass ? "Pass" : "Fail", a.reason, a.label]); });
+      mat.push([r.menu, r.label, r.path, r.pass ? "Pass" : "Fail", r.reason, "", r.url]);
+      colors.push(r.pass ? "g" : "r");
+      (r.actions || []).forEach(function (a) {
+        mat.push([r.menu, r.label, r.path, a.pass ? "Pass" : "Fail", a.reason, a.label, r.url]);
+        colors.push(a.pass ? "g" : "r");
+      });
     });
-    var csv = rows.map(function (row) { return row.map(function (c) { return '"' + String(c == null ? "" : c).replace(/"/g, '""') + '"'; }).join(","); }).join("\r\n");
-    var blob = new Blob(["﻿" + csv], { type: "text/csv;charset=utf-8" });
-    var a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = "Function Check - " + new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-") + ".csv";
-    document.body.appendChild(a); a.click();
-    setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    try {
+      var bytes = await A.buildBook([{ name: "Function Check", header: header, mat: mat, colors: colors, links: [6] }]);
+      var a = document.createElement("a");
+      a.href = URL.createObjectURL(new Blob([bytes], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" }));
+      a.download = "Function Check - " + new Date().toISOString().slice(0, 16).replace(/[:T]/g, "-") + ".xlsx";
+      document.body.appendChild(a); a.click();
+      setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+    } catch (e) { if ($("fnNote")) $("fnNote").textContent = "Export সমস্যা — " + String(e && e.message || e); }
   }
 
   function fnWire() {
