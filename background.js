@@ -406,10 +406,13 @@ async function admBrowserRun(p) {
 let fnShot = { tabId: null, winId: null };
 async function fnEnsureTab(url) {
   if (fnShot.tabId != null && await getTab(fnShot.tabId)) { await chrome.tabs.update(fnShot.tabId, { url: url }); return fnShot.tabId; }
+  // Park the shot window OFF-SCREEN (never focused), NOT minimized. A minimized window is occluded, so
+  // Chrome throttles its compositor and CDP capture comes back blank/null; an off-screen window is not
+  // occluded, so Page.captureScreenshot renders reliably — and it never shows on the visible desktop.
   let win;
-  try { win = await chrome.windows.create({ url: url, focused: false, state: "minimized" }); }
+  try { win = await chrome.windows.create({ url: url, focused: false, left: 30000, top: 30000, width: 1200, height: 820 }); }
   catch (e) { win = await chrome.windows.create({ url: url, focused: false, width: 1200, height: 820 }); }
-  try { await chrome.windows.update(win.id, { state: "minimized", focused: false }); } catch (e) {}
+  try { await chrome.windows.update(win.id, { left: 30000, top: 30000, focused: false }); } catch (e) {}
   fnShot.tabId = win && win.tabs && win.tabs[0] && win.tabs[0].id;
   fnShot.winId = win.id;
   return fnShot.tabId;
