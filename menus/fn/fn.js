@@ -432,9 +432,9 @@
     }
     if (fnRun && fnRun.stop) { fnDone(); return; }
 
-    // 2) a screenshot for each failure (in every mode). The capture window is parked off-screen; in
-    // Headless it may flash briefly since capturing needs a non-minimized window.
-    {
+    // 2) a screenshot for each failure. Capturing needs a visible window, so in Headless (= stay
+    // completely hidden) the screenshot pass is skipped — nothing pops up. Use Browser/HTTP for shots.
+    if (fnMode !== "headless") {
       // screenshot any page that failed OR has a failing button/action (the error is often the action)
       var actFail = function (r) { return r.actions && r.actions.some(function (a) { return !a.pass; }); };
       var fails = results.filter(function (r) { return !r.pass || actFail(r); });
