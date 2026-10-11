@@ -452,7 +452,7 @@ async function fnCdpShot(tabId) {
   } catch (e) {
     return null;
   } finally {
-    if (overrode) { try { await cdpSend(target, "Emulation.clearDeviceMetricsOverride"); } catch (e) {} }
+    if (overrode) { try { await fnRace(cdpSend(target, "Emulation.clearDeviceMetricsOverride"), 3000); } catch (e) {} }   // detach reverts it too, but keep every CDP call bounded
     if (tried) {
       try { await new Promise(function (resolve) { chrome.debugger.detach(target, function () { void chrome.runtime.lastError; resolve(); }); }); } catch (e) {}
     }
