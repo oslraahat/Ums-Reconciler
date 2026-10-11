@@ -718,13 +718,13 @@ async function fnActionProbe(opts) {
   } catch (e) { actions.push({ label: "(action probe)", pass: false, reason: String((e && e.message) || e) }); }
   return actions;
 }
-async function fnVisitRun(url, mode, base, actions, vals, slot) {
+async function fnVisitRun(url, mode, base, actions, vals, slot, speed) {
   try {
     await fnRegisterProbe(base);
     var tabId = await fnEnsureVisit(url, mode, slot || 0);
     if (tabId == null) return { ok: false, error: "tab/window তৈরি হয়নি" };
     await waitTabComplete(tabId, 25000);
-    await bgSleep(300);   // let scripts run and paint
+    await bgSleep(speed === "slow" ? 500 : 180);   // Fast = minimal settle (max speed); Slow = a touch more
     // write-gate: state-changing buttons fire only on the osl.team test server
     var allowWrite = false;
     try { allowWrite = /(^|\.)osl\.team$/i.test(new URL(base).hostname); } catch (e) {}
@@ -780,7 +780,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === "admBrowserClose") { admCloseRun(msg.slot).then(function () { sendResponse({ ok: true }); }); return true; }
   if (msg && msg.type === "fnShot") { fnShotRun(msg.url).then(sendResponse); return true; }
   if (msg && msg.type === "fnShotClose") { fnShotClose().then(function () { sendResponse({ ok: true }); }); return true; }
-  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions, msg.vals, msg.slot).then(sendResponse); return true; }
+  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions, msg.vals, msg.slot, msg.speed).then(sendResponse); return true; }
   if (msg && msg.type === "fnVisitClose") { fnVisitClose().then(function () { sendResponse({ ok: true }); }); return true; }
 });
 /* If the user closes a Function-Check window by hand (or the panel goes away mid-crawl and its close

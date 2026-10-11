@@ -337,7 +337,7 @@
       } catch (e) { resolve(null); }
     });
   }
-  function fnVisit(url, mode, base, actions, vals, slot) {
+  function fnVisit(url, mode, base, actions, vals, slot, speed) {
     return new Promise(function (resolve) {
       var done = false;
       // a page that blocks (a native dialog, an endless script) must NOT hang the whole crawl — if the
@@ -350,7 +350,7 @@
       // background (the windows are closed by fnStop, so the in-flight visit ends on its own).
       var stopChk = setInterval(function () { if (fnRun && fnRun.stop) fin({ ok: false, error: "stopped" }); }, 200);
       try {
-        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals, slot: slot || 0 }, function (resp) {
+        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals, slot: slot || 0, speed: speed || "fast" }, function (resp) {
           if (done) { void chrome.runtime.lastError; return; }
           var le = chrome.runtime.lastError;
           fin(le ? { ok: false, error: le.message || "no response (এক্সটেনশন পুরো Reload করো)" } : (resp || { ok: false, error: "empty response" }));
@@ -443,13 +443,14 @@
       fnProgress(0, total, t("fn_visiting"));
       await pool(links, concV, function (link) {
         var slot = freeSlots.length ? freeSlots.pop() : 0;
-        return fnVisit(link.url, fnMode, base, doActions, vals, slot).then(function (v) {
+        return fnVisit(link.url, fnMode, base, doActions, vals, slot, fnSpeed).then(function (v) {
           freeSlots.push(slot);
           var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
           var row = Object.assign({}, link, c);
           if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
-          // Slow pacing (Browser/Headless): linger on each page (watch it / be gentler), unless stopped
-          if (fnSpeed === "slow" && (fnMode === "browser" || fnMode === "headless") && !(fnRun && fnRun.stop)) return new Promise(function (r) { setTimeout(function () { r(row); }, 1800); });
+          // Slow pacing: linger ~2s per page so it can be watched comfortably in Browser (gentler in
+          // Headless); Fast has no extra pause — just the minimal background settle = max speed.
+          if (fnSpeed === "slow" && (fnMode === "browser" || fnMode === "headless") && !(fnRun && fnRun.stop)) return new Promise(function (r) { setTimeout(function () { r(row); }, 2000); });
           return row;
         }, function (e) { freeSlots.push(slot); return Object.assign({}, link, { pass: false, reason: "লোড হয়নি — " + String(e && e.message || e), kind: "net" }); });
       }, function (row) {
