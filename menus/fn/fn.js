@@ -23,9 +23,27 @@
 
   var MAX_LINKS = 600;           // a hard cap so a mis-parsed page can never spawn thousands of fetches
   var CONC = 8;                  // parallel page checks (HTTP mode)
-  var FN_HEADLESS_CONC = 3;      // hidden background tabs Headless loads in parallel on Fast. They all
-                                 // sit in one existing window, so this adds no window and no taskbar
-                                 // entry — only overlap. Slow forces 1 (see fnStart).
+
+  /* ── pacing: the ONE place that defines what Fast and Slow mean ──
+     These used to be split across two files (this one chose concurrency + linger, background.js
+     re-derived the settle from mode+speed), so the two could drift apart. Everything now comes from
+     here and the settle is sent to the background rather than guessed there.
+       conc   — pages loaded at once. Headless uses hidden background tabs that all live in one
+                existing window, so parallelism costs no extra window or taskbar entry.
+       settle — pause after the page reports loaded, before probing it. Small: the navigation wait is
+                exact now (background waits for THIS page's load, not a stale "complete").
+       linger — deliberate extra pause per page, purely so a human can follow along in Browser mode.
+     Tuning speed is a one-line change here. */
+  var PACE = {
+    browser:  { fast: { conc: 1, settle: 80,  linger: 0 },
+                slow: { conc: 1, settle: 500, linger: 2000 } },   // slow = watchable on purpose
+    headless: { fast: { conc: 3, settle: 80,  linger: 0 },
+                slow: { conc: 1, settle: 150, linger: 300 } }     // hidden: nothing to watch, just gentler
+  };
+  function pace() {
+    var m = PACE[fnMode === "headless" ? "headless" : "browser"];
+    return m[fnSpeed === "slow" ? "slow" : "fast"];
+  }
   var fnRun = null;              // { stop } while a crawl is going
   var fnAborted = false;         // latched by Stop — every loop/pool/visit bails on it even if fnRun is cleared
   var fnPort = null;             // live only during a run; its disconnect tells the background to clean up
@@ -390,7 +408,7 @@
       } catch (e) { fin(null); }
     });
   }
-  function fnVisit(url, mode, base, actions, vals, slot, speed, gen) {
+  function fnVisit(url, mode, base, actions, vals, slot, settle, gen) {
     return new Promise(function (resolve) {
       var done = false;
       // a page that blocks (a native dialog, an endless script) must NOT hang the whole crawl — if the
@@ -403,7 +421,7 @@
       // background (fnStop closes the visit tab/window, so the in-flight visit ends on its own).
       var stopChk = setInterval(function () { if (fnStopped(gen)) fin({ ok: false, error: "stopped" }); }, 200);
       try {
-        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals, slot: slot || 0, speed: speed || "fast" }, function (resp) {
+        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals, slot: slot || 0, settle: settle }, function (resp) {
           if (done) { void chrome.runtime.lastError; return; }
           var le = chrome.runtime.lastError;
           fin(le ? { ok: false, error: le.message || "no response (এক্সটেনশন পুরো Reload করো)" } : (resp || { ok: false, error: "empty response" }));
@@ -494,27 +512,19 @@
         tpin: ($("fnTpin") && $("fnTpin").value || "").trim(),
         pin: ($("fnPin") && $("fnPin").value || "").trim()
       };
-      // Browser always runs one page at a time (it IS the visible front tab). Headless loads into hidden
-      // background tabs, and several of those live in the SAME window — so running a few in parallel
-      // costs no extra window and no extra taskbar entry, it just overlaps the page loads. Fast uses the
-      // full width; Slow drops to one so it stays gentle on the server. Each worker borrows a slot.
-      var concV = (fnMode === "headless") ? (fnSpeed === "slow" ? 1 : FN_HEADLESS_CONC) : 1;
-      var freeSlots = []; for (var si = 0; si < concV; si++) freeSlots.push(si);
+      var P = pace();   // concurrency / settle / linger for this mode+speed, all from the PACE table
+      var freeSlots = []; for (var si = 0; si < P.conc; si++) freeSlots.push(si);
       fnProgress(0, total, t("fn_visiting"));
-      await pool(links, concV, function (link) {
+      await pool(links, P.conc, function (link) {
         var slot = freeSlots.length ? freeSlots.pop() : 0;
-        return fnVisit(link.url, fnMode, base, doActions, vals, slot, fnSpeed, gen).then(function (v) {
+        return fnVisit(link.url, fnMode, base, doActions, vals, slot, P.settle, gen).then(function (v) {
           freeSlots.push(slot);
           var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
           var row = Object.assign({}, link, c);
           if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
-          // Slow pacing: in BROWSER, linger ~2s per page so it can be watched comfortably. In HEADLESS
-          // there is nothing to watch (it runs in a hidden background tab), so Slow only needs to be gentle on the
-          // server — a short ~300ms pause, far quicker than Browser's Slow. Fast adds no pause at all.
-          if (fnSpeed === "slow" && !fnStopped(gen)) {
-            if (fnMode === "browser") return new Promise(function (r) { setTimeout(function () { r(row); }, 2000); });
-            if (fnMode === "headless") return new Promise(function (r) { setTimeout(function () { r(row); }, 300); });
-          }
+          // Slow's deliberate pause, so a human can follow along (Browser) or the server gets a breather
+          // (Headless). Fast sets linger to 0, so this costs nothing there.
+          if (P.linger && !fnStopped(gen)) return new Promise(function (r) { setTimeout(function () { r(row); }, P.linger); });
           return row;
         }, function (e) { freeSlots.push(slot); return Object.assign({}, link, { pass: false, reason: "লোড হয়নি — " + String(e && e.message || e), kind: "net" }); });
       }, function (row) {

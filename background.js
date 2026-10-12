@@ -502,10 +502,33 @@ async function fnUnregisterProbe() {
   try { await chrome.scripting.unregisterContentScripts({ ids: ["fnprobe"] }); } catch (e) {}
   fnProbeReg = "";
 }
+/* Wait for the navigation we are ABOUT to start. chrome.tabs.update resolves before the new page
+   commits, and for a moment the tab still reports the PREVIOUS page as "complete" — so waiting on
+   status alone can hand the probe the page we just navigated away from. Attaching the listener before
+   navigating and requiring a loading -> complete transition pins it to the right page. */
+function navWatch(tabId, ms) {
+  var done = false, t = null, go = null;
+  function fin() { if (done) return; done = true; clearTimeout(t); chrome.tabs.onUpdated.removeListener(h); go(); }
+  function h(id, info) {
+    if (id !== tabId || done) return;
+    // Loading started: this IS our navigation, so now allow it the full load budget.
+    if (info.status === "loading") { clearTimeout(t); t = setTimeout(fin, ms); h.started = true; }
+    else if (info.status === "complete" && h.started) fin();
+  }
+  chrome.tabs.onUpdated.addListener(h);
+  // Short leash until loading actually begins — if the navigation never starts (e.g. the tab is already
+  // on that exact URL), give up quickly instead of stalling the whole visit on the load budget.
+  return new Promise(function (resolve) { go = resolve; t = setTimeout(fin, 1500); });
+}
 async function fnEnsureVisit(url, mode, slot) {
   slot = slot || 0;
   var cur = fnVisitSlots[slot];
-  if (cur && cur.tabId != null && cur.mode === mode && await getTab(cur.tabId)) { await chrome.tabs.update(cur.tabId, { url: url }); return cur.tabId; }
+  if (cur && cur.tabId != null && cur.mode === mode && await getTab(cur.tabId)) {
+    var nav = navWatch(cur.tabId, 25000);   // armed BEFORE the navigation starts
+    await chrome.tabs.update(cur.tabId, { url: url });
+    await nav;
+    return cur.tabId;
+  }
   if (cur) { try { if (cur.winId != null && cur.mode !== "browser") { delete fnVisitWins[cur.winId]; await chrome.windows.remove(cur.winId); } else if (cur.tabId != null) { delete fnVisitTabs[cur.tabId]; await chrome.tabs.remove(cur.tabId); } } catch (e) {} }
   if (mode === "browser") {
     const tb = await chrome.tabs.create({ url: url, active: true });
@@ -786,7 +809,7 @@ async function fnActionProbe(opts) {
   } catch (e) { actions.push({ label: "(action probe)", pass: false, reason: String((e && e.message) || e) }); }
   return actions;
 }
-async function fnVisitRun(url, mode, base, actions, vals, slot, speed) {
+async function fnVisitRun(url, mode, base, actions, vals, slot, settle) {
   try {
     // A visit means a run is live, so cancel any teardown sweep still pending from a previous Stop —
     // otherwise it would fire mid-run and close this run's brand-new visit tab.
@@ -795,9 +818,9 @@ async function fnVisitRun(url, mode, base, actions, vals, slot, speed) {
     var tabId = await fnEnsureVisit(url, mode, slot || 0);
     if (tabId == null) return { ok: false, error: "tab/window তৈরি হয়নি" };
     await waitTabComplete(tabId, 25000);
-    // Fast = minimal settle (max speed). Slow adds a touch more ONLY in Browser (watchable); Headless
-    // has nothing to watch, so its Slow uses the same quick settle as Fast.
-    await bgSleep((speed === "slow" && mode === "browser") ? 500 : 180);
+    // The panel owns the pacing (see PACE in menus/fn/fn.js) and sends the settle with each visit, so
+    // "what Fast and Slow mean" lives in exactly one place.
+    await bgSleep(typeof settle === "number" ? settle : 180);
     // write-gate: state-changing buttons fire only on the osl.team test server
     var allowWrite = false;
     try { allowWrite = /(^|\.)osl\.team$/i.test(new URL(base).hostname); } catch (e) {}
@@ -880,7 +903,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === "admBrowserClose") { admCloseRun(msg.slot).then(function () { sendResponse({ ok: true }); }); return true; }
   if (msg && msg.type === "fnShot") { fnShotRun(msg.url).then(sendResponse); return true; }
   if (msg && msg.type === "fnShotClose") { fnShotClose().then(function () { sendResponse({ ok: true }); }); return true; }
-  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions, msg.vals, msg.slot, msg.speed).then(sendResponse); return true; }
+  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions, msg.vals, msg.slot, msg.settle).then(sendResponse); return true; }
   if (msg && msg.type === "fnVisitClose") { fnVisitClose().then(function () { sendResponse({ ok: true }); }); return true; }
 });
 /* If the user closes a Function-Check window by hand (or the panel goes away mid-crawl and its close
