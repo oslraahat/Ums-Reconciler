@@ -259,14 +259,15 @@
     503: "সার্ভিস বন্ধ বা অতিরিক্ত ব্যস্ত",
     504: "পেছনের সার্ভার সময়মতো সাড়া দেয়নি"
   };
-  // the long form, shown on hover — what it means and what usually causes it
+  /* The long form, shown on hover. It must ADD to the row, never repeat it — the row already states
+     what happened, so these say only why it happens and what to do about it. */
   var HTTP_HELP = {
-    401: "সেশন শেষ হয়ে গেছে বা এই অ্যাকাউন্টের অনুমতি নেই। ব্রাউজারে আবার লগইন করে চেক করো।",
-    403: "লগইন আছে, কিন্তু এই মেনুতে ঢোকার অধিকার এই রোলের নেই। অন্য রোলে পরীক্ষা করে দেখো।",
-    404: "সার্ভার বলছে এই ঠিকানায় কিছুই নেই। সাধারণ দুটি কারণ: (১) মেনুর লিংকটি পুরোনো — পেজটি সরিয়ে ফেলা বা নাম বদলানো হয়েছে; (২) এটি আসলে খোলার মতো পেজ নয়, বরং বাটন থেকে POST/AJAX-এ ডাকা একটি অ্যাকশন, যা সরাসরি খুললে 404 দেয়।",
-    405: "ঠিকানাটি আছে, কিন্তু শুধু POST গ্রহণ করে — অর্থাৎ এটি কোনো বাটনের অ্যাকশন, সরাসরি খোলার পেজ নয়। এমন হলে সাধারণত এটি সমস্যা নয়।",
-    500: "পেজ খুলতে গিয়ে সার্ভারের কোডে exception হয়েছে — এটি সত্যিকারের বাগ, ডেভেলপারকে জানাও।",
-    503: "সার্ভার সাময়িকভাবে নিতে পারছে না (রিস্টার্ট/অতিরিক্ত চাপ)। কিছুক্ষণ পরে আবার চালিয়ে দেখো।"
+    401: "সেশন ফুরিয়েছে অথবা এই অ্যাকাউন্টের অধিকার নেই। ব্রাউজারে আবার লগইন করে দেখো।",
+    403: "লগইন আছে, বাধাটা রোলের। অন্য রোলে পরীক্ষা করে দেখো।",
+    404: "সম্ভাব্য কারণ দুটি — (১) মেনুর লিংকটি পুরোনো, পেজটি সরানো বা নাম বদলানো হয়েছে; (২) এটি খোলার মতো পেজই নয়, বাটন থেকে POST/AJAX-এ ডাকা একটি অ্যাকশন, যা সরাসরি খুললে 404 দেয়।",
+    405: "ঠিকানাটি আছে, শুধু POST নেয় — অর্থাৎ বাটনের অ্যাকশন। এমন হলে সাধারণত সমস্যা নয়।",
+    500: "সত্যিকারের বাগ — ডেভেলপারকে জানাও।",
+    503: "রিস্টার্ট বা অতিরিক্ত চাপে সাময়িক। কিছুক্ষণ পরে আবার চালিয়ে দেখো।"
   };
   /* An ASP.NET / IIS error page carries the real cause in its body — the exception type and message,
      the source file and line, which IIS module refused it. Reporting only "HTTP 500" throws all of
@@ -310,7 +311,7 @@
       var help = HTTP_HELP[status] || "";
       // Say so when the server sent no error page at all: that is why there is nothing more to show,
       // rather than the check having failed to look.
-      if (!det) help += (help ? " " : "") + "সার্ভার কোনো error পেজ পাঠায়নি, তাই এর চেয়ে বিস্তারিত কিছু পাওয়া যায়নি।";
+      if (!det) help += (help ? " " : "") + "(কোনো error পেজ আসেনি, তাই বাড়তি বিস্তারিত নেই।)";
       return { pass: false, reason: "HTTP " + status + why + (det ? " — " + det : ""), help: help, kind: "http" };
     }
     // a redirect that lands on the login page = the session is gone / no access
