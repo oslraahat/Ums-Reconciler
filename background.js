@@ -595,7 +595,7 @@ async function fnProbeDeep(opts) {
     var isLogin = /\/(account\/)?(log\s*-?\s*(in|on)|login|signin)\b/i.test(location.href);
     var hasStructure = !!document.querySelector("table,form,canvas,svg,input,select,h1,h2,h3");
     var consoleErr = "";
-    try { if (window.__fnErr && window.__fnErr.length) consoleErr = window.__fnErr.slice(0, 3).join(" | ").slice(0, 160); } catch (e) {}
+    try { if (window.__fnErr && window.__fnErr.length) consoleErr = window.__fnErr.slice(0, 3).join(" | ").slice(0, 320); } catch (e) {}
     return { errText: errText, errDetail: errDetail, serverErr: serverErr, isLogin: isLogin, bodyLen: bodyText.length, hasStructure: hasStructure, consoleErr: consoleErr, title: document.title || "" };
   } catch (err) { return { error: String((err && err.message) || err) }; }
 }
