@@ -580,13 +580,23 @@ async function fnProbeDeep(opts) {
   }
   try {
     var errText = pageErr();
-    var bodyText = (document.body && (document.body.innerText || "").replace(/\s+/g, " ").trim()) || "";
+    var rawText = (document.body && document.body.innerText) || "";   // keep the line breaks for the detail below
+    var bodyText = rawText.replace(/\s+/g, " ").trim();
     var serverErr = /Server Error in|Exception Details:|Stack Trace:|Runtime Error|could not load type|Parser Error/i.test(bodyText);
+    // Pull the pinpoint cause off a .NET error page: the exception type+message and the source line.
+    var errDetail = "";
+    if (serverErr) {
+      var bits = [], md;
+      if ((md = /Exception Details:\s*([^\n]{3,300})/i.exec(rawText))) bits.push(md[1].trim());
+      else if ((md = /Description:\s*([^\n]{3,300})/i.exec(rawText))) bits.push(md[1].trim());
+      if ((md = /Source File:\s*([^\n]{3,200}?)\s*Line:\s*(\d+)/i.exec(rawText))) bits.push(md[1].trim().split(/[\\/]/).pop() + ":" + md[2]);
+      errDetail = bits.join(" · ").slice(0, 220);
+    }
     var isLogin = /\/(account\/)?(log\s*-?\s*(in|on)|login|signin)\b/i.test(location.href);
     var hasStructure = !!document.querySelector("table,form,canvas,svg,input,select,h1,h2,h3");
     var consoleErr = "";
     try { if (window.__fnErr && window.__fnErr.length) consoleErr = window.__fnErr.slice(0, 3).join(" | ").slice(0, 160); } catch (e) {}
-    return { errText: errText, serverErr: serverErr, isLogin: isLogin, bodyLen: bodyText.length, hasStructure: hasStructure, consoleErr: consoleErr, title: document.title || "" };
+    return { errText: errText, errDetail: errDetail, serverErr: serverErr, isLogin: isLogin, bodyLen: bodyText.length, hasStructure: hasStructure, consoleErr: consoleErr, title: document.title || "" };
   } catch (err) { return { error: String((err && err.message) || err) }; }
 }
 

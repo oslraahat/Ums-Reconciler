@@ -223,19 +223,62 @@
      rendered-DOM probe during the screenshot pass. */
   var ERR_MARK = /(server error in\s|exception details:|stack trace:|unhandled exception|runtime error|the resource cannot be found|http error 5\d\d|500 - internal server|503 - service unavailable|could not load (type|file)|parser error)/i;
   var LOGIN_URL = /\/(account\/)?(log\s*-?\s*(in|on)|login|signin)\b/i;
+  // what a status code actually means here, so "HTTP 404" is not the whole story
+  var HTTP_WHY = {
+    400: "ভুল রিকোয়েস্ট", 401: "লগইন দরকার", 403: "অনুমতি নেই", 404: "পেজ/রুট নেই",
+    405: "method অনুমোদিত নয়", 408: "রিকোয়েস্ট টাইমআউট", 500: "সার্ভারে exception",
+    502: "gateway সমস্যা", 503: "সার্ভিস বন্ধ/ব্যস্ত", 504: "gateway টাইমআউট"
+  };
+  /* An ASP.NET / IIS error page carries the real cause in its body — the exception type and message,
+     the source file and line, which IIS module refused it. Reporting only "HTTP 500" throws all of
+     that away, so dig the pinpoint reason out and put it in the row. */
+  function fnErrDetail(html) {
+    var h = String(html || ""), out = [], m;
+    var strip = function (s) {
+      return String(s || "").replace(/<[^>]+>/g, " ")
+        .replace(/&nbsp;/gi, " ").replace(/&quot;/gi, '"').replace(/&#39;/g, "'")
+        .replace(/&lt;/gi, "<").replace(/&gt;/gi, ">").replace(/&amp;/gi, "&")
+        .replace(/\s+/g, " ").trim();
+    };
+    // "Exception Details: System.NullReferenceException: Object reference not set to an instance..."
+    if ((m = /Exception Details:\s*(?:<\/b>)?\s*([^<\n]{3,300})/i.exec(h))) out.push(strip(m[1]));
+    // ASP.NET's one-line summary, e.g. <h2><i>Object reference not set…</i></h2>
+    if (!out.length && (m = /<h2>\s*<i>([\s\S]{3,300}?)<\/i>\s*<\/h2>/i.exec(h))) out.push(strip(m[1]));
+    // IIS: "HTTP Error 404.0 - Not Found"
+    if (!out.length && (m = /HTTP Error\s+[\d.]+\s*-\s*([^<\n]{2,120})/i.exec(h))) out.push(strip(m[0]));
+    // where it blew up: Foo.cs:42
+    if ((m = /Source File:\s*(?:<\/b>)?\s*([^<\n]{3,200}?)\s*(?:<b>)?[^<]{0,20}Line:\s*(?:<\/b>)?\s*(\d+)/i.exec(h))) {
+      out.push(strip(m[1]).split(/[\\/]/).pop() + ":" + m[2]);
+    }
+    // IIS detailed-error table: which module rejected it
+    if ((m = /<th>\s*Module\s*<\/th>\s*<td>([^<]{1,80})<\/td>/i.exec(h))) out.push("Module " + strip(m[1]));
+    // last resort: the error page's own title
+    if (!out.length && (m = /<title>([^<]{3,160})<\/title>/i.exec(h))) {
+      var ti = strip(m[1]);
+      if (ti && !/^(error|untitled)$/i.test(ti)) out.push(ti);
+    }
+    return out.join(" · ").slice(0, 220);
+  }
   function fnClassify(res, baseUrl) {
     var status = res.status || 0;
     var html = res.html || "";
     var finalUrl = res.finalUrl || "";
     if (res.error) return { pass: false, reason: "লোড হয়নি — " + res.error, kind: "net" };
-    if (status >= 400) return { pass: false, reason: "HTTP " + status, kind: "http" };
+    if (status >= 400) {
+      // the error page body usually names the real cause — don't throw it away
+      var why = HTTP_WHY[status] ? " (" + HTTP_WHY[status] + ")" : "";
+      var det = fnErrDetail(html);
+      return { pass: false, reason: "HTTP " + status + why + (det ? " — " + det : ""), kind: "http" };
+    }
     // a redirect that lands on the login page = the session is gone / no access
     if ((res.redirected && LOGIN_URL.test(finalUrl)) || (LOGIN_URL.test(finalUrl) && ORIGIN(finalUrl) === ORIGIN(baseUrl) && finalUrl !== baseUrl)) {
       return { pass: false, reason: "লগইন পেজে রিডাইরেক্ট — সেশন/অ্যাক্সেস নেই", kind: "login" };
     }
     if (ERR_MARK.test(html)) {
+      // prefer the exception/source-line detail; fall back to the marker that matched
+      var det2 = fnErrDetail(html);
       var m = ERR_MARK.exec(html);
-      return { pass: false, reason: "পেজে error/exception: “" + (m ? m[0] : "error").slice(0, 60) + "”", kind: "page" };
+      return { pass: false, reason: det2 ? "পেজে error: " + det2 : ("পেজে error/exception: “" + (m ? m[0] : "error").slice(0, 60) + "”"), kind: "page" };
     }
     // blank / no real content: strip tags and script/style, see what text is left
     var text = html.replace(/<script[\s\S]*?<\/script>/gi, " ").replace(/<style[\s\S]*?<\/style>/gi, " ").replace(/<[^>]+>/g, " ").replace(/&[a-z#0-9]+;/gi, " ").replace(/\s+/g, " ").trim();
@@ -249,7 +292,11 @@
   function fnClassifyProbe(probe) {
     if (!probe || probe.error) return { pass: false, reason: "লোড হয়নি — " + ((probe && probe.error) || "page error"), kind: "net" };
     if (probe.isLogin) return { pass: false, reason: "লগইন পেজ — সেশন/অ্যাক্সেস নেই", kind: "login" };
-    if (probe.serverErr) return { pass: false, reason: "পেজে server error/exception" + (probe.errText ? ": " + String(probe.errText).slice(0, 60) : ""), kind: "page" };
+    // errDetail is the exception type/message + source line lifted off the .NET error page
+    if (probe.serverErr) {
+      var d = probe.errDetail || probe.errText || "";
+      return { pass: false, reason: "সার্ভার exception" + (d ? ": " + String(d).slice(0, 220) : ""), kind: "page" };
+    }
     if (probe.errText) return { pass: false, reason: "দৃশ্যমান error: " + String(probe.errText).slice(0, 70), kind: "page" };
     if (probe.consoleErr) return { pass: false, reason: "JS console error: " + String(probe.consoleErr), kind: "js" };
     if ((probe.bodyLen || 0) < 40 && !probe.hasStructure) return { pass: false, reason: "খালি/ভাঙা পেজ (কোনো কনটেন্ট নেই)", kind: "blank" };
