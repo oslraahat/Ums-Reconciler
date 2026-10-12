@@ -343,10 +343,10 @@
   var results = [];   // [{menu,label,url,path,pass,reason,kind,shot}]
   var fnFilter = "all";   // all | pass | fail — clicking the summary pills filters the list
 
-  /* ── accepted failures ──
+  /* ── failures marked "As Pass" ──
      Some failures are known and fine (a menu that is genuinely retired, a page only one role can
      open). Marking one keeps it out of the Fail count without pretending the check passed: the row
-     still shows WHY it failed, just as accepted. Marks are stored per server, so a re-run of the same
+     still shows WHY it failed, just as knowingly allowed. Marks are stored per server, so a re-run of the same
      UMS keeps them and a different UMS starts clean. */
   var fnMarks = {}, fnMarksOrigin = "";
   function fnMarksLoad(cb) {
@@ -371,7 +371,7 @@
     } catch (e) {}
   }
   function fnOk(r) { return !!(r && (r.pass || fnMarks[r.path])); }      // effective verdict
-  function fnMarked(r) { return !!(r && !r.pass && fnMarks[r.path]); }   // failed, but accepted
+  function fnMarked(r) { return !!(r && !r.pass && fnMarks[r.path]); }   // failed, but marked As Pass
   var fnT0 = 0, fnTimer = null;
   function fnElapsed() {
     var s = Math.round(((fnRun ? Date.now() : fnEnd) - fnT0) / 1000); if (s < 0) s = 0;
@@ -386,7 +386,7 @@
     if (note) note.textContent = (phase || "") + (total ? "  " + done + " / " + total : "");
   }
   function fnRenderSummary() {
-    var pass = results.filter(fnOk).length;          // accepted failures count as OK here
+    var pass = results.filter(fnOk).length;          // As Pass rows count as OK here
     var marked = results.filter(fnMarked).length;    // ...but are still shown separately
     var fail = results.length - pass;
     var s = $("fnSummary"); if (!s) return;
@@ -449,7 +449,7 @@
           }).join("") + '</div>';
         }
         // A failed row carries a toggle on the right so a known-OK failure can be accepted. A marked
-        // row still shows its reason — it is "accepted", not "passed".
+        // row still shows its reason — it is "As Pass", not actually passing.
         var mk = fnMarked(r), cls = r.pass ? "p" : (mk ? "m" : "f");
         var btn = r.pass ? "" :
           '<button class="fnmark' + (mk ? " on" : "") + '" data-mp="' + esc(r.path) + '" title="' +
@@ -557,7 +557,7 @@
   async function fnStart() {
     if (fnRun) return;
     fnAborted = false;
-    fnMarksLoad();   // accepted failures for THIS server, so a re-run keeps them accepted
+    fnMarksLoad();   // As Pass marks for THIS server, so a re-run keeps them
     var gen = ++fnGen;   // this run's identity — every check below is scoped to it
     fnRun = { stop: false, paused: false };
     // Hold a port open for the run. If this panel is closed mid-run the port disconnects and the
@@ -730,10 +730,10 @@
     var header = ["Menu", "Action", "Path", "Status", "Reason", "Button", "Link"];
     var mat = [], colors = [];
     results.forEach(function (r) {
-      // an accepted failure exports as "Accepted" (amber) and KEEPS its original reason, so the
+      // a failure marked As Pass exports as "As Pass" (amber) and KEEPS its original reason, so the
       // spreadsheet never hides what actually happened
       var mk = fnMarked(r);
-      mat.push([r.menu, r.label, r.path, r.pass ? "Pass" : (mk ? "Accepted" : "Fail"), r.reason, "", r.url]);
+      mat.push([r.menu, r.label, r.path, r.pass ? "Pass" : (mk ? "As Pass" : "Fail"), r.reason, "", r.url]);
       colors.push(r.pass ? "g" : (mk ? "y" : "r"));
       (r.actions || []).forEach(function (a) {
         mat.push([r.menu, r.label, r.path, a.pass ? "Pass" : "Fail", a.reason, a.label, r.url]);
