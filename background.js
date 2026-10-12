@@ -468,7 +468,7 @@ async function fnShotClose() {
 
 /* ── Function Check · deep visit (Browser / Headless) ──
    Load each page for real so its JavaScript runs, then read the rendered DOM + any uncaught console
-   errors. Browser = a visible front tab; "Headless" = one reused MAXIMIZED window (single, not hidden).
+   errors. Browser = a visible front tab; Headless = one reused MINIMIZED window (off screen, 1 taskbar).
    Still read-only: it only opens the page. */
 let fnVisitSlots = {};   // slot -> { tabId, winId, mode }; one reused window per concurrency slot
 let fnVisitWins = {};    // EVERY headless visit window id we ever opened (winId -> 1), so Stop can close
@@ -511,14 +511,16 @@ async function fnEnsureVisit(url, mode, slot) {
     const tb = await chrome.tabs.create({ url: url, active: true });
     fnVisitSlots[slot] = { tabId: tb.id, winId: tb.windowId, mode: mode };
   } else {
-    // "Headless" now = ONE reused MAXIMIZED window (the user chose a single maximized window over the
-    // old 3-4 minimized ones): one taskbar entry instead of several, pages render at full size, and —
-    // unlike a minimized window — it is NOT occluded, so Chrome does not throttle its JS timers, which
-    // is what made the minimized crawl so slow. The window is reused for every page in the sweep.
+    // Headless = ONE reused MINIMIZED window: never shown on screen, and (now that concurrency is 1)
+    // just a single taskbar entry, not 3-4. A window is unavoidable — loading a page for real needs a
+    // real tab — but minimized keeps it off the screen. `focused:false` + `state:"minimized"` conflict
+    // (Chrome then ignores the minimize and the window shows), so pass state alone; minimized is
+    // inactive by definition and never steals focus.
     let win;
-    try { win = await chrome.windows.create({ url: url, state: "maximized" }); }
-    catch (e) { win = await chrome.windows.create({ url: url }); }
-    try { await chrome.windows.update(win.id, { state: "maximized" }); } catch (e) {}
+    try { win = await chrome.windows.create({ url: url, state: "minimized" }); }
+    catch (e) { win = await chrome.windows.create({ url: url, focused: false }); }
+    try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}
+    try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}   // second nudge — some builds ignore minimize on create
     fnVisitSlots[slot] = { tabId: win && win.tabs && win.tabs[0] && win.tabs[0].id, winId: win.id, mode: mode };
     if (win && win.id != null) fnVisitWins[win.id] = 1;
   }
