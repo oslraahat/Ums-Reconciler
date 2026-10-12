@@ -72,6 +72,16 @@
       var b = $(p[0]); if (b) b.classList.toggle("on", fnMode === p[1]);
     });
     if ($("fnSpeedSeg")) $("fnSpeedSeg").style.display = (fnMode === "browser" || fnMode === "headless") ? "" : "none";   // Fast/Slow applies to the real-load modes
+    /* Button testing needs a live DOM. HTTP mode only fetches the HTML — no tab, no JavaScript, so
+       there is literally nothing to click and the checkbox was being ignored in silence. Disable it
+       there (keeping its ticked state for when the user switches back) and say why on hover. */
+    var ab = $("fnActions"), al = ab && ab.closest ? ab.closest(".fnact") : null;
+    if (ab) ab.disabled = (fnMode === "http");
+    if (al) {
+      al.classList.toggle("off", fnMode === "http");
+      al.setAttribute("data-title", fnMode === "http" ? "fn_actions_http" : "fn_actions_t");
+      al.title = t(al.getAttribute("data-title"));
+    }
     try { chrome.storage.local.set({ fnMode: fnMode }); } catch (e) {}
   }
   function fnSetSpeed(s) {
@@ -340,7 +350,7 @@
     el.textContent = fnConnState === "ok" ? t("fn_logged") : fnConnState === "no" ? t("fn_notlogged") : fnConnState === "chk" ? t("fn_conn_chk") : "";
   }
   // re-render everything this module writes from JS (data-i18n only covers the static markup)
-  function fnRelang() { fnSetConn(fnConnState); fnRenderSummary(); fnRenderList(); }
+  function fnRelang() { fnSetConn(fnConnState); fnSetMode(fnMode); fnRenderSummary(); fnRenderList(); }
   function fnCheckConn() {
     var base = fnBase(), mine = ++fnConnSeq;
     fnSetConn("chk");

@@ -625,6 +625,9 @@
   #fnExport:hover{background:rgba(109,92,240,.24);border-color:#6d5cf0}
   .fnact{display:flex;flex-wrap:wrap;align-items:flex-start;gap:4px 8px;margin-top:12px;font-size:13px;cursor:pointer;color:var(--mut);line-height:1.45;max-width:640px}
   .fnact input{width:auto;flex:0 0 auto;margin:2px 0 0;padding:0;cursor:pointer}
+  /* HTTP mode cannot click anything, so the option is shown but visibly unavailable */
+  .fnact.off{opacity:.45;cursor:not-allowed}
+  .fnact.off input{cursor:not-allowed}
   /* the label wraps onto its own line, the constraint sits under it as quieter helper text */
   .fnact>span[data-i18n]{flex:1 1 auto}
   .fnacthint{flex:1 1 100%;margin-left:24px;font-size:11.5px;opacity:.8}
