@@ -484,9 +484,13 @@
           var row = Object.assign({}, link, c);
           if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
           if (v && v.ok && v.shot) row._inlineShot = v.shot;   // Headless: shot already taken on the hidden visit window
-          // Slow pacing: linger ~2s per page so it can be watched comfortably in Browser (gentler in
-          // Headless); Fast has no extra pause — just the minimal background settle = max speed.
-          if (fnSpeed === "slow" && (fnMode === "browser" || fnMode === "headless") && !(fnRun && fnRun.stop)) return new Promise(function (r) { setTimeout(function () { r(row); }, 2000); });
+          // Slow pacing: in BROWSER, linger ~2s per page so it can be watched comfortably. In HEADLESS
+          // there is nothing to watch (the window is hidden), so Slow only needs to be gentle on the
+          // server — a short ~300ms pause, far quicker than Browser's Slow. Fast adds no pause at all.
+          if (fnSpeed === "slow" && !(fnRun && fnRun.stop)) {
+            if (fnMode === "browser") return new Promise(function (r) { setTimeout(function () { r(row); }, 2000); });
+            if (fnMode === "headless") return new Promise(function (r) { setTimeout(function () { r(row); }, 300); });
+          }
           return row;
         }, function (e) { freeSlots.push(slot); return Object.assign({}, link, { pass: false, reason: "লোড হয়নি — " + String(e && e.message || e), kind: "net" }); });
       }, function (row) {

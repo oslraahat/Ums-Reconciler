@@ -772,7 +772,9 @@ async function fnVisitRun(url, mode, base, actions, vals, slot, speed) {
     var tabId = await fnEnsureVisit(url, mode, slot || 0);
     if (tabId == null) return { ok: false, error: "tab/window তৈরি হয়নি" };
     await waitTabComplete(tabId, 25000);
-    await bgSleep(speed === "slow" ? 500 : 180);   // Fast = minimal settle (max speed); Slow = a touch more
+    // Fast = minimal settle (max speed). Slow adds a touch more ONLY in Browser (watchable); Headless
+    // has nothing to watch, so its Slow uses the same quick settle as Fast.
+    await bgSleep((speed === "slow" && mode === "browser") ? 500 : 180);
     // write-gate: state-changing buttons fire only on the osl.team test server
     var allowWrite = false;
     try { allowWrite = /(^|\.)osl\.team$/i.test(new URL(base).hostname); } catch (e) {}
