@@ -319,7 +319,8 @@
     el.className = "fnconn" + (fnConnState ? " " + fnConnState : "");
     el.textContent = fnConnState === "ok" ? t("fn_logged") : fnConnState === "no" ? t("fn_notlogged") : fnConnState === "chk" ? t("fn_conn_chk") : "";
   }
-  function fnRelang() { fnSetConn(fnConnState); }   // re-render the status text in the new language
+  // re-render everything this module writes from JS (data-i18n only covers the static markup)
+  function fnRelang() { fnSetConn(fnConnState); fnRenderSummary(); fnRenderList(); }
   function fnCheckConn() {
     var base = fnBase(), mine = ++fnConnSeq;
     fnSetConn("chk");
@@ -400,7 +401,7 @@
         '<span class="fnpill fntime" style="background:rgba(245,179,1,.16);color:#e0a81e"></span> '
         + '<span class="fnpill ok fnf" data-fnf="pass" title="শুধু Pass দেখাও"></span> '
         + '<span class="fnpill bad fnf" data-fnf="fail" title="শুধু Fail দেখাও"></span> '
-        + '<span class="fnpill fnf" data-fnf="marked" title="শুধু গ্রহণ-করা Fail দেখাও" style="background:rgba(245,179,1,.16);color:#e0a81e"></span> '
+        + '<span class="fnpill fnf" data-fnf="marked" style="background:rgba(245,179,1,.16);color:#e0a81e"></span> '
         + '<span class="fnpill fnf" data-fnf="all" title="সব দেখাও" style="background:rgba(127,127,127,.14);color:var(--mut)"></span>';
       tp = s.querySelector(".fntime"); pp = s.querySelector('[data-fnf="pass"]');
       fp = s.querySelector('[data-fnf="fail"]'); ap = s.querySelector('[data-fnf="all"]');
@@ -408,7 +409,8 @@
     var mp = s.querySelector('[data-fnf="marked"]');
     if (mp) {
       mp.style.display = marked ? "" : "none";
-      mp.textContent = "⚑ " + marked + " গ্রহণ";
+      mp.textContent = "⚑ " + marked + " " + t("fn_accepted");
+      mp.title = t("fn_accepted_t");
       mp.classList.toggle("fnon", fnFilter === "marked");
     }
     if (tp) tp.style.display = fnT0 ? "" : "none";
@@ -451,8 +453,8 @@
         var mk = fnMarked(r), cls = r.pass ? "p" : (mk ? "m" : "f");
         var btn = r.pass ? "" :
           '<button class="fnmark' + (mk ? " on" : "") + '" data-mp="' + esc(r.path) + '" title="' +
-          (mk ? "আবার Fail হিসেবে গণ্য করো" : "এই Fail জানা ও গ্রহণযোগ্য — Pass ধরো") + '">' +
-          (mk ? "↩ Fail" : "✓ Pass ধরো") + '</button>';
+          esc(t(mk ? "fn_unmark_t" : "fn_mark_t")) + '">' +
+          esc(t(mk ? "fn_unmark" : "fn_mark")) + '</button>';
         html += '<div class="fnrow ' + cls + '">' +
           '<span class="fnst">' + (r.pass ? "✓" : (mk ? "⚑" : "✗")) + '</span>' +
           '<a class="fnlk" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.label) + '</a>' +
