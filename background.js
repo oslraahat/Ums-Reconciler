@@ -468,11 +468,12 @@ async function fnShotClose() {
 
 /* ── Function Check · deep visit (Browser / Headless) ──
    Load each page for real so its JavaScript runs, then read the rendered DOM + any uncaught console
-   errors. Browser = a visible front tab; Headless = one reused MINIMIZED window (off screen, 1 taskbar).
-   Still read-only: it only opens the page. */
+   errors. Browser = a visible front tab; Headless = a hidden BACKGROUND tab in an existing window (no
+   new window, so no taskbar entry). Still read-only: it only opens the page. */
 let fnVisitSlots = {};   // slot -> { tabId, winId, mode }; one reused window per concurrency slot
 let fnVisitWins = {};    // EVERY headless visit window id we ever opened (winId -> 1), so Stop can close
                          // even a window an in-flight worker created just after the slots were cleared
+let fnVisitTabs = {};    // same idea for Headless BACKGROUND tabs (tabId -> 1), closed on Stop
 let fnStopTimer = null;
 let fnProbeReg = "";   // origin the console collector is registered for ("" = not registered)
 let fnRegPromise = null, fnRegTarget = "";   // in-flight registration, so parallel workers share one
@@ -506,23 +507,34 @@ async function fnEnsureVisit(url, mode, slot) {
   slot = slot || 0;
   var cur = fnVisitSlots[slot];
   if (cur && cur.tabId != null && cur.mode === mode && await getTab(cur.tabId)) { await chrome.tabs.update(cur.tabId, { url: url }); return cur.tabId; }
-  if (cur) { try { if (cur.winId != null && cur.mode !== "browser") { delete fnVisitWins[cur.winId]; await chrome.windows.remove(cur.winId); } else if (cur.tabId != null) await chrome.tabs.remove(cur.tabId); } catch (e) {} }
+  if (cur) { try { if (cur.winId != null && cur.mode !== "browser") { delete fnVisitWins[cur.winId]; await chrome.windows.remove(cur.winId); } else if (cur.tabId != null) { delete fnVisitTabs[cur.tabId]; await chrome.tabs.remove(cur.tabId); } } catch (e) {} }
   if (mode === "browser") {
     const tb = await chrome.tabs.create({ url: url, active: true });
     fnVisitSlots[slot] = { tabId: tb.id, winId: tb.windowId, mode: mode };
   } else {
-    // Headless = ONE reused MINIMIZED window: never shown on screen, and (now that concurrency is 1)
-    // just a single taskbar entry, not 3-4. A window is unavoidable — loading a page for real needs a
-    // real tab — but minimized keeps it off the screen. `focused:false` + `state:"minimized"` conflict
-    // (Chrome then ignores the minimize and the window shows), so pass state alone; minimized is
-    // inactive by definition and never steals focus.
-    let win;
-    try { win = await chrome.windows.create({ url: url, state: "minimized" }); }
-    catch (e) { win = await chrome.windows.create({ url: url, focused: false }); }
-    try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}
-    try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}   // second nudge — some builds ignore minimize on create
-    fnVisitSlots[slot] = { tabId: win && win.tabs && win.tabs[0] && win.tabs[0].id, winId: win.id, mode: mode };
-    if (win && win.id != null) fnVisitWins[win.id] = 1;
+    // Headless = a hidden BACKGROUND tab inside an EXISTING normal window. No new window means NO new
+    // taskbar entry and no focus steal — the tab just sits in the background (not the active tab) and
+    // is reused for every page. (A background tab is still throttled by Chrome; that is unavoidable for
+    // anything not in the foreground.) Only if there is no normal window to host it do we fall back to
+    // a minimized window.
+    let host = null;
+    try {
+      let wins = await chrome.windows.getAll({ windowTypes: ["normal"] });
+      for (let i = 0; i < (wins || []).length; i++) { if (wins[i] && wins[i].type === "normal" && wins[i].state !== "minimized") { host = wins[i]; break; } }
+      if (!host && wins && wins.length) host = wins[0];
+    } catch (e) {}
+    if (host) {
+      const tb = await chrome.tabs.create({ windowId: host.id, url: url, active: false });   // active:false = background tab
+      fnVisitSlots[slot] = { tabId: tb.id, winId: null, mode: mode };
+      if (tb && tb.id != null) fnVisitTabs[tb.id] = 1;
+    } else {
+      let win;
+      try { win = await chrome.windows.create({ url: url, state: "minimized" }); }
+      catch (e) { win = await chrome.windows.create({ url: url, focused: false }); }
+      try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}
+      fnVisitSlots[slot] = { tabId: win && win.tabs && win.tabs[0] && win.tabs[0].id, winId: win.id, mode: mode };
+      if (win && win.id != null) fnVisitWins[win.id] = 1;
+    }
   }
   return fnVisitSlots[slot].tabId;
 }
@@ -790,10 +802,12 @@ async function fnCloseAllVisits() {
     try { if (s.winId != null && s.mode !== "browser") await chrome.windows.remove(s.winId); else if (s.tabId != null) await chrome.tabs.remove(s.tabId); } catch (e) {}
   }
   fnVisitSlots = {};
-  // close every headless window we ever opened — catches one a slot no longer points at (closing a
-  // window also tears down any CDP/debugger session on it, so the "being debugged" banner goes too)
+  // close every headless window AND background tab we ever opened — catches one a slot no longer
+  // points at (e.g. a straggler an in-flight worker created just after the slots were cleared)
   for (var w in fnVisitWins) { try { await chrome.windows.remove(parseInt(w, 10)); } catch (e) {} }
   fnVisitWins = {};
+  for (var tt in fnVisitTabs) { try { await chrome.tabs.remove(parseInt(tt, 10)); } catch (e) {} }
+  fnVisitTabs = {};
 }
 async function fnVisitClose() {
   await fnCloseAllVisits();
@@ -820,5 +834,12 @@ if (chrome.windows && chrome.windows.onRemoved) {
     delete fnVisitWins[winId];
     if (!Object.keys(fnVisitSlots).length) fnUnregisterProbe();
     if (fnShot && fnShot.winId === winId) { fnShot = { tabId: null, winId: null }; }
+  });
+}
+if (chrome.tabs && chrome.tabs.onRemoved) {
+  chrome.tabs.onRemoved.addListener(function (tabId) {
+    for (var k in fnVisitSlots) { if (fnVisitSlots[k] && fnVisitSlots[k].winId == null && fnVisitSlots[k].tabId === tabId) { delete fnVisitSlots[k]; } }
+    delete fnVisitTabs[tabId];
+    if (!Object.keys(fnVisitSlots).length) fnUnregisterProbe();
   });
 }
