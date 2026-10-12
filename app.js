@@ -44,6 +44,16 @@
   let entries = [];
   let students = [], run = null, _token = null, renderBuf = null;
 
+  /* One truth for "work is in progress" — the reconcile run here, or a Function Check sweep in its own
+     module. Reloading or updating mid-run throws that work away, so both the beforeunload warning and
+     the Update button ask this before doing anything destructive. */
+  function isBusy() {
+    if (run && !run.stop) return true;
+    try { if (self.APP && self.APP.fn && self.APP.fn.busy && self.APP.fn.busy()) return true; } catch (e) {}
+    return false;
+  }
+  (self.APP = self.APP || {}).isBusy = isBusy;
+
   // b omitted = the Expected server, so every existing caller keeps its meaning
   function payBase(b) { return String(b || baseUrl).replace(/\/+$/, "") + "/Student/Payment/"; }
 
@@ -2783,7 +2793,7 @@
     });
     // warn before refresh/close while a run is in progress
     window.addEventListener("beforeunload", function (e) {
-      if (run && !run.stop) { e.preventDefault(); e.returnValue = ""; return ""; }
+      if (isBusy()) { e.preventDefault(); e.returnValue = ""; return ""; }
     });
   }
   /* Paste straight out of Excel or the sheet: one line per student, Reg and StudentProgramId

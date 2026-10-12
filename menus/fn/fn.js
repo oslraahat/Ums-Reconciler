@@ -23,7 +23,9 @@
 
   var MAX_LINKS = 600;           // a hard cap so a mis-parsed page can never spawn thousands of fetches
   var CONC = 8;                  // parallel page checks (HTTP mode)
-  var FN_HEADLESS_CONC = 1;      // real-load test reuses ONE hidden background tab (see fnEnsureVisit)
+  var FN_HEADLESS_CONC = 3;      // hidden background tabs Headless loads in parallel on Fast. They all
+                                 // sit in one existing window, so this adds no window and no taskbar
+                                 // entry — only overlap. Slow forces 1 (see fnStart).
   var fnRun = null;              // { stop } while a crawl is going
   var fnAborted = false;         // latched by Stop — every loop/pool/visit bails on it even if fnRun is cleared
   var fnPort = null;             // live only during a run; its disconnect tells the background to clean up
@@ -492,9 +494,11 @@
         tpin: ($("fnTpin") && $("fnTpin").value || "").trim(),
         pin: ($("fnPin") && $("fnPin").value || "").trim()
       };
-      // Both real-load modes run one page at a time in a single reused tab — Browser in a visible front
-      // tab, Headless in a hidden background tab (FN_HEADLESS_CONC = 1). Each worker borrows a slot.
-      var concV = (fnMode === "headless") ? FN_HEADLESS_CONC : 1;
+      // Browser always runs one page at a time (it IS the visible front tab). Headless loads into hidden
+      // background tabs, and several of those live in the SAME window — so running a few in parallel
+      // costs no extra window and no extra taskbar entry, it just overlaps the page loads. Fast uses the
+      // full width; Slow drops to one so it stays gentle on the server. Each worker borrows a slot.
+      var concV = (fnMode === "headless") ? (fnSpeed === "slow" ? 1 : FN_HEADLESS_CONC) : 1;
       var freeSlots = []; for (var si = 0; si < concV; si++) freeSlots.push(si);
       fnProgress(0, total, t("fn_visiting"));
       await pool(links, concV, function (link) {
@@ -671,6 +675,8 @@
   }
 
   A.fn = { wire: fnWire, start: fnStart, stop: fnStop, setMode: fnSetMode, relang: fnRelang,
+    // true while a sweep is in progress — reload / Update must warn before throwing it away
+    busy: function () { return !!fnRun; },
     // pure helpers exposed for tests
     parseNav: fnParseNav, classify: fnClassify, classifyProbe: fnClassifyProbe };
 })();
