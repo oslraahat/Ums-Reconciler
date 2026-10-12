@@ -397,18 +397,16 @@ async function admBrowserRun(p) {
 }
 
 /* ───────────────────────── Function Check · screenshot ─────────────────────────
-   For a page that failed the rapid HTTP check, load it in ONE reused MINIMIZED side window (never
-   takes focus, stays hidden) and grab a JPEG of it via the DevTools Protocol, plus a quick DOM probe
-   for a visible error message. CDP (Page.captureScreenshot) renders from the page compositor, so it
-   works while the window is minimized/off-screen — the same way headless automation screenshots. If
-   capture still refuses, the shot comes back null and the check simply shows the failure without a
-   picture. Read-only: it only opens the page, never clicks anything. */
+   For a page that failed the rapid HTTP check, load it in ONE reused side window parked OFF-SCREEN
+   (never focused, never on the visible desktop) and grab a JPEG with chrome.tabs.captureVisibleTab,
+   plus a quick DOM probe for a visible error message. No chrome.debugger is used, so Chrome never
+   shows its "being debugged" banner. If capture refuses, the shot comes back null and the check simply
+   shows the failure without a picture. Read-only: it only opens the page, never clicks anything. */
 let fnShot = { tabId: null, winId: null };
 async function fnEnsureTab(url) {
   if (fnShot.tabId != null && await getTab(fnShot.tabId)) { await chrome.tabs.update(fnShot.tabId, { url: url }); return fnShot.tabId; }
-  // Park the shot window OFF-SCREEN (never focused), NOT minimized. A minimized window is occluded, so
-  // Chrome throttles its compositor and CDP capture comes back blank/null; an off-screen window is not
-  // occluded, so Page.captureScreenshot renders reliably — and it never shows on the visible desktop.
+  // Park the shot window OFF-SCREEN (never focused), NOT minimized: captureVisibleTab needs a window
+  // that is not minimized, and off-screen keeps it off the visible desktop while still being capturable.
   let win;
   try { win = await chrome.windows.create({ url: url, focused: false, left: 30000, top: 30000, width: 1200, height: 820 }); }
   catch (e) { win = await chrome.windows.create({ url: url, focused: false, width: 1200, height: 820 }); }
@@ -470,19 +468,20 @@ async function fnShotClose() {
    Load each page for real so its JavaScript runs, then read the rendered DOM + any uncaught console
    errors. Browser = a visible front tab; Headless = a hidden BACKGROUND tab in an existing window (no
    new window, so no taskbar entry). Still read-only: it only opens the page. */
-let fnVisitSlots = {};   // slot -> { tabId, winId, mode }; one reused window per concurrency slot
-let fnVisitWins = {};    // EVERY headless visit window id we ever opened (winId -> 1), so Stop can close
-                         // even a window an in-flight worker created just after the slots were cleared
-let fnVisitTabs = {};    // same idea for Headless BACKGROUND tabs (tabId -> 1), closed on Stop
+let fnVisitSlots = {};   // slot -> { tabId, winId, mode }; one reused tab/window per concurrency slot
+let fnVisitTabs = {};    // every Headless BACKGROUND tab we opened (tabId -> 1), so Stop can close even
+                         // one an in-flight worker created just after the slots were cleared
+let fnVisitWins = {};    // same, for the fallback-window path (winId -> 1) when no host window exists
 let fnStopTimer = null;
 let fnProbeReg = "";   // origin the console collector is registered for ("" = not registered)
-let fnRegPromise = null, fnRegTarget = "";   // in-flight registration, so parallel workers share one
+let fnRegPromise = null, fnRegTarget = "";   // shared in-flight registration; kept defensively now that
+                                             // the sweep is single-slot, since registering is still async
 async function fnRegisterProbe(base) {
   var origin; try { origin = new URL(base).origin; } catch (e) { return; }
   if (fnProbeReg === origin) return;
-  // Headless runs several workers at once; without memoising, each would register "fnprobe" before
-  // fnProbeReg is set and their register/unregister calls would race (Duplicate script ID / one
-  // undoing another). Share a single in-flight registration per origin instead.
+  // Registration is async, so two overlapping calls would each register "fnprobe" before fnProbeReg is
+  // set and their register/unregister calls would race (Duplicate script ID / one undoing another).
+  // Share a single in-flight registration per origin instead.
   if (fnRegPromise && fnRegTarget === origin) return fnRegPromise;
   fnRegTarget = origin;
   fnRegPromise = (async function () {
@@ -520,13 +519,19 @@ async function fnEnsureVisit(url, mode, slot) {
     let host = null;
     try {
       let wins = await chrome.windows.getAll({ windowTypes: ["normal"] });
-      for (let i = 0; i < (wins || []).length; i++) { if (wins[i] && wins[i].type === "normal" && wins[i].state !== "minimized") { host = wins[i]; break; } }
-      if (!host && wins && wins.length) host = wins[0];
+      // Skip incognito: scripting.executeScript and the fnprobe registration do not reach an incognito
+      // tab unless the extension is allowed there, so a visit tab in one would score real pages as failed.
+      let ok = (wins || []).filter(function (w) { return w && w.type === "normal" && !w.incognito; });
+      for (let i = 0; i < ok.length; i++) { if (ok[i].state !== "minimized") { host = ok[i]; break; } }
+      if (!host && ok.length) host = ok[0];
     } catch (e) {}
-    if (host) {
-      const tb = await chrome.tabs.create({ windowId: host.id, url: url, active: false });   // active:false = background tab
+    let tb = null;
+    // The host window can be closed between getAll and create; fall through to the window fallback
+    // instead of letting the rejection surface as a bogus "page failed" row.
+    if (host) { try { tb = await chrome.tabs.create({ windowId: host.id, url: url, active: false }); } catch (e) { tb = null; } }
+    if (tb) {
       fnVisitSlots[slot] = { tabId: tb.id, winId: null, mode: mode };
-      if (tb && tb.id != null) fnVisitTabs[tb.id] = 1;
+      if (tb.id != null) fnVisitTabs[tb.id] = 1;
     } else {
       let win;
       try { win = await chrome.windows.create({ url: url, state: "minimized" }); }
@@ -745,6 +750,9 @@ async function fnActionProbe(opts) {
 }
 async function fnVisitRun(url, mode, base, actions, vals, slot, speed) {
   try {
+    // A visit means a run is live, so cancel any teardown sweep still pending from a previous Stop —
+    // otherwise it would fire mid-run and close this run's brand-new visit tab.
+    if (fnStopTimer) { clearTimeout(fnStopTimer); fnStopTimer = null; }
     await fnRegisterProbe(base);
     var tabId = await fnEnsureVisit(url, mode, slot || 0);
     if (tabId == null) return { ok: false, error: "tab/window তৈরি হয়নি" };
@@ -790,13 +798,17 @@ async function fnVisitRun(url, mode, base, actions, vals, slot, speed) {
         else probe.actions = [{ label: "(buttons)", pass: false, reason: "inject সমস্যা — " + m }];
       }
     }
-    // Headless takes NO screenshot: capturing a minimized window needs chrome.debugger, which pops a
-    // "being debugged" banner on the user's window. Headless stays fully silent instead; use HTTP or
-    // Browser mode when failure screenshots are wanted (those capture off-screen with no banner).
+    // Headless takes NO screenshot: it runs in a background tab, and captureVisibleTab can only grab
+    // the ACTIVE tab of a non-minimized window. Capturing a hidden tab would need chrome.debugger,
+    // which pops a "being debugged" banner on the user's window — so Headless stays silent instead.
+    // Use HTTP or Browser mode when failure screenshots are wanted.
     return { ok: true, probe: probe };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
+let fnTearingDown = false;   // set while we close our own tabs, so onRemoved doesn't re-run the cleanup
 async function fnCloseAllVisits() {
+  fnTearingDown = true;
+  try {
   for (var k in fnVisitSlots) {
     var s = fnVisitSlots[k]; if (!s) continue;
     try { if (s.winId != null && s.mode !== "browser") await chrome.windows.remove(s.winId); else if (s.tabId != null) await chrome.tabs.remove(s.tabId); } catch (e) {}
@@ -808,17 +820,24 @@ async function fnCloseAllVisits() {
   fnVisitWins = {};
   for (var tt in fnVisitTabs) { try { await chrome.tabs.remove(parseInt(tt, 10)); } catch (e) {} }
   fnVisitTabs = {};
+  } finally { fnTearingDown = false; }
 }
 async function fnVisitClose() {
   await fnCloseAllVisits();
-  // On Stop, a worker whose fnVisit message was already in flight can create its window a moment AFTER
-  // this close ran — so sweep once more shortly to catch that straggler (and detach its debugger).
+  // On Stop, a worker whose fnVisit message was already in flight can create its tab/window a moment
+  // AFTER this close ran — so sweep once more shortly to catch that straggler. A new run cancels this
+  // timer at the top of fnVisitRun, so it can never close a fresh run's tab.
   if (fnStopTimer) clearTimeout(fnStopTimer);
   fnStopTimer = setTimeout(function () { fnStopTimer = null; fnCloseAllVisits(); }, 900);
   await fnUnregisterProbe();
 }
 
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
+  // These commands drive real browsing (open tabs, fill forms, click buttons), so only our OWN
+  // extension pages may issue them. menus/*.js and app.html are web-accessible on the UMS hosts, so
+  // without this a content script on one of those pages could hand us an arbitrary base/url.
+  if (!sender || sender.id !== chrome.runtime.id) return;
+  if (!sender.url || sender.url.indexOf(chrome.runtime.getURL("")) !== 0) return;   // extension page only
   if (msg && msg.type === "admBrowser") { admBrowserRun(msg.params || {}).then(sendResponse); return true; }
   if (msg && msg.type === "admBrowserClose") { admCloseRun(msg.slot).then(function () { sendResponse({ ok: true }); }); return true; }
   if (msg && msg.type === "fnShot") { fnShotRun(msg.url).then(sendResponse); return true; }
@@ -828,6 +847,17 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
 });
 /* If the user closes a Function-Check window by hand (or the panel goes away mid-crawl and its close
    message never arrives), drop our state and unregister the console collector so nothing leaks. */
+/* The panel holds a port open for the duration of a run. If the panel tab/window goes away mid-run its
+   fnVisitClose never arrives, and because the Headless visit tab lives inside the USER's own window it
+   would just sit there orphaned. onSuspend is not a reliable place to clean that up (it is not
+   guaranteed, and async work after the first await is routinely cut), but onDisconnect is. */
+if (chrome.runtime.onConnect) {
+  chrome.runtime.onConnect.addListener(function (port) {
+    if (!port || port.name !== "fnrun") return;
+    if (!port.sender || port.sender.id !== chrome.runtime.id) { try { port.disconnect(); } catch (e) {} return; }
+    port.onDisconnect.addListener(function () { void chrome.runtime.lastError; fnVisitClose(); fnShotClose(); });
+  });
+}
 if (chrome.windows && chrome.windows.onRemoved) {
   chrome.windows.onRemoved.addListener(function (winId) {
     for (var k in fnVisitSlots) { if (fnVisitSlots[k] && fnVisitSlots[k].winId === winId) { delete fnVisitSlots[k]; } }
@@ -838,8 +868,16 @@ if (chrome.windows && chrome.windows.onRemoved) {
 }
 if (chrome.tabs && chrome.tabs.onRemoved) {
   chrome.tabs.onRemoved.addListener(function (tabId) {
-    for (var k in fnVisitSlots) { if (fnVisitSlots[k] && fnVisitSlots[k].winId == null && fnVisitSlots[k].tabId === tabId) { delete fnVisitSlots[k]; } }
+    // This fires for EVERY tab the user closes anywhere in Chrome, so bail out immediately unless the
+    // tab was one of ours — otherwise each ordinary tab close would wake the worker to unregister the
+    // probe for no reason.
+    var ours = !!fnVisitTabs[tabId];
+    for (var k in fnVisitSlots) {
+      if (fnVisitSlots[k] && fnVisitSlots[k].winId == null && fnVisitSlots[k].tabId === tabId) { ours = true; delete fnVisitSlots[k]; }
+    }
+    if (!ours) return;
     delete fnVisitTabs[tabId];
+    if (fnTearingDown) return;   // fnVisitClose does its own unregister once, at the end
     if (!Object.keys(fnVisitSlots).length) fnUnregisterProbe();
   });
 }

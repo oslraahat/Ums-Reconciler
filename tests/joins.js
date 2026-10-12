@@ -199,7 +199,9 @@ const SRC = APP + "\n" + read("menus/adm/adm.js") + "\n" + read("menus/crm/crm.j
     (p[1].match(/\b(TODO|FIXME|XXX)\b[^\n]*/g) || []).forEach(function (m) {
       notes.push(p[0] + ": " + m.trim());
     });
-    if (/\bdebugger\b/.test(p[1])) notes.push(p[0] + ": a debugger statement");
+    // a real `debugger` statement — not a member access like chrome.debugger, which the code refers to
+    // in prose when explaining why the DevTools Protocol is deliberately NOT used for screenshots
+    if (/(?<!\.)\bdebugger\b/.test(p[1])) notes.push(p[0] + ": a debugger statement");
   });
   check("nothing left marked TODO/FIXME, no debugger", notes);
 

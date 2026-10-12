@@ -23,10 +23,17 @@
 
   var MAX_LINKS = 600;           // a hard cap so a mis-parsed page can never spawn thousands of fetches
   var CONC = 8;                  // parallel page checks (HTTP mode)
-  var FN_HEADLESS_CONC = 1;      // real-load test runs in ONE reused window (see fnStart)
+  var FN_HEADLESS_CONC = 1;      // real-load test reuses ONE hidden background tab (see fnEnsureVisit)
   var fnRun = null;              // { stop } while a crawl is going
   var fnAborted = false;         // latched by Stop — every loop/pool/visit bails on it even if fnRun is cleared
-  function fnStopped() { return fnAborted || !!(fnRun && fnRun.stop); }
+  var fnPort = null;             // live only during a run; its disconnect tells the background to clean up
+  var fnGen = 0;                 // bumped per run — an older loop that was parked in an await sees its
+                                 // generation go stale and bails instead of resuming into the new run
+  // Pass the run's own gen so a stale loop can never be "un-stopped" by a fresh run clearing fnAborted.
+  function fnStopped(gen) {
+    if (gen !== undefined && gen !== fnGen) return true;   // not the current run → treat as stopped
+    return fnAborted || !!(fnRun && fnRun.stop);
+  }
   var fnMode = "http";           // http | browser | headless
 
   var fnSpeed = "fast";   // fast | slow — Browser-mode pacing
@@ -331,17 +338,17 @@
     box.innerHTML = html;
   }
 
-  function pool(items, n, worker, onEach) {
+  function pool(items, n, worker, onEach, gen) {
     return new Promise(function (resolve) {
       var i = 0, active = 0, done = 0;
       function next() {
-        if (fnStopped()) { resolve(); return; }   // stop immediately — don't wait for in-flight visits to drain
+        if (fnStopped(gen)) { resolve(); return; }   // stop immediately — don't wait for in-flight visits to drain
         if (fnRun && fnRun.paused) { fnRun._resume = next; return; }   // park until Resume fires next()
         while (active < n && i < items.length) {
           var idx = i++; active++;
           worker(items[idx], idx).then(function (r) { onEach(r, idx); }).catch(function () {}).then(function () {
             active--; done++;
-            if (done === items.length || (fnStopped() && active === 0)) resolve(); else next();
+            if (done === items.length || (fnStopped(gen) && active === 0)) resolve(); else next();
           });
         }
       }
@@ -364,17 +371,24 @@
     }
   }
 
-  function fnShot(url) {
+  // Same guards as fnVisit: Stop must not leave the loop parked here. The background can sit in
+  // waitTabComplete for 25s on a tab that fnShotClose already removed, so bound it and bail on Stop.
+  function fnShot(url, gen) {
     return new Promise(function (resolve) {
+      var done = false;
+      var fin = function (r) { if (done) return; done = true; clearTimeout(to); clearInterval(stopChk); resolve(r); };
+      var to = setTimeout(function () { fin(null); }, 40000);
+      var stopChk = setInterval(function () { if (fnStopped(gen)) fin(null); }, 200);
       try {
         chrome.runtime.sendMessage({ type: "fnShot", url: url }, function (resp) {
-          if (chrome.runtime.lastError) { resolve(null); return; }
-          resolve(resp || null);
+          if (done) { void chrome.runtime.lastError; return; }
+          if (chrome.runtime.lastError) { fin(null); return; }
+          fin(resp || null);
         });
-      } catch (e) { resolve(null); }
+      } catch (e) { fin(null); }
     });
   }
-  function fnVisit(url, mode, base, actions, vals, slot, speed) {
+  function fnVisit(url, mode, base, actions, vals, slot, speed, gen) {
     return new Promise(function (resolve) {
       var done = false;
       // a page that blocks (a native dialog, an endless script) must NOT hang the whole crawl — if the
@@ -384,8 +398,8 @@
       var fin = function (r) { if (done) return; done = true; clearTimeout(to); if (stopChk) clearInterval(stopChk); resolve(r); };
       var to = setTimeout(function () { fin({ ok: false, error: "timeout — পেজ সাড়া দেয়নি (120s)" }); }, 120000);
       // Stop must feel instant: give up on this visit within 200ms of Stop instead of waiting for the
-      // background (the windows are closed by fnStop, so the in-flight visit ends on its own).
-      var stopChk = setInterval(function () { if (fnStopped()) fin({ ok: false, error: "stopped" }); }, 200);
+      // background (fnStop closes the visit tab/window, so the in-flight visit ends on its own).
+      var stopChk = setInterval(function () { if (fnStopped(gen)) fin({ ok: false, error: "stopped" }); }, 200);
       try {
         chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals, slot: slot || 0, speed: speed || "fast" }, function (resp) {
           if (done) { void chrome.runtime.lastError; return; }
@@ -399,15 +413,19 @@
   // Event-driven, not a poll: a backgrounded panel (Browser mode steals focus) throttles setTimeout,
   // which could leave a poll-based wait stuck after Resume. Instead we park the loop on a resolver
   // that the Resume/Stop click fires directly.
-  function waitIfPaused() {
-    if (!fnRun || !fnRun.paused || fnStopped()) return Promise.resolve();
+  function waitIfPaused(gen) {
+    if (!fnRun || !fnRun.paused || fnStopped(gen)) return Promise.resolve();
     return new Promise(function (resolve) { fnRun._resume = resolve; });
   }
   function fnReleasePause() { if (fnRun && fnRun._resume) { var r = fnRun._resume; fnRun._resume = null; r(); } }
   async function fnStart() {
     if (fnRun) return;
     fnAborted = false;
+    var gen = ++fnGen;   // this run's identity — every check below is scoped to it
     fnRun = { stop: false, paused: false };
+    // Hold a port open for the run. If this panel is closed mid-run the port disconnects and the
+    // background closes the visit tab/window — otherwise it would be orphaned in the user's window.
+    try { fnPort = chrome.runtime.connect({ name: "fnrun" }); } catch (e) { fnPort = null; }
     results = []; fnFilter = "all";
     fnT0 = Date.now(); fnEnd = 0;
     if (fnTimer) clearInterval(fnTimer);
@@ -422,7 +440,7 @@
     try {
       var home = await fetchHtml(base);
       if (home.redirected && LOGIN_URL.test(home.html.slice(0, 4000))) {
-        $("fnNote").textContent = t("fn_login"); fnDone(); return;
+        $("fnNote").textContent = t("fn_login"); fnDone(gen); return;
       }
       links = fnParseNav(home.html, base);
       // The home page carries only the CURRENT section's sidebar (Student) plus the top-nav links to
@@ -437,8 +455,8 @@
       });
       var rootList = Object.keys(roots);
       for (var ri = 0; ri < rootList.length; ri++) {
-        if (fnStopped()) break;
-        await waitIfPaused(); if (fnStopped()) break;
+        if (fnStopped(gen)) break;
+        await waitIfPaused(gen); if (fnStopped(gen)) break;
         fnProgress(ri, rootList.length, t("fn_sections"));
         try {
           var secUrl = new URL(roots[rootList[ri]], base).href;
@@ -447,9 +465,9 @@
         } catch (e) {}
       }
     } catch (e) {
-      $("fnNote").textContent = t("fn_fail") + " — " + String(e && e.message || e); fnDone(); return;
+      $("fnNote").textContent = t("fn_fail") + " — " + String(e && e.message || e); fnDone(gen); return;
     }
-    if (!links.length) { $("fnNote").textContent = t("fn_nomenu"); fnDone(); return; }
+    if (!links.length) { $("fnNote").textContent = t("fn_nomenu"); fnDone(gen); return; }
     // check in the menu serial the user wants: Student → Administration → Exam → Teacher → CRM →
     // Team → Inventory (stable, so sub-menu order within each menu is kept as the page listed them)
     links.sort(function (a, b) { return fnMenuRank(a.path) - fnMenuRank(b.path); });
@@ -462,7 +480,7 @@
       await pool(links, CONC, fnCheckUrl, function (r) {
         results.push(r); done++; fnProgress(done, total, t("fn_checking"));
         fnRenderSummary(); fnRenderList();
-      });
+      }, gen);
     } else {
       // Browser / Headless: load each page for real (JS runs), classify from the rendered DOM +
       // console errors. Sequential — one tab/window reused.
@@ -474,22 +492,22 @@
         tpin: ($("fnTpin") && $("fnTpin").value || "").trim(),
         pin: ($("fnPin") && $("fnPin").value || "").trim()
       };
-      // Both real-load modes run one page at a time in a single reused window — Browser in a front tab,
-      // "Headless" in one maximized window (FN_HEADLESS_CONC = 1). Each worker borrows a free slot.
+      // Both real-load modes run one page at a time in a single reused tab — Browser in a visible front
+      // tab, Headless in a hidden background tab (FN_HEADLESS_CONC = 1). Each worker borrows a slot.
       var concV = (fnMode === "headless") ? FN_HEADLESS_CONC : 1;
       var freeSlots = []; for (var si = 0; si < concV; si++) freeSlots.push(si);
       fnProgress(0, total, t("fn_visiting"));
       await pool(links, concV, function (link) {
         var slot = freeSlots.length ? freeSlots.pop() : 0;
-        return fnVisit(link.url, fnMode, base, doActions, vals, slot, fnSpeed).then(function (v) {
+        return fnVisit(link.url, fnMode, base, doActions, vals, slot, fnSpeed, gen).then(function (v) {
           freeSlots.push(slot);
           var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
           var row = Object.assign({}, link, c);
           if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
           // Slow pacing: in BROWSER, linger ~2s per page so it can be watched comfortably. In HEADLESS
-          // there is nothing to watch (the window is hidden), so Slow only needs to be gentle on the
+          // there is nothing to watch (it runs in a hidden background tab), so Slow only needs to be gentle on the
           // server — a short ~300ms pause, far quicker than Browser's Slow. Fast adds no pause at all.
-          if (fnSpeed === "slow" && !fnStopped()) {
+          if (fnSpeed === "slow" && !fnStopped(gen)) {
             if (fnMode === "browser") return new Promise(function (r) { setTimeout(function () { r(row); }, 2000); });
             if (fnMode === "headless") return new Promise(function (r) { setTimeout(function () { r(row); }, 300); });
           }
@@ -498,23 +516,23 @@
       }, function (row) {
         results.push(row); done++; fnProgress(done, total, t("fn_visiting"));
         fnRenderSummary(); fnRenderList();
-      });
+      }, gen);
       try { chrome.runtime.sendMessage({ type: "fnVisitClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
     }
-    if (fnStopped()) { fnDone(); return; }
+    if (fnStopped(gen)) { fnDone(gen); return; }
 
     // 2) a screenshot for each failure — HTTP/Browser only, captured in one reused off-screen window
-    // with no chrome.debugger (so no "being debugged" banner). HEADLESS is skipped: it stays fully
-    // silent/hidden and takes no screenshots (capturing its minimized window would need the debugger).
+    // with captureVisibleTab (no chrome.debugger, so no "being debugged" banner). HEADLESS is skipped:
+    // it runs in a hidden background tab, which cannot be captured without the debugger.
     if (fnMode !== "headless") {
       // screenshot any page that failed OR has a failing button/action (the error is often the action)
       var actFail = function (r) { return r.actions && r.actions.some(function (a) { return !a.pass; }); };
       var fails = results.filter(function (r) { return !r.pass || actFail(r); });
       for (var k = 0; k < fails.length; k++) {
-        if (fnStopped()) break;
-        await waitIfPaused(); if (fnStopped()) break;
+        if (fnStopped(gen)) break;
+        await waitIfPaused(gen); if (fnStopped(gen)) break;
         fnProgress(k, fails.length, t("fn_shooting"));
-        var s = await fnShot(fails[k].url);
+        var s = await fnShot(fails[k].url, gen);
         if (s && s.shot) {
           if (!fails[k].pass) {
             fails[k].shot = s.shot;
@@ -530,7 +548,7 @@
       try { chrome.runtime.sendMessage({ type: "fnShotClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
     }
     fnProgress(results.length, results.length, t("fn_done"));
-    fnDone();
+    fnDone(gen);
   }
 
   function fnStop() {
@@ -539,10 +557,13 @@
     // close the check windows right away — don't wait for an in-flight visit (up to 60s) to return
     try { chrome.runtime.sendMessage({ type: "fnVisitClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
     try { chrome.runtime.sendMessage({ type: "fnShotClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
-    fnResetUI();   // show "Check Now" again instantly — the run loop unwinds (fnStopped) and fnDone finalizes
-    // safety net: if the loop is slow to unwind (an in-flight await), force it idle so Check Now works
-    var g = fnRun;
-    setTimeout(function () { if (fnRun && fnRun === g) fnDone(); }, 1200);
+    // Show "Check Now" again instantly, but keep it disabled until the loop has actually unwound —
+    // otherwise a click in that gap hits fnStart's `if (fnRun) return` and is silently swallowed.
+    fnResetUI(false);
+    // safety net: if the loop is slow to unwind (parked in an in-flight await), force this run idle so
+    // Check Now works again. Scoped to THIS generation, so it can never finalize a later run.
+    var g = fnGen;
+    setTimeout(function () { if (fnGen === g && fnRun) fnDone(g); }, 1200);
   }
   function fnPause() {
     if (!fnRun) return;
@@ -550,15 +571,21 @@
     var b = $("fnPause"); if (b) b.textContent = fnRun.paused ? t("fn_resume") : t("fn_pause");
     if (!fnRun.paused) fnReleasePause();   // Resume → release the parked loop immediately
   }
-  function fnResetUI() {
+  // idle=false means "Stop was pressed but the loop is still unwinding": show Check Now so the state
+  // reads as stopped, but keep it disabled until fnDone actually clears the run.
+  function fnResetUI(idle) {
     if (fnTimer) { clearInterval(fnTimer); fnTimer = null; }
-    if ($("fnStart")) { $("fnStart").style.display = ""; $("fnStop").style.display = "none"; }
+    if ($("fnStart")) { $("fnStart").style.display = ""; $("fnStop").style.display = "none"; $("fnStart").disabled = (idle === false); }
     if ($("fnPause")) { $("fnPause").style.display = "none"; $("fnPause").textContent = t("fn_pause"); }
   }
-  function fnDone() {
+  // gen-scoped: a stale loop (one whose run was already superseded) must not clear a newer run's state.
+  function fnDone(gen) {
+    if (gen !== undefined && gen !== fnGen) return;
     fnEnd = Date.now();
-    fnResetUI();
+    fnResetUI(true);
     fnRun = null;
+    try { if (fnPort) fnPort.disconnect(); } catch (e) {}
+    fnPort = null;
     fnRenderSummary();
   }
 
