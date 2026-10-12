@@ -627,7 +627,18 @@ async function fnActionProbe(opts) {
        page to actually DO something instead. MutationObserver is not clamped — it fires the moment the
        DOM changes — so the usual case costs only the real response time, and the setTimeout is just a
        cap that is reached only when the click genuinely changed nothing. */
+    /* opts.dwell is a FLOOR, not a delay: the waits below resolve the moment the page reacts, which in
+       Browser Slow — the mode whose whole point is being watched — would flash past in ~20-50ms. So in
+       that mode each step is held on screen for at least this long. It is 0 everywhere else, so Fast
+       and Headless pay nothing. The tab is visible whenever dwell > 0, so setTimeout is accurate here. */
+    var DWELL = +(opts.dwell || 0);
+    function hold(startedAt) {
+      var left = DWELL - (Date.now() - startedAt);
+      if (!(left > 0)) return Promise.resolve();
+      return new Promise(function (r) { setTimeout(r, left); });
+    }
     function waitFor(done, capMs, onMutate) {
+      var t0 = Date.now();
       return new Promise(function (resolve) {
         var settled = false, mo = null, t = null;
         function fin() {
@@ -647,7 +658,7 @@ async function fnActionProbe(opts) {
           mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });
         } catch (e) { mo = null; }
         t = setTimeout(fin, capMs);
-      });
+      }).then(function () { return hold(t0); });   // keep it on screen long enough to be followed
     }
     // Resolve on the FIRST DOM change (or at the cap). Used where there is no single condition to test
     // — after filling fields, "the page reacted" is all we need, and the 3-pass fill loop re-fills
@@ -809,7 +820,7 @@ async function fnActionProbe(opts) {
   } catch (e) { actions.push({ label: "(action probe)", pass: false, reason: String((e && e.message) || e) }); }
   return actions;
 }
-async function fnVisitRun(url, mode, base, actions, vals, slot, settle) {
+async function fnVisitRun(url, mode, base, actions, vals, slot, pace) {
   try {
     // A visit means a run is live, so cancel any teardown sweep still pending from a previous Stop —
     // otherwise it would fire mid-run and close this run's brand-new visit tab.
@@ -818,13 +829,14 @@ async function fnVisitRun(url, mode, base, actions, vals, slot, settle) {
     var tabId = await fnEnsureVisit(url, mode, slot || 0);
     if (tabId == null) return { ok: false, error: "tab/window তৈরি হয়নি" };
     await waitTabComplete(tabId, 25000);
-    // The panel owns the pacing (see PACE in menus/fn/fn.js) and sends the settle with each visit, so
-    // "what Fast and Slow mean" lives in exactly one place.
-    await bgSleep(typeof settle === "number" ? settle : 180);
+    // The panel owns the pacing (see PACE in menus/fn/fn.js) and sends it with each visit, so "what
+    // Fast and Slow mean" lives in exactly one place.
+    pace = pace || {};
+    await bgSleep(typeof pace.settle === "number" ? pace.settle : 180);
     // write-gate: state-changing buttons fire only on the osl.team test server
     var allowWrite = false;
     try { allowWrite = /(^|\.)osl\.team$/i.test(new URL(base).hostname); } catch (e) {}
-    var opts = { actions: !!actions, allowWrite: allowWrite, vals: vals || {} };
+    var opts = { actions: !!actions, allowWrite: allowWrite, vals: vals || {}, dwell: +(pace.dwell || 0) };
     var probe = null;
     var useMain = true;
     try {
@@ -903,7 +915,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (msg && msg.type === "admBrowserClose") { admCloseRun(msg.slot).then(function () { sendResponse({ ok: true }); }); return true; }
   if (msg && msg.type === "fnShot") { fnShotRun(msg.url).then(sendResponse); return true; }
   if (msg && msg.type === "fnShotClose") { fnShotClose().then(function () { sendResponse({ ok: true }); }); return true; }
-  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions, msg.vals, msg.slot, msg.settle).then(sendResponse); return true; }
+  if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions, msg.vals, msg.slot, msg.pace).then(sendResponse); return true; }
   if (msg && msg.type === "fnVisitClose") { fnVisitClose().then(function () { sendResponse({ ok: true }); }); return true; }
 });
 /* If the user closes a Function-Check window by hand (or the panel goes away mid-crawl and its close

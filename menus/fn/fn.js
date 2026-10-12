@@ -33,12 +33,15 @@
        settle — pause after the page reports loaded, before probing it. Small: the navigation wait is
                 exact now (background waits for THIS page's load, not a stale "complete").
        linger — deliberate extra pause per page, purely so a human can follow along in Browser mode.
+       dwell  — minimum time each button test is held on screen. The probe's waits are event-driven, so
+                without a floor a fill+click finishes in ~20-50ms and Browser Slow would be a blur.
+                0 everywhere except Browser Slow, which is the mode that exists to be watched.
      Tuning speed is a one-line change here. */
   var PACE = {
-    browser:  { fast: { conc: 1, settle: 80,  linger: 0 },
-                slow: { conc: 1, settle: 500, linger: 2000 } },   // slow = watchable on purpose
-    headless: { fast: { conc: 3, settle: 80,  linger: 0 },
-                slow: { conc: 1, settle: 150, linger: 300 } }     // hidden: nothing to watch, just gentler
+    browser:  { fast: { conc: 1, settle: 80,  linger: 0,    dwell: 0 },
+                slow: { conc: 1, settle: 500, linger: 2000, dwell: 600 } },   // slow = watchable on purpose
+    headless: { fast: { conc: 3, settle: 80,  linger: 0,    dwell: 0 },
+                slow: { conc: 1, settle: 150, linger: 300,  dwell: 0 } }      // hidden: nothing to watch
   };
   function pace() {
     var m = PACE[fnMode === "headless" ? "headless" : "browser"];
@@ -408,7 +411,7 @@
       } catch (e) { fin(null); }
     });
   }
-  function fnVisit(url, mode, base, actions, vals, slot, settle, gen) {
+  function fnVisit(url, mode, base, actions, vals, slot, P, gen) {
     return new Promise(function (resolve) {
       var done = false;
       // a page that blocks (a native dialog, an endless script) must NOT hang the whole crawl — if the
@@ -421,7 +424,7 @@
       // background (fnStop closes the visit tab/window, so the in-flight visit ends on its own).
       var stopChk = setInterval(function () { if (fnStopped(gen)) fin({ ok: false, error: "stopped" }); }, 200);
       try {
-        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals, slot: slot || 0, settle: settle }, function (resp) {
+        chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals, slot: slot || 0, pace: { settle: P.settle, dwell: P.dwell } }, function (resp) {
           if (done) { void chrome.runtime.lastError; return; }
           var le = chrome.runtime.lastError;
           fin(le ? { ok: false, error: le.message || "no response (এক্সটেনশন পুরো Reload করো)" } : (resp || { ok: false, error: "empty response" }));
@@ -517,7 +520,7 @@
       fnProgress(0, total, t("fn_visiting"));
       await pool(links, P.conc, function (link) {
         var slot = freeSlots.length ? freeSlots.pop() : 0;
-        return fnVisit(link.url, fnMode, base, doActions, vals, slot, P.settle, gen).then(function (v) {
+        return fnVisit(link.url, fnMode, base, doActions, vals, slot, P, gen).then(function (v) {
           freeSlots.push(slot);
           var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
           var row = Object.assign({}, link, c);
