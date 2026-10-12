@@ -432,6 +432,9 @@
     var pass = results.filter(fnOk).length;          // As Pass rows count as OK here
     var marked = results.filter(fnMarked).length;    // ...but are still shown separately
     var fail = results.length - pass;
+    // nothing to export until there is a result — better than a button that looks live and silently
+    // does nothing when clicked
+    var ex = $("fnExport"); if (ex) ex.disabled = !results.length;
     var s = $("fnSummary"); if (!s) return;
     if (!(results.length || fnRun)) { s.innerHTML = ""; return; }
     // Build the pills ONCE, then update text/active-class IN PLACE. Rebuilding innerHTML every result
@@ -801,7 +804,7 @@
     if ($("fnStart")) $("fnStart").addEventListener("click", fnStart);
     if ($("fnStop")) $("fnStop").addEventListener("click", fnStop);
     if ($("fnPause")) $("fnPause").addEventListener("click", fnPause);
-    if ($("fnExport")) $("fnExport").addEventListener("click", fnExport);
+    if ($("fnExport")) { $("fnExport").addEventListener("click", fnExport); $("fnExport").disabled = !results.length; }
     if ($("fnSummary")) $("fnSummary").addEventListener("click", function (e) {
       var p = e.target && e.target.closest && e.target.closest("[data-fnf]");
       if (!p) return;
