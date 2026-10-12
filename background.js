@@ -511,6 +511,9 @@ async function fnShotClose() {
    errors. Browser = a visible front tab; Headless = an off-screen window that never takes focus.
    Still read-only: it only opens the page. */
 let fnVisitSlots = {};   // slot -> { tabId, winId, mode }; one reused window per concurrency slot
+let fnVisitWins = {};    // EVERY headless visit window id we ever opened (winId -> 1), so Stop can close
+                         // even a window an in-flight worker created just after the slots were cleared
+let fnStopTimer = null;
 let fnProbeReg = "";   // origin the console collector is registered for ("" = not registered)
 let fnRegPromise = null, fnRegTarget = "";   // in-flight registration, so parallel workers share one
 async function fnRegisterProbe(base) {
@@ -543,7 +546,7 @@ async function fnEnsureVisit(url, mode, slot) {
   slot = slot || 0;
   var cur = fnVisitSlots[slot];
   if (cur && cur.tabId != null && cur.mode === mode && await getTab(cur.tabId)) { await chrome.tabs.update(cur.tabId, { url: url }); return cur.tabId; }
-  if (cur) { try { if (cur.winId != null && cur.mode !== "browser") await chrome.windows.remove(cur.winId); else if (cur.tabId != null) await chrome.tabs.remove(cur.tabId); } catch (e) {} }
+  if (cur) { try { if (cur.winId != null && cur.mode !== "browser") { delete fnVisitWins[cur.winId]; await chrome.windows.remove(cur.winId); } else if (cur.tabId != null) await chrome.tabs.remove(cur.tabId); } catch (e) {} }
   if (mode === "browser") {
     const tb = await chrome.tabs.create({ url: url, active: true });
     fnVisitSlots[slot] = { tabId: tb.id, winId: tb.windowId, mode: mode };
@@ -558,6 +561,7 @@ async function fnEnsureVisit(url, mode, slot) {
     try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}
     try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}   // a second nudge — some builds ignore minimize on the create call
     fnVisitSlots[slot] = { tabId: win && win.tabs && win.tabs[0] && win.tabs[0].id, winId: win.id, mode: mode };
+    if (win && win.id != null) fnVisitWins[win.id] = 1;
   }
   return fnVisitSlots[slot].tabId;
 }
@@ -826,12 +830,23 @@ async function fnVisitRun(url, mode, base, actions, vals, slot, speed) {
     return { ok: true, probe: probe, shot: shot };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
-async function fnVisitClose() {
+async function fnCloseAllVisits() {
   for (var k in fnVisitSlots) {
     var s = fnVisitSlots[k]; if (!s) continue;
     try { if (s.winId != null && s.mode !== "browser") await chrome.windows.remove(s.winId); else if (s.tabId != null) await chrome.tabs.remove(s.tabId); } catch (e) {}
   }
   fnVisitSlots = {};
+  // close every headless window we ever opened — catches one a slot no longer points at (closing a
+  // window also tears down any CDP/debugger session on it, so the "being debugged" banner goes too)
+  for (var w in fnVisitWins) { try { await chrome.windows.remove(parseInt(w, 10)); } catch (e) {} }
+  fnVisitWins = {};
+}
+async function fnVisitClose() {
+  await fnCloseAllVisits();
+  // On Stop, a worker whose fnVisit message was already in flight can create its window a moment AFTER
+  // this close ran — so sweep once more shortly to catch that straggler (and detach its debugger).
+  if (fnStopTimer) clearTimeout(fnStopTimer);
+  fnStopTimer = setTimeout(function () { fnStopTimer = null; fnCloseAllVisits(); }, 900);
   await fnUnregisterProbe();
 }
 
@@ -848,6 +863,7 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
 if (chrome.windows && chrome.windows.onRemoved) {
   chrome.windows.onRemoved.addListener(function (winId) {
     for (var k in fnVisitSlots) { if (fnVisitSlots[k] && fnVisitSlots[k].winId === winId) { delete fnVisitSlots[k]; } }
+    delete fnVisitWins[winId];
     if (!Object.keys(fnVisitSlots).length) fnUnregisterProbe();
     if (fnShot && fnShot.winId === winId) { fnShot = { tabId: null, winId: null }; }
   });
