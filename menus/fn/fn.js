@@ -462,6 +462,7 @@
           (r.shot ? '<a class="fnshot" href="' + r.shot + '" target="_blank" title="স্ক্রিনশট — খুলতে ক্লিক করো">📷 Screenshot ↗</a>' : "") +
           btn +
           (r.pass ? "" : '<span class="fnwhy">' + esc(r.reason) + '</span>') +
+          (r.warn ? '<span class="fnwarn">⚠ ' + esc(r.warn) + '</span>' : "") +
           acts +
           '</div>';
       });
@@ -642,6 +643,7 @@
           var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
           var row = Object.assign({}, link, c);
           if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
+          if (v && v.ok && v.probe && v.probe.warnText) row.warn = v.probe.warnText;   // noted, never fails the row
           // Slow's deliberate pause, so a human can follow along (Browser) or the server gets a breather
           // (Headless). Fast sets linger to 0, so this costs nothing there.
           var linger = pace().linger;
@@ -733,7 +735,8 @@
       // a failure marked As Pass exports as "As Pass" (amber) and KEEPS its original reason, so the
       // spreadsheet never hides what actually happened
       var mk = fnMarked(r);
-      mat.push([r.menu, r.label, r.path, r.pass ? "Pass" : (mk ? "As Pass" : "Fail"), r.reason, "", r.url]);
+      mat.push([r.menu, r.label, r.path, r.pass ? "Pass" : (mk ? "As Pass" : "Fail"),
+        r.reason + (r.warn ? " | ⚠ " + r.warn : ""), "", r.url]);
       colors.push(r.pass ? "g" : (mk ? "y" : "r"));
       (r.actions || []).forEach(function (a) {
         mat.push([r.menu, r.label, r.path, a.pass ? "Pass" : "Fail", a.reason, a.label, r.url]);

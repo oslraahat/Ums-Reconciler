@@ -596,7 +596,10 @@ async function fnProbeDeep(opts) {
     var hasStructure = !!document.querySelector("table,form,canvas,svg,input,select,h1,h2,h3");
     var consoleErr = "";
     try { if (window.__fnErr && window.__fnErr.length) consoleErr = window.__fnErr.slice(0, 3).join(" | ").slice(0, 320); } catch (e) {}
-    return { errText: errText, errDetail: errDetail, serverErr: serverErr, isLogin: isLogin, bodyLen: bodyText.length, hasStructure: hasStructure, consoleErr: consoleErr, title: document.title || "" };
+    // cosmetic-only problems (a picture that did not load): reported on the row, but never a failure
+    var warnText = "";
+    try { if (window.__fnWarn && window.__fnWarn.length) warnText = window.__fnWarn.slice(0, 3).join(" | ").slice(0, 320); } catch (e) {}
+    return { errText: errText, errDetail: errDetail, serverErr: serverErr, isLogin: isLogin, bodyLen: bodyText.length, hasStructure: hasStructure, consoleErr: consoleErr, warnText: warnText, title: document.title || "" };
   } catch (err) { return { error: String((err && err.message) || err) }; }
 }
 

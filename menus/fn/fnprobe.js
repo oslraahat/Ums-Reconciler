@@ -9,8 +9,23 @@
     // though it opens fine by hand.
     try { window.alert = function () {}; window.confirm = function () { return true; }; window.prompt = function () { return null; }; } catch (_) {}
     if (window.__fnErr) return;
-    window.__fnErr = [];
-    var push = function (s) { try { if (window.__fnErr.length < 20) window.__fnErr.push(String(s).slice(0, 200)); } catch (_) {} };
+    window.__fnErr = [];    // things that actually break the page — these fail the check
+    window.__fnWarn = [];   // cosmetic only (a picture that did not load) — never fails the check
+    /* The same broken element usually appears more than once on a page, which printed the identical
+       sentence twice. Collapse repeats into "… ×2" instead of listing them again. */
+    var seen = {};
+    var add = function (arr, s) {
+      try {
+        s = String(s).slice(0, 200);
+        var k = (arr === window.__fnWarn ? "w|" : "e|") + s;
+        var c = seen[k];
+        if (c) { c.n++; arr[c.i] = s + " ×" + c.n; return; }
+        if (arr.length >= 20) return;
+        arr.push(s);
+        seen[k] = { n: 1, i: arr.length - 1 };
+      } catch (_) {}
+    };
+    var push = function (s) { add(window.__fnErr, s); };
     var frameOf = function (err) {
       try {
         var fr = String(err.stack || "").split("\n")[1] || "";
@@ -28,8 +43,14 @@
         var el = e && e.target;
         if (el && el !== window && el.tagName) {
           var tag = String(el.tagName).toLowerCase();
-          var src = el.src || el.href || "";
-          push("লোড হয়নি <" + tag + ">: " + (src || "(src নেই)"));
+          // Read the ATTRIBUTE, not el.src: an empty src resolves against the document, so el.src
+          // returned the PAGE's own address and the message looked as if the page had failed to load.
+          var raw = el.getAttribute ? (el.getAttribute("src") || el.getAttribute("href") || "") : "";
+          var where = raw ? (el.src || el.href || raw) : "src খালি — কোনো ঠিকানা বসানো নেই";
+          // A picture that does not load is cosmetic; a missing script or stylesheet actually breaks
+          // the page. Only the latter should fail the check.
+          var cosmetic = /^(img|picture|source|video|audio|track)$/.test(tag);
+          add(cosmetic ? window.__fnWarn : window.__fnErr, "লোড হয়নি <" + tag + ">: " + where);
           return;
         }
         var err = e && e.error;
