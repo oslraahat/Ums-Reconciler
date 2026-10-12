@@ -23,8 +23,10 @@
 
   var MAX_LINKS = 600;           // a hard cap so a mis-parsed page can never spawn thousands of fetches
   var CONC = 8;                  // parallel page checks (HTTP mode)
-  var FN_HEADLESS_CONC = 3;      // parallel off-screen windows in Headless mode (Browser stays 1)
+  var FN_HEADLESS_CONC = 1;      // real-load test runs in ONE reused window (see fnStart)
   var fnRun = null;              // { stop } while a crawl is going
+  var fnAborted = false;         // latched by Stop — every loop/pool/visit bails on it even if fnRun is cleared
+  function fnStopped() { return fnAborted || !!(fnRun && fnRun.stop); }
   var fnMode = "http";           // http | browser | headless
 
   var fnSpeed = "fast";   // fast | slow — Browser-mode pacing
@@ -333,13 +335,13 @@
     return new Promise(function (resolve) {
       var i = 0, active = 0, done = 0;
       function next() {
-        if (fnRun && fnRun.stop) { resolve(); return; }   // stop immediately — don't wait for in-flight visits to drain
+        if (fnStopped()) { resolve(); return; }   // stop immediately — don't wait for in-flight visits to drain
         if (fnRun && fnRun.paused) { fnRun._resume = next; return; }   // park until Resume fires next()
         while (active < n && i < items.length) {
           var idx = i++; active++;
           worker(items[idx], idx).then(function (r) { onEach(r, idx); }).catch(function () {}).then(function () {
             active--; done++;
-            if (done === items.length || (fnRun && fnRun.stop && active === 0)) resolve(); else next();
+            if (done === items.length || (fnStopped() && active === 0)) resolve(); else next();
           });
         }
       }
@@ -383,7 +385,7 @@
       var to = setTimeout(function () { fin({ ok: false, error: "timeout — পেজ সাড়া দেয়নি (120s)" }); }, 120000);
       // Stop must feel instant: give up on this visit within 200ms of Stop instead of waiting for the
       // background (the windows are closed by fnStop, so the in-flight visit ends on its own).
-      var stopChk = setInterval(function () { if (fnRun && fnRun.stop) fin({ ok: false, error: "stopped" }); }, 200);
+      var stopChk = setInterval(function () { if (fnStopped()) fin({ ok: false, error: "stopped" }); }, 200);
       try {
         chrome.runtime.sendMessage({ type: "fnVisit", url: url, mode: mode, base: base, actions: actions, vals: vals, slot: slot || 0, speed: speed || "fast" }, function (resp) {
           if (done) { void chrome.runtime.lastError; return; }
@@ -398,12 +400,13 @@
   // which could leave a poll-based wait stuck after Resume. Instead we park the loop on a resolver
   // that the Resume/Stop click fires directly.
   function waitIfPaused() {
-    if (!fnRun || !fnRun.paused || fnRun.stop) return Promise.resolve();
+    if (!fnRun || !fnRun.paused || fnStopped()) return Promise.resolve();
     return new Promise(function (resolve) { fnRun._resume = resolve; });
   }
   function fnReleasePause() { if (fnRun && fnRun._resume) { var r = fnRun._resume; fnRun._resume = null; r(); } }
   async function fnStart() {
     if (fnRun) return;
+    fnAborted = false;
     fnRun = { stop: false, paused: false };
     results = []; fnFilter = "all";
     fnT0 = Date.now(); fnEnd = 0;
@@ -434,8 +437,8 @@
       });
       var rootList = Object.keys(roots);
       for (var ri = 0; ri < rootList.length; ri++) {
-        if (fnRun && fnRun.stop) break;
-        await waitIfPaused(); if (fnRun && fnRun.stop) break;
+        if (fnStopped()) break;
+        await waitIfPaused(); if (fnStopped()) break;
         fnProgress(ri, rootList.length, t("fn_sections"));
         try {
           var secUrl = new URL(roots[rootList[ri]], base).href;
@@ -471,8 +474,8 @@
         tpin: ($("fnTpin") && $("fnTpin").value || "").trim(),
         pin: ($("fnPin") && $("fnPin").value || "").trim()
       };
-      // Headless runs several off-screen windows in parallel for speed; Browser stays 1-at-a-time
-      // (it is the visible front tab). Each concurrent worker borrows a free window slot.
+      // Both real-load modes run one page at a time in a single reused window — Browser in a front tab,
+      // "Headless" in one maximized window (FN_HEADLESS_CONC = 1). Each worker borrows a free slot.
       var concV = (fnMode === "headless") ? FN_HEADLESS_CONC : 1;
       var freeSlots = []; for (var si = 0; si < concV; si++) freeSlots.push(si);
       fnProgress(0, total, t("fn_visiting"));
@@ -486,7 +489,7 @@
           // Slow pacing: in BROWSER, linger ~2s per page so it can be watched comfortably. In HEADLESS
           // there is nothing to watch (the window is hidden), so Slow only needs to be gentle on the
           // server — a short ~300ms pause, far quicker than Browser's Slow. Fast adds no pause at all.
-          if (fnSpeed === "slow" && !(fnRun && fnRun.stop)) {
+          if (fnSpeed === "slow" && !fnStopped()) {
             if (fnMode === "browser") return new Promise(function (r) { setTimeout(function () { r(row); }, 2000); });
             if (fnMode === "headless") return new Promise(function (r) { setTimeout(function () { r(row); }, 300); });
           }
@@ -498,7 +501,7 @@
       });
       try { chrome.runtime.sendMessage({ type: "fnVisitClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
     }
-    if (fnRun && fnRun.stop) { fnDone(); return; }
+    if (fnStopped()) { fnDone(); return; }
 
     // 2) a screenshot for each failure — HTTP/Browser only, captured in one reused off-screen window
     // with no chrome.debugger (so no "being debugged" banner). HEADLESS is skipped: it stays fully
@@ -508,8 +511,8 @@
       var actFail = function (r) { return r.actions && r.actions.some(function (a) { return !a.pass; }); };
       var fails = results.filter(function (r) { return !r.pass || actFail(r); });
       for (var k = 0; k < fails.length; k++) {
-        if (fnRun && fnRun.stop) break;
-        await waitIfPaused(); if (fnRun && fnRun.stop) break;
+        if (fnStopped()) break;
+        await waitIfPaused(); if (fnStopped()) break;
         fnProgress(k, fails.length, t("fn_shooting"));
         var s = await fnShot(fails[k].url);
         if (s && s.shot) {
@@ -531,10 +534,15 @@
   }
 
   function fnStop() {
+    fnAborted = true;   // latched: every loop/pool/visit sees this at once, even if fnRun gets cleared
     if (fnRun) { fnRun.stop = true; fnRun.paused = false; fnReleasePause(); }
     // close the check windows right away — don't wait for an in-flight visit (up to 60s) to return
     try { chrome.runtime.sendMessage({ type: "fnVisitClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
     try { chrome.runtime.sendMessage({ type: "fnShotClose" }, function () { void chrome.runtime.lastError; }); } catch (e) {}
+    fnResetUI();   // show "Check Now" again instantly — the run loop unwinds (fnStopped) and fnDone finalizes
+    // safety net: if the loop is slow to unwind (an in-flight await), force it idle so Check Now works
+    var g = fnRun;
+    setTimeout(function () { if (fnRun && fnRun === g) fnDone(); }, 1200);
   }
   function fnPause() {
     if (!fnRun) return;
@@ -542,12 +550,15 @@
     var b = $("fnPause"); if (b) b.textContent = fnRun.paused ? t("fn_resume") : t("fn_pause");
     if (!fnRun.paused) fnReleasePause();   // Resume → release the parked loop immediately
   }
-  function fnDone() {
-    fnEnd = Date.now();
+  function fnResetUI() {
     if (fnTimer) { clearInterval(fnTimer); fnTimer = null; }
-    fnRun = null;
     if ($("fnStart")) { $("fnStart").style.display = ""; $("fnStop").style.display = "none"; }
     if ($("fnPause")) { $("fnPause").style.display = "none"; $("fnPause").textContent = t("fn_pause"); }
+  }
+  function fnDone() {
+    fnEnd = Date.now();
+    fnResetUI();
+    fnRun = null;
     fnRenderSummary();
   }
 

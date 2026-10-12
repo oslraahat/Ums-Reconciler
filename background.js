@@ -468,7 +468,7 @@ async function fnShotClose() {
 
 /* ── Function Check · deep visit (Browser / Headless) ──
    Load each page for real so its JavaScript runs, then read the rendered DOM + any uncaught console
-   errors. Browser = a visible front tab; Headless = an off-screen window that never takes focus.
+   errors. Browser = a visible front tab; "Headless" = one reused MAXIMIZED window (single, not hidden).
    Still read-only: it only opens the page. */
 let fnVisitSlots = {};   // slot -> { tabId, winId, mode }; one reused window per concurrency slot
 let fnVisitWins = {};    // EVERY headless visit window id we ever opened (winId -> 1), so Stop can close
@@ -511,15 +511,14 @@ async function fnEnsureVisit(url, mode, slot) {
     const tb = await chrome.tabs.create({ url: url, active: true });
     fnVisitSlots[slot] = { tabId: tb.id, winId: tb.windowId, mode: mode };
   } else {
-    // Headless: a MINIMIZED window — truly hidden and never focused. (An off-screen left:30000 window
-    // gets clamped back onto the display by some Chrome/OS setups, which is why windows were showing.)
-    // NOTE: `focused:false` together with `state:"minimized"` conflicts and Chrome then ignores the
-    // minimize (window shows). Pass state alone — minimized is inactive by definition.
+    // "Headless" now = ONE reused MAXIMIZED window (the user chose a single maximized window over the
+    // old 3-4 minimized ones): one taskbar entry instead of several, pages render at full size, and —
+    // unlike a minimized window — it is NOT occluded, so Chrome does not throttle its JS timers, which
+    // is what made the minimized crawl so slow. The window is reused for every page in the sweep.
     let win;
-    try { win = await chrome.windows.create({ url: url, state: "minimized" }); }
-    catch (e) { win = await chrome.windows.create({ url: url, focused: false }); }   // fallback: inactive, THEN minimize (never off-screen — that gets clamped on-screen)
-    try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}
-    try { await chrome.windows.update(win.id, { state: "minimized" }); } catch (e) {}   // a second nudge — some builds ignore minimize on the create call
+    try { win = await chrome.windows.create({ url: url, state: "maximized" }); }
+    catch (e) { win = await chrome.windows.create({ url: url }); }
+    try { await chrome.windows.update(win.id, { state: "maximized" }); } catch (e) {}
     fnVisitSlots[slot] = { tabId: win && win.tabs && win.tabs[0] && win.tabs[0].id, winId: win.id, mode: mode };
     if (win && win.id != null) fnVisitWins[win.id] = 1;
   }
@@ -767,7 +766,7 @@ async function fnVisitRun(url, mode, base, actions, vals, slot, speed) {
         var ar;
         var tgt = { target: { tabId: tabId }, func: fnActionProbe, args: [opts] };
         if (useMain) tgt.world = "MAIN";
-        ar = await fnRace(chrome.scripting.executeScript(tgt), 55000);   // Headless (minimized) throttles timers, so give the action probe more room
+        ar = await fnRace(chrome.scripting.executeScript(tgt), 55000);   // generous cap for the full fill+click pass
         probe.actions = (ar && ar[0] && ar[0].result) || [];
       } catch (e) {
         // A button navigated the page before we could hold it back → the injected frame is gone. That
