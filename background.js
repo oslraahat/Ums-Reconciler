@@ -598,7 +598,41 @@ async function fnActionProbe(opts) {
       window.alert = function () {}; window.confirm = function () { return true; }; window.prompt = function () { return ""; };
     } catch (e) {}
     var V = opts.vals || {};
-    var sleep = function (ms) { return new Promise(function (r) { setTimeout(r, ms); }); };
+    /* In Headless the page sits in a HIDDEN tab, where Chrome clamps setTimeout to >=1s (and to once a
+       MINUTE after a few minutes hidden). Sleeping a fixed time there is what made the sweep crawl: a
+       120ms settle became a full second, and a 3-poll 700ms button wait became ~3s. So wait for the
+       page to actually DO something instead. MutationObserver is not clamped — it fires the moment the
+       DOM changes — so the usual case costs only the real response time, and the setTimeout is just a
+       cap that is reached only when the click genuinely changed nothing. */
+    function waitFor(done, capMs, onMutate) {
+      return new Promise(function (resolve) {
+        var settled = false, mo = null, t = null;
+        function fin() {
+          if (settled) return;
+          settled = true;
+          try { if (mo) mo.disconnect(); } catch (e) {}
+          if (t) clearTimeout(t);
+          resolve();
+        }
+        try { if (done()) { resolve(); return; } } catch (e) {}
+        try {
+          mo = new MutationObserver(function () {
+            if (onMutate) { try { onMutate(); } catch (e) {} }
+            var d = false; try { d = done(); } catch (e) {}
+            if (d) fin();
+          });
+          mo.observe(document.documentElement, { childList: true, subtree: true, attributes: true, characterData: true });
+        } catch (e) { mo = null; }
+        t = setTimeout(fin, capMs);
+      });
+    }
+    // Resolve on the FIRST DOM change (or at the cap). Used where there is no single condition to test
+    // — after filling fields, "the page reacted" is all we need, and the 3-pass fill loop re-fills
+    // anything that populated late.
+    function waitChange(capMs) {
+      var seen = false;
+      return waitFor(function () { return seen; }, capMs, function () { seen = true; });
+    }
     function fillSelects() {
       var did = 0;
       document.querySelectorAll("select").forEach(function (s) {
@@ -668,7 +702,7 @@ async function fnActionProbe(opts) {
         var btnB = visCount("button, input[type=submit], input[type=button], [role=button]"), inpB = visCount("input, select, textarea"), rowB = dataRows();
         try { if (window.__fnErr) window.__fnErr.length = 0; } catch (e) {}
         sub.click();
-        await sleep(700);
+        await waitChange(700);   // validation / new form appearing is a DOM change — no fixed sleep
         if (location.href === url0) {
           var va = valCount();
           var jsErr = ""; try { if (window.__fnErr && window.__fnErr.length) jsErr = window.__fnErr.slice(0, 2).join(" | "); } catch (e) {}
@@ -685,7 +719,8 @@ async function fnActionProbe(opts) {
 
     // several passes so cascading dropdowns (one selection loads the next via AJAX) ALL get set
     try {
-      for (var pass = 0; pass < 3; pass++) { var changed = fillSelects(); fillInputs(); await sleep(changed ? 350 : 120); }
+      // 3 passes so dependent dropdowns that populate after a change event get filled on the next pass
+      for (var pass = 0; pass < 3; pass++) { var changed = fillSelects(); fillInputs(); await waitChange(changed ? 350 : 120); }
     } catch (e) {}
 
     // Changing a password would lock the real user out, so on any page carrying a password box the
@@ -729,9 +764,12 @@ async function fnActionProbe(opts) {
       var before = location.href, rowsBefore = dataRows();
       try { if (window.__fnErr) window.__fnErr.length = 0; } catch (e) {}
       try { b.click(); } catch (e) { actions.push({ label: label, pass: false, reason: "click error: " + ((e && e.message) || e) }); continue; }
-      // wait for the result — poll a little longer for a view/search that loads a table over AJAX
-      var waited = 0, step = 300, cap = isView ? 2000 : 700;
-      while (waited < cap) { await sleep(step); waited += step; if (location.href !== before) break; if (isView && dataRows() > rowsBefore) break; }
+      // Wait for the result: the click either navigates or renders something (a view/search loads its
+      // table over AJAX). Resolve the moment that shows up rather than polling on a clock — the cap is
+      // only reached when the click genuinely did nothing.
+      await waitFor(function () {
+        return location.href !== before || (isView && dataRows() > rowsBefore);
+      }, isView ? 2000 : 700);
       if (location.href !== before) { actions.push({ label: label, pass: true, reason: "action triggered (পেজ বদলেছে)" }); navAway = true; continue; }
       var er = pageErr();
       var ce = ""; try { if (window.__fnErr && window.__fnErr.length) ce = window.__fnErr.slice(0, 2).join(" | "); } catch (e) {}
