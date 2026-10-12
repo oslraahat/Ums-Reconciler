@@ -44,8 +44,13 @@
      swaps to a taller emoji. */
   #updBtn{gap:6px;transition:background .12s,border-color .12s,color .12s}
   /* "✓ Up to Date" / "⚠ Check failed" stay on the plain button — only the text colour hints the result */
-  #updBtn.ok{color:#5ef0a8}
-  #updBtn.bad{color:#ff9aa6}
+  /* This button sits at the RIGHT end of the topbar gradient (#5a3ff0), the lightest part, and the
+     default pill is 15% white on top of that. Against it a pale status colour cannot reach 4.5:1 no
+     matter how light it is made — even near-white mint only measures ~4.1 — so recolouring the text
+     alone could not fix the legibility. Darkening the pill does, and makes the state read as a state:
+     measured on that gradient end, green 6.58 and red 4.73. */
+  #updBtn.ok{background:rgba(0,0,0,.28);border-color:rgba(94,240,168,.45);color:#5ef0a8}
+  #updBtn.bad{background:rgba(0,0,0,.28);border-color:rgba(255,154,166,.45);color:#ff9aa6}
   #updBtn.has{background:#f5b301;color:#2b2000;border:1px solid #d99e00;animation:updPulse 2.1s ease-in-out infinite}
   #updBtn.has:hover{background:#ffc21f;border-color:#d99e00;animation:none}
   #updBtn:disabled{opacity:.9;cursor:progress;animation:none}
