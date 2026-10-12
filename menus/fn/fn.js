@@ -47,6 +47,12 @@
     var m = PACE[fnMode === "headless" ? "headless" : "browser"];
     return m[fnSpeed === "slow" ? "slow" : "fast"];
   }
+  // widest this mode ever runs — slots are sized for it so the pool can widen again if the user
+  // switches back to Fast part-way through a run
+  function paceMaxConc() {
+    var m = PACE[fnMode === "headless" ? "headless" : "browser"];
+    return Math.max(m.fast.conc, m.slow.conc);
+  }
   var fnRun = null;              // { stop } while a crawl is going
   var fnAborted = false;         // latched by Stop — every loop/pool/visit bails on it even if fnRun is cleared
   var fnPort = null;             // live only during a run; its disconnect tells the background to clean up
@@ -73,6 +79,9 @@
     if ($("fnFast")) $("fnFast").classList.toggle("on", fnSpeed === "fast");
     if ($("fnSlow")) $("fnSlow").classList.toggle("on", fnSpeed === "slow");
     try { chrome.storage.local.set({ fnSpeed: fnSpeed }); } catch (e) {}
+    // Switching mid-run is honoured: settle/dwell/linger are re-read per page anyway, and this wakes
+    // the pool so a widening (Slow -> Fast) starts its extra workers now rather than after the next page.
+    try { if (fnRun && fnRun._wake) fnRun._wake(); } catch (e) {}
   }
 
   /* ---- what counts as a checkable page link ---- */
@@ -361,13 +370,17 @@
     box.innerHTML = html;
   }
 
+  // n may be a number or a function, so a caller whose width can change mid-run (Fast/Slow switching
+  // the Headless concurrency) is re-asked each time instead of being frozen at the first value.
   function pool(items, n, worker, onEach, gen) {
+    var width = (typeof n === "function") ? n : function () { return n; };
     return new Promise(function (resolve) {
       var i = 0, active = 0, done = 0;
       function next() {
         if (fnStopped(gen)) { resolve(); return; }   // stop immediately — don't wait for in-flight visits to drain
+        if (fnRun) fnRun._wake = next;   // so a mid-run speed change can widen the pool immediately
         if (fnRun && fnRun.paused) { fnRun._resume = next; return; }   // park until Resume fires next()
-        while (active < n && i < items.length) {
+        while (active < width() && i < items.length) {
           var idx = i++; active++;
           worker(items[idx], idx).then(function (r) { onEach(r, idx); }).catch(function () {}).then(function () {
             active--; done++;
@@ -515,19 +528,23 @@
         tpin: ($("fnTpin") && $("fnTpin").value || "").trim(),
         pin: ($("fnPin") && $("fnPin").value || "").trim()
       };
-      var P = pace();   // concurrency / settle / linger for this mode+speed, all from the PACE table
-      var freeSlots = []; for (var si = 0; si < P.conc; si++) freeSlots.push(si);
+      /* Pacing is read fresh for EVERY page, never captured once, so clicking Fast/Slow mid-run really
+         takes effect (from the next page onward) instead of just repainting the button. Slots are
+         allocated for the widest speed this mode can use, since the pool width can now grow as well as
+         shrink while the run is going. */
+      var freeSlots = []; for (var si = 0; si < paceMaxConc(); si++) freeSlots.push(si);
       fnProgress(0, total, t("fn_visiting"));
-      await pool(links, P.conc, function (link) {
+      await pool(links, function () { return pace().conc; }, function (link) {
         var slot = freeSlots.length ? freeSlots.pop() : 0;
-        return fnVisit(link.url, fnMode, base, doActions, vals, slot, P, gen).then(function (v) {
+        return fnVisit(link.url, fnMode, base, doActions, vals, slot, pace(), gen).then(function (v) {
           freeSlots.push(slot);
           var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
           var row = Object.assign({}, link, c);
           if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
           // Slow's deliberate pause, so a human can follow along (Browser) or the server gets a breather
           // (Headless). Fast sets linger to 0, so this costs nothing there.
-          if (P.linger && !fnStopped(gen)) return new Promise(function (r) { setTimeout(function () { r(row); }, P.linger); });
+          var linger = pace().linger;
+          if (linger && !fnStopped(gen)) return new Promise(function (r) { setTimeout(function () { r(row); }, linger); });
           return row;
         }, function (e) { freeSlots.push(slot); return Object.assign({}, link, { pass: false, reason: "লোড হয়নি — " + String(e && e.message || e), kind: "net" }); });
       }, function (row) {
