@@ -417,47 +417,6 @@ async function fnEnsureTab(url) {
   fnShot.winId = win.id;
   return fnShot.tabId;
 }
-/* Capture a tab via the DevTools Protocol (chrome.debugger → Page.captureScreenshot). Unlike
-   chrome.tabs.captureVisibleTab, this renders from the page's own compositor, so it can capture a
-   background / off-screen / minimized tab — the mechanism headless automation uses. A hidden tab
-   produces no painted frames on its own, so Page.captureScreenshot alone comes back BLANK. The fix
-   (what Puppeteer does) is Emulation.setDeviceMetricsOverride: forcing a viewport makes the renderer
-   lay out and paint a frame regardless of the window's visibility. Bounded by fnRace so a stalled
-   frame can't hang the crawl. Attach, override metrics, grab one JPEG, clear, always detach. */
-function cdpSend(target, method, params) {
-  return new Promise(function (resolve, reject) {
-    chrome.debugger.sendCommand(target, method, params || {}, function (r) {
-      if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message)); else resolve(r);
-    });
-  });
-}
-async function fnCdpShot(tabId) {
-  var target = { tabId: tabId };
-  var tried = false;   // attach was requested — always try to detach, even if attach timed out but later landed
-  var overrode = false;
-  try {
-    tried = true;
-    await fnRace(new Promise(function (resolve, reject) {
-      chrome.debugger.attach(target, "1.3", function () {
-        if (chrome.runtime.lastError) reject(new Error(chrome.runtime.lastError.message)); else resolve();
-      });
-    }), 8000);
-    // Force a viewport so a hidden/off-screen tab actually paints (otherwise the shot is blank).
-    try { await fnRace(cdpSend(target, "Emulation.setDeviceMetricsOverride", { width: 1200, height: 820, deviceScaleFactor: 1, mobile: false }), 5000); overrode = true; } catch (e) {}
-    await bgSleep(250);   // give the forced relayout a beat to paint before grabbing the frame
-    // Cap the capture so a stalled frame can never hang the whole Function Check (it just yields a
-    // null shot and the failure is still reported).
-    var r = await fnRace(cdpSend(target, "Page.captureScreenshot", { format: "jpeg", quality: 55, captureBeyondViewport: true }), 10000);
-    return r && r.data ? "data:image/jpeg;base64," + r.data : null;
-  } catch (e) {
-    return null;
-  } finally {
-    if (overrode) { try { await fnRace(cdpSend(target, "Emulation.clearDeviceMetricsOverride"), 3000); } catch (e) {} }   // detach reverts it too, but keep every CDP call bounded
-    if (tried) {
-      try { await new Promise(function (resolve) { chrome.debugger.detach(target, function () { void chrome.runtime.lastError; resolve(); }); }); } catch (e) {}
-    }
-  }
-}
 function fnProbePage() {
   // runs in the page: report a VISIBLE error message and whether the page is essentially empty.
   // Visibility matters — a hidden toast/template ("Something went wrong") carries text but is not a
@@ -491,10 +450,11 @@ async function fnShotRun(url) {
       var res = await chrome.scripting.executeScript({ target: { tabId: tabId }, func: fnProbePage });
       probe = res && res[0] && res[0].result;
     } catch (e) {}
-    // Capture via CDP first (works on the minimized/off-screen window); fall back to captureVisibleTab
-    // only if that fails and the window happens to be visible.
-    var shot = await fnCdpShot(tabId);
-    if (!shot) {
+    // Capture the off-screen (not minimized) shot window with captureVisibleTab — no chrome.debugger,
+    // so NO "being debugged" banner ever appears. The window is off-screen but not minimized, which is
+    // exactly what captureVisibleTab needs.
+    var shot = null;
+    {
       try { shot = await chrome.tabs.captureVisibleTab(fnShot.winId, { format: "jpeg", quality: 55 }); }
       catch (e) { shot = null; }
     }
@@ -817,17 +777,10 @@ async function fnVisitRun(url, mode, base, actions, vals, slot, speed) {
         else probe.actions = [{ label: "(buttons)", pass: false, reason: "inject সমস্যা — " + m }];
       }
     }
-    // Headless: grab the failure screenshot right here, on the already-open hidden slot window, so the
-    // post-run pass never has to open a SEPARATE window (which would surface on screen). Mirror the
-    // client's fail test (fnClassifyProbe) so a capture is spent only on pages that will read as failed.
-    var shot = null;
-    if (mode === "headless" && probe) {
-      var actBad = probe.actions && probe.actions.some(function (a) { return a && a.pass === false; });
-      var pageBad = probe.error || probe.isLogin || probe.serverErr || probe.errText || probe.consoleErr ||
-                    ((probe.bodyLen || 0) < 40 && !probe.hasStructure);
-      if (pageBad || actBad) { try { shot = await fnCdpShot(tabId); } catch (e) {} }
-    }
-    return { ok: true, probe: probe, shot: shot };
+    // Headless takes NO screenshot: capturing a minimized window needs chrome.debugger, which pops a
+    // "being debugged" banner on the user's window. Headless stays fully silent instead; use HTTP or
+    // Browser mode when failure screenshots are wanted (those capture off-screen with no banner).
+    return { ok: true, probe: probe };
   } catch (e) { return { ok: false, error: String((e && e.message) || e) }; }
 }
 async function fnCloseAllVisits() {
