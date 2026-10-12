@@ -55,6 +55,8 @@
   }
   var fnRun = null;              // { stop } while a crawl is going
   var fnAborted = false;         // latched by Stop — every loop/pool/visit bails on it even if fnRun is cleared
+  var fnWantActions = false;     // the user's own choice, kept apart from what the box can show: HTTP
+                                 // cannot click anything, so there the box reads unchecked regardless
   var fnPort = null;             // live only during a run; its disconnect tells the background to clean up
   var fnGen = 0;                 // bumped per run — an older loop that was parked in an await sees its
                                  // generation go stale and bails instead of resuming into the new run
@@ -76,11 +78,22 @@
        there is literally nothing to click and the checkbox was being ignored in silence. Disable it
        there (keeping its ticked state for when the user switches back) and say why on hover. */
     var ab = $("fnActions"), al = ab && ab.closest ? ab.closest(".fnact") : null;
-    if (ab) ab.disabled = (fnMode === "http");
+    if (ab) {
+      // show it unchecked in HTTP — a ticked box there would promise a test that cannot happen — and
+      // restore the user's actual choice on the way back to Browser/Headless
+      ab.checked = (fnMode === "http") ? false : fnWantActions;
+      ab.disabled = (fnMode === "http");
+    }
     if (al) {
       al.classList.toggle("off", fnMode === "http");
       al.setAttribute("data-title", fnMode === "http" ? "fn_actions_http" : "fn_actions_t");
       al.title = t(al.getAttribute("data-title"));
+    }
+    // the value boxes only feed the button test, so they go dim with it rather than looking live
+    var vs = $("fnVals");
+    if (vs) {
+      vs.classList.toggle("off", fnMode === "http");
+      vs.querySelectorAll("input").forEach(function (i) { i.disabled = (fnMode === "http"); });
     }
     try { chrome.storage.local.set({ fnMode: fnMode }); } catch (e) {}
   }
@@ -810,7 +823,10 @@
     if ($("fnHeadless")) $("fnHeadless").addEventListener("click", function () { fnSetMode("headless"); });
     if ($("fnFast")) $("fnFast").addEventListener("click", function () { fnSetSpeed("fast"); });
     if ($("fnSlow")) $("fnSlow").addEventListener("click", function () { fnSetSpeed("slow"); });
-    if ($("fnActions")) $("fnActions").addEventListener("change", function () { try { chrome.storage.local.set({ fnActions: this.checked }); } catch (e) {} });
+    if ($("fnActions")) $("fnActions").addEventListener("change", function () {
+      fnWantActions = this.checked;   // only reachable while enabled, so this is always a real choice
+      try { chrome.storage.local.set({ fnActions: fnWantActions }); } catch (e) {}
+    });
     var VKEYS = { fnRoll: "fnRoll", fnReg: "fnReg", fnMobile: "fnMobile", fnTpin: "fnTpin", fnPin: "fnPin" };
     // Roll/Reg/Mobile keep a native <datalist> of numbers used before — selecting one RELIABLY sets
     // the field, unlike the browser's flaky tel-autofill (same trick as New Admission's mobile box).
@@ -841,9 +857,9 @@
     }
     try {
       chrome.storage.local.get(["fnMode", "fnSpeed", "fnActions", "fnBaseUrl", "fnRolls", "fnRegs", "fnMobiles"].concat(Object.keys(VKEYS)), function (o) {
+        fnWantActions = !!(o && o.fnActions);   // set BEFORE fnSetMode, which decides what the box shows
         fnSetMode(o && o.fnMode);
         fnSetSpeed(o && o.fnSpeed);
-        if ($("fnActions")) $("fnActions").checked = !!(o && o.fnActions);
         if (o && o.fnBaseUrl && $("fnBase")) $("fnBase").value = o.fnBaseUrl;
         Object.keys(VKEYS).forEach(function (id) { if (o && o[id] != null && $(id)) $(id).value = o[id]; });
         Object.keys(DL).forEach(function (id) { fillDl(DL[id].dl, (o && o[DL[id].key]) || []); });

@@ -169,7 +169,7 @@
     fn_pause: { bn: "⏸ বিরতি", en: "⏸ Pause" },
     fn_resume: { bn: "▶ চালাও", en: "▶ Resume" },
     fn_export: { bn: "⬇ Excel", en: "⬇ Excel" },
-    fn_actions_l: { bn: "🖱️ বাটনও পরীক্ষা করো — প্রতিটি ফর্ম পূরণ করে সব বাটনে ক্লিক", en: "🖱️ Test buttons too — fill each form and click every button" },
+    fn_actions_l: { bn: "বাটনও পরীক্ষা করো — প্রতিটি ফর্ম পূরণ করে সব বাটনে ক্লিক", en: "Test buttons too — fill each form and click every button" },
     fn_actions_h: { bn: "শুধু Browser / Headless মোডে, আর লেখা-পরিবর্তনকারী বাটন শুধু *.osl.team টেস্ট সার্ভারে", en: "Browser / Headless only; buttons that write data are clicked only on the *.osl.team test server" },
     fn_actions_http: { bn: "HTTP মোডে সম্ভব নয়: এটি শুধু পেজের HTML নামায়, কোনো ব্রাউজার ট্যাব খোলে না — তাই পেজের JavaScript চলে না এবং ক্লিক করার মতো কিছু থাকে না। বাটন পরীক্ষা করতে Browser বা Headless মোড বেছে নাও।", en: "Not possible in HTTP mode: it only downloads the page's HTML and opens no browser tab, so the page's JavaScript never runs and there is nothing to click. Pick Browser or Headless to test buttons." },
     fn_actions_t: { bn: "প্রতিটি পেজে field ও dropdown নিজে থেকে পূরণ করে প্রতিটি বাটনে ক্লিক করে দেখে কাজ করে কি না। Save/Submit/Delete-এর মতো লেখা-পরিবর্তনকারী বাটন নিরাপত্তার জন্য শুধু *.osl.team টেস্ট সার্ভারে ক্লিক হয় — অন্য সার্ভারে কিছুই ছোঁয়া হয় না। পাসওয়ার্ড কখনো পূরণ হয় না।", en: "Fills every field and dropdown on each page, then clicks each button to see whether it works. For safety, buttons that write data (Save/Submit/Delete) are clicked only on the *.osl.team test server — on any other server nothing is touched. Passwords are never filled." },

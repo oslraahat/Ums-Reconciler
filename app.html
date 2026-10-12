@@ -632,6 +632,9 @@
   .fnact>span[data-i18n]{flex:1 1 auto}
   .fnacthint{flex:1 1 100%;margin-left:24px;font-size:11.5px;opacity:.8}
   .fnvals{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:10px}
+  /* these values only feed the button test, so they dim with it in HTTP mode */
+  .fnvals.off{opacity:.45}
+  .fnvals.off input{cursor:not-allowed}
   .fnvlbl{font-size:12px;flex:0 0 auto}
   .fnvals input{width:auto;flex:0 1 130px;min-width:90px;padding:6px 10px;font-size:13px}
   .fnacts{flex:1 1 100%;margin:4px 0 2px 26px;display:flex;flex-direction:column;gap:3px}
@@ -968,7 +971,7 @@
             <button class="btn" id="fnStop" style="height:var(--ctl-h);display:none" data-i18n="fn_stop">⏹ Stop</button>
           </div>
           <label class="fnact" data-title="fn_actions_t">
-            <input type="checkbox" id="fnActions"> <span data-i18n="fn_actions_l">🖱️ বাটনও পরীক্ষা করো — প্রতিটি ফর্ম পূরণ করে সব বাটনে ক্লিক</span>
+            <input type="checkbox" id="fnActions"> <span data-i18n="fn_actions_l">বাটনও পরীক্ষা করো — প্রতিটি ফর্ম পূরণ করে সব বাটনে ক্লিক</span>
             <span class="fnacthint mut" data-i18n="fn_actions_h">শুধু Browser / Headless মোডে, আর লেখা-পরিবর্তনকারী বাটন শুধু *.osl.team টেস্ট সার্ভারে</span>
           </label>
           <div class="fnvals" id="fnVals">
