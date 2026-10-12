@@ -341,6 +341,36 @@
 
   var results = [];   // [{menu,label,url,path,pass,reason,kind,shot}]
   var fnFilter = "all";   // all | pass | fail — clicking the summary pills filters the list
+
+  /* ── accepted failures ──
+     Some failures are known and fine (a menu that is genuinely retired, a page only one role can
+     open). Marking one keeps it out of the Fail count without pretending the check passed: the row
+     still shows WHY it failed, just as accepted. Marks are stored per server, so a re-run of the same
+     UMS keeps them and a different UMS starts clean. */
+  var fnMarks = {}, fnMarksOrigin = "";
+  function fnMarksLoad(cb) {
+    var o = ""; try { o = ORIGIN(fnBase()); } catch (e) {}
+    fnMarksOrigin = o;
+    try {
+      chrome.storage.local.get("fnMarks", function (d) {
+        var all = (d && d.fnMarks) || {};
+        fnMarks = (o && all[o]) || {};
+        if (cb) cb();
+      });
+    } catch (e) { fnMarks = {}; if (cb) cb(); }
+  }
+  function fnMarksSave() {
+    if (!fnMarksOrigin) return;
+    try {
+      chrome.storage.local.get("fnMarks", function (d) {
+        var all = (d && d.fnMarks) || {};
+        all[fnMarksOrigin] = fnMarks;
+        try { chrome.storage.local.set({ fnMarks: all }); } catch (e) {}
+      });
+    } catch (e) {}
+  }
+  function fnOk(r) { return !!(r && (r.pass || fnMarks[r.path])); }      // effective verdict
+  function fnMarked(r) { return !!(r && !r.pass && fnMarks[r.path]); }   // failed, but accepted
   var fnT0 = 0, fnTimer = null;
   function fnElapsed() {
     var s = Math.round(((fnRun ? Date.now() : fnEnd) - fnT0) / 1000); if (s < 0) s = 0;
@@ -355,7 +385,8 @@
     if (note) note.textContent = (phase || "") + (total ? "  " + done + " / " + total : "");
   }
   function fnRenderSummary() {
-    var pass = results.filter(function (r) { return r.pass; }).length;
+    var pass = results.filter(fnOk).length;          // accepted failures count as OK here
+    var marked = results.filter(fnMarked).length;    // ...but are still shown separately
     var fail = results.length - pass;
     var s = $("fnSummary"); if (!s) return;
     if (!(results.length || fnRun)) { s.innerHTML = ""; return; }
@@ -369,9 +400,16 @@
         '<span class="fnpill fntime" style="background:rgba(245,179,1,.16);color:#e0a81e"></span> '
         + '<span class="fnpill ok fnf" data-fnf="pass" title="শুধু Pass দেখাও"></span> '
         + '<span class="fnpill bad fnf" data-fnf="fail" title="শুধু Fail দেখাও"></span> '
+        + '<span class="fnpill fnf" data-fnf="marked" title="শুধু গ্রহণ-করা Fail দেখাও" style="background:rgba(245,179,1,.16);color:#e0a81e"></span> '
         + '<span class="fnpill fnf" data-fnf="all" title="সব দেখাও" style="background:rgba(127,127,127,.14);color:var(--mut)"></span>';
       tp = s.querySelector(".fntime"); pp = s.querySelector('[data-fnf="pass"]');
       fp = s.querySelector('[data-fnf="fail"]'); ap = s.querySelector('[data-fnf="all"]');
+    }
+    var mp = s.querySelector('[data-fnf="marked"]');
+    if (mp) {
+      mp.style.display = marked ? "" : "none";
+      mp.textContent = "⚑ " + marked + " গ্রহণ";
+      mp.classList.toggle("fnon", fnFilter === "marked");
     }
     if (tp) tp.style.display = fnT0 ? "" : "none";
     if (tp) tp.textContent = "⏱ " + fnElapsed();
@@ -383,14 +421,19 @@
     var box = $("fnList"); if (!box) return;
     if (!results.length) { box.innerHTML = ""; return; }
     // group by menu, fails first inside each group; honour the Pass/Fail filter
-    var shown = results.filter(function (r) { return fnFilter === "all" || (fnFilter === "pass" ? r.pass : !r.pass); });
+    var shown = results.filter(function (r) {
+      if (fnFilter === "pass") return fnOk(r);
+      if (fnFilter === "fail") return !fnOk(r);
+      if (fnFilter === "marked") return fnMarked(r);
+      return true;
+    });
     if (!shown.length) { box.innerHTML = '<div class="mut" style="padding:10px">' + (fnFilter === "fail" ? "কোনো Fail নেই 🎉" : "কিছু দেখানোর নেই") + '</div>'; return; }
     var groups = {};
     shown.forEach(function (r) { (groups[r.menu] = groups[r.menu] || []).push(r); });
     var html = "";
     Object.keys(groups).forEach(function (g) {
-      var rows = groups[g].slice().sort(function (a, b) { return (a.pass ? 1 : 0) - (b.pass ? 1 : 0); });
-      var gf = rows.filter(function (r) { return !r.pass; }).length;
+      var rows = groups[g].slice().sort(function (a, b) { return (fnOk(a) ? 1 : 0) - (fnOk(b) ? 1 : 0); });
+      var gf = rows.filter(function (r) { return !fnOk(r); }).length;
       html += '<div class="fngrp"><div class="fnghead">' + esc(g) + ' <span class="mut">(' + rows.length + ')</span>' +
         (gf ? ' <span class="fnpill bad">✗ ' + gf + '</span>' : ' <span class="fnpill ok">✓</span>') + '</div>';
       rows.forEach(function (r) {
@@ -403,11 +446,19 @@
               '</div>';
           }).join("") + '</div>';
         }
-        html += '<div class="fnrow ' + (r.pass ? "p" : "f") + '">' +
-          '<span class="fnst">' + (r.pass ? "✓" : "✗") + '</span>' +
+        // A failed row carries a toggle on the right so a known-OK failure can be accepted. A marked
+        // row still shows its reason — it is "accepted", not "passed".
+        var mk = fnMarked(r), cls = r.pass ? "p" : (mk ? "m" : "f");
+        var btn = r.pass ? "" :
+          '<button class="fnmark' + (mk ? " on" : "") + '" data-mp="' + esc(r.path) + '" title="' +
+          (mk ? "আবার Fail হিসেবে গণ্য করো" : "এই Fail জানা ও গ্রহণযোগ্য — Pass ধরো") + '">' +
+          (mk ? "↩ Fail" : "✓ Pass ধরো") + '</button>';
+        html += '<div class="fnrow ' + cls + '">' +
+          '<span class="fnst">' + (r.pass ? "✓" : (mk ? "⚑" : "✗")) + '</span>' +
           '<a class="fnlk" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.label) + '</a>' +
           '<span class="fnpath mut">' + esc(r.path) + '</span>' +
           (r.shot ? '<a class="fnshot" href="' + r.shot + '" target="_blank" title="স্ক্রিনশট — খুলতে ক্লিক করো">📷 Screenshot ↗</a>' : "") +
+          btn +
           (r.pass ? "" : '<span class="fnwhy">' + esc(r.reason) + '</span>') +
           acts +
           '</div>';
@@ -504,6 +555,7 @@
   async function fnStart() {
     if (fnRun) return;
     fnAborted = false;
+    fnMarksLoad();   // accepted failures for THIS server, so a re-run keeps them accepted
     var gen = ++fnGen;   // this run's identity — every check below is scoped to it
     fnRun = { stop: false, paused: false };
     // Hold a port open for the run. If this panel is closed mid-run the port disconnects and the
@@ -676,8 +728,11 @@
     var header = ["Menu", "Action", "Path", "Status", "Reason", "Button", "Link"];
     var mat = [], colors = [];
     results.forEach(function (r) {
-      mat.push([r.menu, r.label, r.path, r.pass ? "Pass" : "Fail", r.reason, "", r.url]);
-      colors.push(r.pass ? "g" : "r");
+      // an accepted failure exports as "Accepted" (amber) and KEEPS its original reason, so the
+      // spreadsheet never hides what actually happened
+      var mk = fnMarked(r);
+      mat.push([r.menu, r.label, r.path, r.pass ? "Pass" : (mk ? "Accepted" : "Fail"), r.reason, "", r.url]);
+      colors.push(r.pass ? "g" : (mk ? "y" : "r"));
       (r.actions || []).forEach(function (a) {
         mat.push([r.menu, r.label, r.path, a.pass ? "Pass" : "Fail", a.reason, a.label, r.url]);
         colors.push(a.pass ? "g" : "r");
@@ -702,6 +757,16 @@
       var p = e.target && e.target.closest && e.target.closest("[data-fnf]");
       if (!p) return;
       fnFilter = p.getAttribute("data-fnf") || "all";
+      fnRenderSummary(); fnRenderList();
+    });
+    // accept / un-accept a failure (delegated, so it keeps working as the list re-renders mid-run)
+    if ($("fnList")) $("fnList").addEventListener("click", function (e) {
+      var b = e.target && e.target.closest && e.target.closest(".fnmark");
+      if (!b) return;
+      var path = b.getAttribute("data-mp") || "";
+      if (!path) return;
+      if (fnMarks[path]) delete fnMarks[path]; else fnMarks[path] = 1;
+      fnMarksSave();
       fnRenderSummary(); fnRenderList();
     });
     if ($("fnHttp")) $("fnHttp").addEventListener("click", function () { fnSetMode("http"); });

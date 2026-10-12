@@ -600,6 +600,19 @@
   .fnwhy{color:#e14b5e;font-size:12px;flex:1 1 100%;margin-left:26px}
   .fnshot{margin-left:auto;flex:0 0 auto;font-size:12px;font-weight:700;color:#9a8cff;text-decoration:none;white-space:nowrap}
   .fnshot:hover{text-decoration:underline;color:#b7acff}
+  /* accepted failure: amber, between pass-green and fail-red — still a failure, just a known one */
+  .fnrow.m{background:rgba(245,179,1,.06)}
+  .fnrow.m .fnst{color:#e0a81e}
+  .fnrow.m .fnwhy{color:#b08a2e}
+  /* "mark as pass" toggle, pinned right. margin-left:auto only when it is the first right-side item,
+     so it sits next to the screenshot link when both are present */
+  .fnmark{margin-left:auto;flex:0 0 auto;font-size:11px;font-weight:700;white-space:nowrap;cursor:pointer;
+    padding:2px 8px;border-radius:4px;border:1px solid rgba(127,127,127,.35);
+    background:rgba(127,127,127,.10);color:var(--mut)}
+  .fnshot ~ .fnmark{margin-left:8px}
+  .fnmark:hover{border-color:rgba(47,163,104,.6);color:#2fa368;background:rgba(47,163,104,.10)}
+  .fnmark.on{border-color:rgba(217,158,0,.55);background:rgba(245,179,1,.14);color:#e0a81e}
+  .fnmark.on:hover{border-color:rgba(225,75,94,.6);color:#e14b5e;background:rgba(255,90,110,.10)}
   #fnPause{background:rgba(245,179,1,.14);border-color:rgba(217,158,0,.55);color:#e0a81e;font-weight:700}
   #fnPause:hover{background:rgba(245,179,1,.24);border-color:#d99e00}
   #fnStop{background:rgba(255,90,110,.12);border-color:rgba(225,75,94,.5);color:#e14b5e}
