@@ -130,6 +130,35 @@
   }
   function fnMenuRank(path) { var i = MENU_ORDER.indexOf(fnTopMenu(path)); return i < 0 ? MENU_ORDER.length : i; }
 
+  /* ---- the Area picker ---- */
+  // Which top-level menus this run covers. Empty means every one of them — that is also what the
+  // box ships as, so a user who never opens the picker keeps the old whole-site behaviour.
+  var fnAreas = [];
+  function fnAreaWanted(path) { return !fnAreas.length || fnAreas.indexOf(fnTopMenu(path)) >= 0; }
+  // Read the ticks into fnAreas, repaint the summary, and keep "All areas" honest: it is on exactly
+  // when nothing else is, because those two say the same thing and must not both look chosen.
+  function fnAreaSync(save) {
+    var boxes = document.querySelectorAll(".fnareabox");
+    var picked = [];
+    for (var i = 0; i < boxes.length; i++) if (boxes[i].checked) picked.push(boxes[i].value);
+    fnAreas = picked;
+    var all = $("fnAreaAll");
+    if (all) all.checked = !picked.length;
+    var sum = $("fnAreaSum");
+    if (sum) {
+      sum.textContent = !picked.length ? t("fn_area_all")
+        : (picked.length === 1 ? t("fn_area_" + picked[0].toLowerCase())
+                               : String(picked.length) + t("fn_area_n"));
+    }
+    if (save) { try { chrome.storage.local.set({ fnAreas: fnAreas }); } catch (e) {} }
+  }
+  function fnAreaRestore(list) {
+    var want = {}; (list || []).forEach(function (a) { want[a] = 1; });
+    var boxes = document.querySelectorAll(".fnareabox");
+    for (var i = 0; i < boxes.length; i++) boxes[i].checked = !!want[boxes[i].value];
+    fnAreaSync(false);
+  }
+
   /* Pull EVERY link out of the page — menus, sub-menus and any other navigational <a href>. Server-
      rendered UMS keeps every sidebar/submenu <a> in the markup (collapsed ones are only hidden by
      CSS), and sub-menus can sit outside the main nav container, so the whole document is scanned
@@ -364,7 +393,7 @@
     el.textContent = fnConnState === "ok" ? t("fn_logged") : fnConnState === "no" ? t("fn_notlogged") : fnConnState === "chk" ? t("fn_conn_chk") : "";
   }
   // re-render everything this module writes from JS (data-i18n only covers the static markup)
-  function fnRelang() { fnSetConn(fnConnState); fnSetMode(fnMode); fnRenderSummary(); fnRenderList(); }
+  function fnRelang() { fnSetConn(fnConnState); fnSetMode(fnMode); fnAreaSync(false); fnRenderSummary(); fnRenderList(); }
   function fnCheckConn() {
     var base = fnBase(), mine = ++fnConnSeq;
     fnSetConn("chk");
@@ -637,7 +666,11 @@
       var roots = {};   // top menu -> its shortest landing path found in the home nav
       links.forEach(function (l) {
         var tm = fnTopMenu(l.path);
-        if (tm !== "Student" && tm !== "Other" && (!roots[tm] || l.path.length < roots[tm].length)) roots[tm] = l.path;
+        if (tm === "Student" || tm === "Other") return;
+        // A section the user did not tick is never opened at all — that is where the time goes, so
+        // a narrowed run is genuinely shorter rather than crawling everything and filtering after.
+        if (!fnAreaWanted(l.path)) return;
+        if (!roots[tm] || l.path.length < roots[tm].length) roots[tm] = l.path;
       });
       var rootList = Object.keys(roots);
       for (var ri = 0; ri < rootList.length; ri++) {
@@ -654,6 +687,12 @@
       $("fnNote").textContent = t("fn_fail") + " — " + String(e && e.message || e); fnDone(gen); return;
     }
     if (!links.length) { $("fnNote").textContent = t("fn_nomenu"); fnDone(gen); return; }
+    // Keep only the ticked areas. The sections above were already skipped, but the home page hands
+    // back Student's whole sidebar and the top-nav links whatever is ticked, so they are dropped here.
+    if (fnAreas.length) {
+      links = links.filter(function (l) { return fnAreaWanted(l.path); });
+      if (!links.length) { $("fnNote").textContent = t("fn_area_none"); fnDone(gen); return; }
+    }
     // check in the menu serial the user wants: Student → Administration → Exam → Teacher → CRM →
     // Team → Inventory (stable, so sub-menu order within each menu is kept as the page listed them)
     links.sort(function (a, b) { return fnMenuRank(a.path) - fnMenuRank(b.path); });
@@ -831,6 +870,23 @@
       fnWantActions = this.checked;   // only reachable while enabled, so this is always a real choice
       try { chrome.storage.local.set({ fnActions: fnWantActions }); } catch (e) {}
     });
+    // Area picker. Delegated, so the per-area boxes and "All areas" share one handler: ticking All
+    // clears the rest (they mean the same thing), and ticking any area clears All.
+    if ($("fnAreaMenu")) $("fnAreaMenu").addEventListener("change", function (e) {
+      var el = e.target;
+      if (!el || el.type !== "checkbox") return;
+      if (el.id === "fnAreaAll") {
+        var boxes = document.querySelectorAll(".fnareabox");
+        for (var i = 0; i < boxes.length; i++) boxes[i].checked = false;
+        el.checked = true;            // clicking All off would leave nothing saying what runs
+      }
+      fnAreaSync(true);
+    });
+    // The menu is a <details>; without this it stays open behind the rest of the panel once opened.
+    document.addEventListener("click", function (e) {
+      var dd = $("fnAreaDd");
+      if (dd && dd.open && !dd.contains(e.target)) dd.open = false;
+    });
     var VKEYS = { fnRoll: "fnRoll", fnReg: "fnReg", fnMobile: "fnMobile", fnTpin: "fnTpin", fnPin: "fnPin" };
     // Roll/Reg/Mobile keep a native <datalist> of numbers used before — selecting one RELIABLY sets
     // the field, unlike the browser's flaky tel-autofill (same trick as New Admission's mobile box).
@@ -860,8 +916,9 @@
       ["input", "change", "blur"].forEach(function (ev) { $("fnBase").addEventListener(ev, onBase); });
     }
     try {
-      chrome.storage.local.get(["fnMode", "fnSpeed", "fnActions", "fnBaseUrl", "fnRolls", "fnRegs", "fnMobiles"].concat(Object.keys(VKEYS)), function (o) {
+      chrome.storage.local.get(["fnMode", "fnSpeed", "fnActions", "fnAreas", "fnBaseUrl", "fnRolls", "fnRegs", "fnMobiles"].concat(Object.keys(VKEYS)), function (o) {
         fnWantActions = !!(o && o.fnActions);   // set BEFORE fnSetMode, which decides what the box shows
+        fnAreaRestore(o && o.fnAreas);
         fnSetMode(o && o.fnMode);
         fnSetSpeed(o && o.fnSpeed);
         if (o && o.fnBaseUrl && $("fnBase")) $("fnBase").value = o.fnBaseUrl;
@@ -869,12 +926,13 @@
         Object.keys(DL).forEach(function (id) { fillDl(DL[id].dl, (o && o[DL[id].key]) || []); });
         fnCheckConn();   // check login with the restored address
       });
-    } catch (e) { fnSetMode("http"); fnCheckConn(); }
+    } catch (e) { fnAreaSync(false); fnSetMode("http"); fnCheckConn(); }
   }
 
   A.fn = { wire: fnWire, start: fnStart, stop: fnStop, setMode: fnSetMode, relang: fnRelang,
     // true while a sweep is in progress — reload / Update must warn before throwing it away
     busy: function () { return !!fnRun; },
     // pure helpers exposed for tests
-    parseNav: fnParseNav, classify: fnClassify, classifyProbe: fnClassifyProbe };
+    parseNav: fnParseNav, classify: fnClassify, classifyProbe: fnClassifyProbe,
+    topMenu: fnTopMenu, areaWanted: fnAreaWanted };
 })();
