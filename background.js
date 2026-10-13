@@ -613,10 +613,27 @@ async function fnActionProbe(opts) {
   opts = opts || {};
   function vis(el) { return !!(el && (el.offsetParent || el.offsetWidth || el.offsetHeight)); }
   function fire(el, type) { try { el.dispatchEvent(new Event(type, { bubbles: true })); } catch (e) {} }
+  /* Validation and breakage are not the same news. A form that answers "Roll No. should be 7 digits"
+     has WORKED: the button fired, the value this probe invented was rejected, and the page is fine.
+     Failing the button for that buries the real failures — with write buttons on, nearly every Submit
+     would "fail" on made-up values. So the kind travels with the text, and only a real error fails. */
+  /* The container cannot tell the two apart: UMS puts "Roll No. should be 7/11 digit number" in the
+     very same div.alert-danger it uses for a real failure. So the WORDING decides. A complaint about
+     the value we invented means the button fired and the page is fine; anything else still fails.
+     Fail-closed on purpose — a message is only downgraded when it clearly reads as validation, and
+     never when it carries an exception marker. */
+  var SAYS_VALIDATION = /(is |are )?required|should be|must be|can ?not be|cannot be|invalid|already exist|please (select|enter|provide|choose)|digit|character|minimum|maximum|at least|আবশ্যক|দিতে হবে|সঠিক নয়|নির্বাচন কর|পূরণ কর/i;
+  var SAYS_BREAKAGE = /exception|stack trace|object reference|server error|runtime error|nullreference|sqlexception|timeout|could not load|parser error|500/i;
   function pageErr() {
-    var c = document.querySelectorAll(".validation-summary-errors, .alert-danger, .exception, .swal2-html-container, .toast-error, .field-validation-error");
-    for (var i = 0; i < c.length; i++) { var el = c[i]; if (!vis(el)) continue; var tx = (el.textContent || "").replace(/\s+/g, " ").trim(); if (tx) return tx; }
-    return "";
+    var c = document.querySelectorAll(".validation-summary-errors, .field-validation-error, .alert-danger, .exception, .swal2-html-container, .toast-error");
+    for (var i = 0; i < c.length; i++) {
+      var el = c[i]; if (!vis(el)) continue;
+      var tx = (el.textContent || "").replace(/\s+/g, " ").trim();
+      if (!tx) continue;
+      var isVal = SAYS_VALIDATION.test(tx) && !SAYS_BREAKAGE.test(tx);
+      return { text: tx, validation: isVal };
+    }
+    return null;
   }
   var actions = [];
   try {
@@ -820,7 +837,14 @@ async function fnActionProbe(opts) {
       if (location.href !== before) { actions.push({ label: label, pass: true, reason: "action triggered (পেজ বদলেছে)" }); navAway = true; continue; }
       var er = pageErr();
       var ce = ""; try { if (window.__fnErr && window.__fnErr.length) ce = window.__fnErr.slice(0, 2).join(" | "); } catch (e) {}
-      if (er) { actions.push({ label: label, pass: false, reason: "error: " + er.slice(0, 70) }); continue; }
+      // the form answered about the value, so the button fired and the page is fine — said plainly
+      // rather than counted as a failure
+      if (er && er.validation) {
+        actions.push({ label: label, pass: true, validation: true,
+          reason: "ভ্যালিডেশন: " + er.text.slice(0, 70) });
+        continue;
+      }
+      if (er) { actions.push({ label: label, pass: false, reason: "error: " + er.text.slice(0, 70) }); continue; }
       if (ce) { actions.push({ label: label, pass: false, reason: "JS error: " + ce.slice(0, 70) }); continue; }
       if (isNavLink) { actions.push({ label: label, pass: true, reason: "লিংক বাটন — নেভিগেশন আটকানো হয়েছে (error নেই)" }); continue; }
       if (isView) {

@@ -594,7 +594,11 @@
         var acts = "";
         if (r.actions && r.actions.length) {
           acts = '<div class="fnacts">' + r.actions.map(function (a) {
-            return '<div class="fnactrow ' + (a.pass ? "p" : "f") + '"><span class="fnst">' + (a.pass ? "✓" : "✗") +
+            // A validation answer passes — the button fired — but it is not the same as "ok": the
+            // value the probe made up was rejected, which the reader may want to follow up. So it
+            // gets its own mark instead of hiding among the ticks.
+            var cls = a.validation ? "v" : (a.pass ? "p" : "f");
+            return '<div class="fnactrow ' + cls + '"><span class="fnst">' + (a.validation ? "!" : (a.pass ? "✓" : "✗")) +
               '</span><span class="fnactlbl">' + esc(a.label) + '</span><span class="fnactwhy">— ' + esc(a.reason) + '</span>' +
               (a.shot ? '<a class="fnshot" href="' + a.shot + '" target="_blank" title="স্ক্রিনশট — খুলতে ক্লিক করো">📷 Screenshot ↗</a>' : "") +
               '</div>';
