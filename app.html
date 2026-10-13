@@ -639,10 +639,24 @@
   /* Which top-level UMS menus the sweep covers. A <details> holding checkboxes rather than a
      <select multiple>: the native one needs ctrl-click to add a second item and loses the lot on a
      plain click, which is the wrong gesture for "tick the areas you want". */
-  .fnarea{display:flex;align-items:center;gap:8px 14px;flex-wrap:wrap;margin-top:12px;font-size:13px;color:var(--mut)}
-  /* the button-test switch rides on this same row, so it drops its own top margin and takes the
-     space left over; below ~560px it wraps to its own line instead of squeezing the dropdown */
-  .fnarea>.fnact{margin-top:0;flex:1 1 300px;min-width:250px}
+  /* One row, three parts: a label, the dropdown, and the button-test switch. They read as one row
+     only if each occupies the same control-height band. Otherwise the switch's hint line makes its
+     box the tallest thing here, that box sets the row height, and the label drifts to the middle of
+     it while the switch's own text stays at the top — three baselines on one line. So every part is
+     at least --ctl-h tall and centres inside it, and the hint hangs below the band. */
+  .fnarea{display:flex;align-items:flex-start;gap:6px 14px;flex-wrap:wrap;margin-top:12px;
+    font-size:13px;color:var(--mut)}
+  .fnarea>.fnvlbl{display:inline-flex;align-items:center;min-height:var(--ctl-h);flex:0 0 auto}
+  .fnarea>.fnaread{flex:0 0 auto}
+  /* the switch becomes a 2-row grid: tick + label on the band, hint directly under the label rather
+     than indented by a guessed 24px */
+  .fnarea>.fnact{margin-top:0;flex:1 1 300px;min-width:250px;min-height:var(--ctl-h);max-width:none;
+    display:grid;grid-template-columns:auto 1fr;align-content:center;column-gap:8px;row-gap:1px}
+  .fnarea>.fnact>input{grid-area:1/1;margin:0;align-self:center}
+  /* the hint carries data-i18n too, so it has to be excluded here or both spans land in the same
+     cell and the two lines render on top of each other */
+  .fnarea>.fnact>span[data-i18n]:not(.fnacthint){grid-area:1/2;align-self:center}
+  .fnarea>.fnact>.fnacthint{grid-area:2/2;margin-left:0}
   .fnaread{position:relative}
   .fnaread>summary{display:inline-flex;align-items:center;gap:8px;height:var(--ctl-h);padding:0 11px;
     border:1px solid var(--line);border-radius:9px;background:var(--fld);cursor:pointer;list-style:none;
@@ -651,9 +665,12 @@
   .fnaread>summary::after{content:"▾";font-size:11px;color:var(--mut)}
   .fnaread[open]>summary::after{content:"▴"}
   .fnaread>summary:hover{border-color:var(--accent)}
+  /* the same elevation the app's other popups use — a heavier shadow read as a different component,
+     and sat badly on the light theme. The cap is above the eight areas, so the list only scrolls if
+     more are ever added rather than always showing a scrollbar for a list that nearly fits. */
   .fnareamenu{position:absolute;z-index:40;top:calc(100% + 4px);left:0;min-width:215px;padding:6px;
     border:1px solid var(--line);border-radius:10px;background:var(--card);
-    box-shadow:0 12px 34px rgba(0,0,0,.45);max-height:320px;overflow:auto}
+    box-shadow:0 8px 24px rgba(0,0,0,.25);max-height:380px;overflow:auto}
   .fnareamenu label{display:flex;align-items:center;gap:9px;padding:7px 9px;border-radius:7px;
     cursor:pointer;font-size:13px;font-weight:500;color:var(--text)}
   .fnareamenu label:hover{background:rgba(255,255,255,.06)}
