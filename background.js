@@ -622,7 +622,12 @@ async function fnActionProbe(opts) {
      the value we invented means the button fired and the page is fine; anything else still fails.
      Fail-closed on purpose — a message is only downgraded when it clearly reads as validation, and
      never when it carries an exception marker. */
-  var SAYS_VALIDATION = /(is |are )?required|should be|must be|can ?not be|cannot be|invalid|already exist|please (select|enter|provide|choose)|digit|character|minimum|maximum|at least|আবশ্যক|দিতে হবে|সঠিক নয়|নির্বাচন কর|পূরণ কর/i;
+  /* Widened after a real headless run with the buttons on: "select atleast one criteria" and "No
+     TeamMember Found To Operate This Operation" were both counted as broken buttons. Neither is —
+     the first asks for input, the second says this account's data does not suit the operation. So
+     "please" is no longer required before select/enter/choose, UMS's own spelling "atleast" is
+     allowed, and "no … found" counts as the app answering rather than failing. */
+  var SAYS_VALIDATION = /(is |are )?required|should be|must be|can ?not be|cannot be|invalid|already exist|(please )?(select|enter|provide|choose)\b|digit|character|minimum|maximum|at ?least|no [a-z ]{0,30}(found|available)|not found to|আবশ্যক|দিতে হবে|সঠিক নয়|নির্বাচন কর|পূরণ কর|পাওয়া যায়নি/i;
   var SAYS_BREAKAGE = /exception|stack trace|object reference|server error|runtime error|nullreference|sqlexception|timeout|could not load|parser error|500/i;
   function pageErr() {
     var c = document.querySelectorAll(".validation-summary-errors, .field-validation-error, .alert-danger, .exception, .swal2-html-container, .toast-error");

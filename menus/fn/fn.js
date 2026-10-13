@@ -805,9 +805,19 @@
       fnProgress(0, total, t("fn_visiting"));
       await pool(links, function () { return pace().conc; }, function (link) {
         var slot = freeSlots.length ? freeSlots.pop() : 0;
-        return fnVisit(link.url, fnMode, base, doActions, vals, slot, pace(), gen).then(function (v) {
+        return fnVisit(link.url, fnMode, base, doActions, vals, slot, pace(), gen).then(async function (v) {
           freeSlots.push(slot);
           var c = (v && v.ok) ? fnClassifyProbe(v.probe) : { pass: false, reason: "লোড হয়নি" + (v && v.error ? " — " + v.error : ""), kind: "net" };
+          /* A 404 told as "Frame with ID 0 is showing error page" is Chrome explaining its own API to
+             the wrong audience: that string is what executeScript says when the tab is on an error
+             page, and it names neither the status nor the address. HTTP mode words the same page as
+             "HTTP 404 — nothing at this address", so ask it and use its answer. */
+          if (!c.pass && c.kind === "net" && /error page|cannot access|no tab with id|frame with id/i.test(c.reason || "")) {
+            try {
+              var http = await fnCheckUrl(link);
+              if (http && http.kind === "http") { c = { pass: http.pass, reason: http.reason, help: http.help, kind: http.kind }; }
+            } catch (e) {}
+          }
           var row = Object.assign({}, link, c);
           if (v && v.ok && v.probe && v.probe.actions) row.actions = v.probe.actions;
           if (v && v.ok && v.probe && v.probe.warnText) row.warn = v.probe.warnText;   // noted, never fails the row
