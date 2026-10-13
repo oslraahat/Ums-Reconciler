@@ -113,6 +113,33 @@
   var SKIP_HREF = /(log\s*-?\s*(out|off)|sign\s*-?\s*out|\/account\/log|\/logout|\/logoff|delete|remove|destroy|\bdrop\b|approve|activate|deactivate|\bvoid\b|\benable\b|\bdisable\b|\breset\b|generate|\bsend\b|export|download|\/print|\.(pdf|xlsx?|csv|zip|docx?|pptx?|png|jpe?g|gif)(\?|$))/i;
   var ORIGIN = function (u) { try { return new URL(u).origin; } catch (e) { return ""; } };
 
+  /* Matching those words anywhere in the path skipped real pages, because in UMS the word usually
+     names the CONTROLLER, not the action that runs: /Administration/GenerateExamCache/Index is a
+     page called Index, and /Exam/ExamMcqQuestionSetPrint/PrintReport is a report ABOUT printing.
+     A sweep of ums-3/ums-4 dropped 38 links this way, and 20 of them are URLs the Selenium suite
+     itself opens as pages. So the word has to sit in the ACTION — the last path segment, which is
+     what ASP.NET actually invokes — and an action whose name ends in a view word is a page whatever
+     else the path says. Ambiguous ones are still not opened; they are reported as skipped instead,
+     because a GET of e.g. /BulkUserLogout/BulkLogout really would log everyone out. */
+  var VIEW_ACTION = /(index|manage|report|logs?|list|dashboard|details|summary|statistics|analyz(e|er)|permission|history|settings?)$/i;
+  function fnSkipHref(path) {
+    var clean = String(path || "").split("#")[0];
+    var noQuery = clean.split("?")[0];
+    // a file download is decided by the whole path, not the action name
+    if (/\.(pdf|xlsx?|csv|zip|docx?|pptx?|png|jpe?g|gif)(\?|$)/i.test(clean)) return true;
+    var parts = noQuery.split("/").filter(Boolean);
+    // MVC puts the id last — /Exam/Thing/Delete/42 — so a trailing id must not hide the action
+    // behind it, or the one case this guard exists for walks straight through.
+    while (parts.length > 1 && /^(\d+|[0-9a-f-]{8,})$/i.test(parts[parts.length - 1])) parts.pop();
+    var seg = parts.pop() || "";
+    if (!seg) return false;
+    if (VIEW_ACTION.test(seg)) return false;
+    return SKIP_HREF.test("/" + seg);
+  }
+  // Links this run refused to open, so the panel can show them instead of quietly covering 734 of
+  // 772 links and leaving the rest invisible.
+  var fnSkipped = [];
+
   /* The top-level UMS menu a path belongs to, and the order the user wants them checked in:
      Student → Administration → Exam → Teacher → CRM → Team → Inventory. CRM lives UNDER /Student
      (…/CrmConversation/…), so it is matched first; Team is /Hr, Inventory is /UInventory. */
@@ -200,6 +227,15 @@
     var hint = fnQueryHint(path); if (hint) extra.push(hint);
     return extra.length ? base + " — " + extra.join(" · ") : base;
   }
+  // Why a link was refused, in the words the reader needs: what it looked like, so they can judge
+  // whether it is actually a page the sweep should have covered.
+  function fnNoteSkip(path, label) {
+    if (fnSkipped.some(function (s) { return s.path === path; })) return;
+    var why = /\.(pdf|xlsx?|csv|zip|docx?|pptx?|png|jpe?g|gif)(\?|$)/i.test(path) ? "file"
+      : /log\s*-?\s*(out|off)|sign\s*-?\s*out/i.test(path) ? "logout" : "action";
+    fnSkipped.push({ path: path, label: label || "", why: why, menu: fnTopMenu(path) });
+  }
+
   function fnParseNav(html, baseUrl) {
     var origin = ORIGIN(baseUrl);
     var doc;
@@ -217,8 +253,12 @@
       if (ORIGIN(url) !== origin) continue;              // same site only
       var path = url.slice(origin.length);
       if (path === "" || path === "/") continue;         // the home page itself
-      if (SKIP_HREF.test(path)) continue;                // logout / delete / export / files
-      var key = url.split("#")[0];
+      var key0 = url.split("#")[0];
+      if (fnSkipHref(path)) {                            // logout / delete / files — and say so
+        if (!seen[key0]) { seen[key0] = 1; fnNoteSkip(path, (a.textContent || "").replace(/\s+/g, " ").trim()); }
+        continue;
+      }
+      var key = key0;
       if (seen[key]) continue; seen[key] = 1;
       var label = (a.textContent || "").replace(/\s+/g, " ").trim();
       out.push({ menu: fnGroupOf(a), label: fnNiceName(label, path), url: key, path: path });
@@ -234,7 +274,7 @@
       var furl; try { furl = new URL(act, baseUrl).href; } catch (e) { continue; }
       if (ORIGIN(furl) !== origin) continue;
       var fpath = furl.slice(origin.length);
-      if (fpath === "" || fpath === "/" || SKIP_HREF.test(fpath)) continue;
+      if (fpath === "" || fpath === "/" || fnSkipHref(fpath)) continue;
       var fkey = furl.split("#")[0];
       if (seen[fkey]) continue; seen[fkey] = 1;
       var sb = f.querySelector('[type="submit"], button');
@@ -478,6 +518,7 @@
         + '<span class="fnpill ok fnf" data-fnf="pass" title="শুধু Pass দেখাও"></span> '
         + '<span class="fnpill bad fnf" data-fnf="fail" title="শুধু Fail দেখাও"></span> '
         + '<span class="fnpill fnf" data-fnf="marked" style="background:rgba(245,179,1,.16);color:#e0a81e"></span> '
+        + '<span class="fnpill fnf" data-fnf="skipped" style="background:rgba(91,140,255,.16);color:#7ba2ff"></span> '
         + '<span class="fnpill fnf" data-fnf="all" title="সব দেখাও" style="background:rgba(127,127,127,.14);color:var(--mut)"></span>';
       tp = s.querySelector(".fntime"); pp = s.querySelector('[data-fnf="pass"]');
       fp = s.querySelector('[data-fnf="fail"]'); ap = s.querySelector('[data-fnf="all"]');
@@ -489,6 +530,15 @@
       mp.title = t("fn_accepted_t");
       mp.classList.toggle("fnon", fnFilter === "marked");
     }
+    // Skipped links are part of the answer, not an omission: without this the panel says "734 pages"
+    // and never mentions the 38 it would not open.
+    var sp = s.querySelector('[data-fnf="skipped"]');
+    if (sp) {
+      sp.style.display = fnSkipped.length ? "" : "none";
+      sp.textContent = "⤼ " + fnSkipped.length + " " + t("fn_skipped");
+      sp.title = t("fn_skipped_t");
+      sp.classList.toggle("fnon", fnFilter === "skipped");
+    }
     if (tp) tp.style.display = fnT0 ? "" : "none";
     if (tp) tp.textContent = "⏱ " + fnElapsed();
     pp.textContent = "✓ " + pass + " Pass"; pp.classList.toggle("fnon", fnFilter === "pass");
@@ -498,6 +548,32 @@
   function fnRenderList() {
     var box = $("fnList"); if (!box) return;
     if (!results.length) { box.innerHTML = ""; return; }
+
+    // The skipped list is its own view: these were never opened, so they have no Pass/Fail to sort
+    // among the rest. Shown so a page that only LOOKS like an action can be spotted and checked by
+    // hand — about half of what UMS drops here turned out to be real pages.
+    if (fnFilter === "skipped") {
+      if (!fnSkipped.length) { box.innerHTML = '<div class="mut" style="padding:10px">' + t("fn_skip_none") + '</div>'; return; }
+      var sg = {};
+      fnSkipped.forEach(function (s) { (sg[s.menu] = sg[s.menu] || []).push(s); });
+      var shtml = '<div class="mut" style="padding:8px 2px 10px;font-size:12.5px">' + esc(t("fn_skip_intro")) + '</div>';
+      Object.keys(sg).forEach(function (g) {
+        shtml += '<div class="fngrp"><div class="fnghead">' + esc(g) + ' <span class="mut">(' + sg[g].length + ')</span></div>';
+        sg[g].forEach(function (s) {
+          // same row vocabulary as a result row, so the two lists read alike: mark, link, path, why
+          shtml += '<div class="fnrow">' +
+            '<span class="fnst mut">⤼</span>' +
+            '<a class="fnlk" href="' + esc(fnBase().replace(/\/$/, "") + s.path) + '" target="_blank" rel="noopener">' +
+            esc(s.label || s.path) + '</a>' +
+            '<span class="fnpath mut">' + esc(s.path) + '</span>' +
+            '<span class="fnwhy">' + esc(t("fn_skip_" + s.why)) + '</span></div>';
+        });
+        shtml += "</div>";
+      });
+      box.innerHTML = shtml;
+      return;
+    }
+
     // group by menu, fails first inside each group; honour the Pass/Fail filter
     var shown = results.filter(function (r) {
       if (fnFilter === "pass") return fnOk(r);
@@ -641,7 +717,7 @@
     // Hold a port open for the run. If this panel is closed mid-run the port disconnects and the
     // background closes the visit tab/window — otherwise it would be orphaned in the user's window.
     try { fnPort = chrome.runtime.connect({ name: "fnrun" }); } catch (e) { fnPort = null; }
-    results = []; fnFilter = "all";
+    results = []; fnFilter = "all"; fnSkipped = [];   // skips belong to this run, not the last one
     fnT0 = Date.now(); fnEnd = 0;
     if (fnTimer) clearInterval(fnTimer);
     fnTimer = setInterval(fnRenderSummary, 1000);   // live elapsed clock
@@ -934,5 +1010,6 @@
     busy: function () { return !!fnRun; },
     // pure helpers exposed for tests
     parseNav: fnParseNav, classify: fnClassify, classifyProbe: fnClassifyProbe,
-    topMenu: fnTopMenu, areaWanted: fnAreaWanted };
+    topMenu: fnTopMenu, areaWanted: fnAreaWanted, skipHref: fnSkipHref,
+    skipped: function () { return fnSkipped.slice(); } };
 })();
