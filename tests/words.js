@@ -127,8 +127,19 @@ const keys = Object.keys(DICT);
   });
   (SRC.match(/\bt\("([a-zA-Z0-9_]+)"\)/g) || []).forEach(function (m) { asked.add(m.slice(3, -2)); });
   /* the ones a literal cannot name: built from a status, chosen by a conditional, or an s_ twin */
+  /* a family built from a value - t("fn_skip_" + why) - can never name its members literally */
+  const famPrefix = [];
+  SRC.split("t(\"").slice(1).forEach(function (s) {
+    const q = s.indexOf("\"");
+    if (q < 1) return;
+    const key = s.slice(0, q);
+    let after = s.slice(q + 1);
+    while (after.charAt(0) === " ") after = after.slice(1);
+    if (after.charAt(0) === "+" && key.charAt(key.length - 1) === "_") famPrefix.push(key);
+  });
   const reachable = function (k) {
     if (asked.has(k)) return true;
+    if (famPrefix.some(function (p) { return k.indexOf(p) === 0 && k.length > p.length; })) return true;
     if (k.indexOf("s_") === 0 && asked.has(k.slice(2))) return true;
     if (/^s?_?pill_/.test(k)) return true;
     if (k === "conn_exp" || k === "conn_act") return true;

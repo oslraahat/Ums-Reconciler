@@ -113,5 +113,20 @@ const cl = (res) => U.classify(res, BASE);
   check("probe: no result at all → Fail", none.pass === false, none.reason);
 }
 
+/* Which AREA a page belongs to is no longer cosmetic: the area picker uses it to decide what gets
+   opened at all, so a page filed under the wrong area is never checked and nobody is told. The CRM
+   test is deliberately loose (CRM lives outside a /crm prefix too), which is why it must run LAST -
+   otherwise /Student/Report/CrmWiseStudent counts as CRM and a Student-only sweep skips it. */
+{
+  const area = (p, want) => check('area: ' + p + ' -> ' + want, U.topMenu(p) === want, U.topMenu(p));
+  area('/Student/Report/CrmWiseStudent', 'Student');   // the regression this pins
+  area('/Administration/CrmSettings', 'Administration');
+  area('/CRM/Lead/Index', 'CRM');                      // a real CRM page still lands in CRM
+  area('/Crm/Dashboard', 'CRM');
+  area('/Student/Admission/NewAdmission', 'Student');
+  area('/Hr/TeamMemberProfile/Index', 'Team');
+  area('/Dashboard', 'Other');
+}
+
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
 process.exit(fail ? 1 : 0);

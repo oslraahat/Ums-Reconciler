@@ -146,13 +146,18 @@
   var MENU_ORDER = ["Student", "Administration", "Exam", "Teacher", "CRM", "Team", "Inventory", "Other"];
   function fnTopMenu(path) {
     var p = String(path || "").toLowerCase();
-    if (/crm/.test(p)) return "CRM";
+    // Bucket by the area a page actually LIVES in, i.e. its first path segment. The loose CRM test
+    // used to run FIRST, so any URL merely containing "crm" - /Student/Report/CrmWiseStudent - was
+    // filed under CRM. That was a cosmetic grouping wart until areas began deciding what gets opened
+    // at all; after that it silently skipped real Student pages. It now runs last, so a CRM page
+    // outside a /crm prefix is still caught, but only once no real area prefix has claimed it.
     if (/^\/administration/.test(p)) return "Administration";
     if (/^\/exam/.test(p)) return "Exam";
     if (/^\/teacher/.test(p)) return "Teacher";
     if (/^\/hr(\/|$)/.test(p)) return "Team";
     if (/^\/(u)?inventor/.test(p)) return "Inventory";
     if (/^\/student/.test(p)) return "Student";
+    if (/crm/.test(p)) return "CRM";
     return "Other";
   }
   function fnMenuRank(path) { var i = MENU_ORDER.indexOf(fnTopMenu(path)); return i < 0 ? MENU_ORDER.length : i; }

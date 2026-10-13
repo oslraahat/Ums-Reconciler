@@ -231,7 +231,10 @@ check("…not once per card", !/running--; T\.done\+\+/.test(APP), "app.js");
   check("a filter chip is named after its tile, with no 'Only'",
     lbl("f_ok") === "Matched" && lbl("f_no") === "Mismatch" && lbl("f_zero") === "Zero Pay",
     [lbl("f_ok"), lbl("f_no"), lbl("f_zero")].join(" / "));
-  check("no 'Only …' label survives", !/en: "Only /.test(APP), (APP.match(/en: "Only [^"]*"/g) || []).join(", "));
+  /* A chip label is two or three words. A help sentence that merely begins with "Only" is not a
+     regressed chip, so length is what separates them. */
+  const onlyLabels = (APP.match(/en: "Only [^"]*"/g) || []).filter(function (s) { return s.length < 40; });
+  check("no ‘Only …’ label survives", onlyLabels.length === 0, onlyLabels.join(", "));
 
   /* The exported HTML report used to hard-code its own filter buttons, which is exactly how they
      drifted from the app's. Every one of them now reads out of the same label table the tiles and
