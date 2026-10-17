@@ -947,6 +947,202 @@ async function fnVisitClose() {
   await fnUnregisterProbe();
 }
 
+/* ───────────────────────── Course Cancel (menus/cc) ─────────────────────────
+   One student programme per call, through the same three screens a person uses: the search page
+   (/Student/CancelCourse/CancelCourseOrSubject — type the Reg, open the programme's "Cancel Course"
+   link), the form (untick the course, Approved By, reason) and — unless it is a dry run — its
+   Submit. The steps themselves run INSIDE the page (menus/cc/cc-page.js, with the rules from
+   cc-core.js); this side only moves the tab and reads where it lands.
+   Like New Admission: one tab reused for the whole run, Submit injected ONCE and never re-run (a
+   lost result usually means it went through and the tab moved on), and success is the receipt page.
+   Writes are allowed on osl.team (test/staging) and orgbd.net only — the same line cc-core.js
+   canWrite draws in the page; umsbd.net and anything else stay read-only. */
+const CC_FILES = ["menus/cc/cc-core.js", "menus/cc/cc-page.js"];
+const CC_SEARCH_RE = /\/Student\/CancelCourse\/CancelCourseOrSubject/i;
+const CC_FORM_RE = /\/Student\/CancelCourse\/CancelCourse\?/i;
+let ccTab = { tabId: null, winId: null };
+function ccCanWrite(base) { try { const u = new URL(base); return u.protocol === "https:" && /(^|\.)(osl\.team|orgbd\.net)$/i.test(u.hostname); } catch (e) { return false; } }
+function ccLoginMsg(base) { return "🔒 লগইন নেই — আগে এই সার্ভারে ব্রাউজারে লগইন করুন: " + (base || "(UMS Address খালি)") + " — তারপর আবার চেষ্টা করুন"; }
+async function ccEnsureTab(p) {
+  if (ccTab.tabId != null && await getTab(ccTab.tabId)) return ccTab.tabId;
+  if (p.show === false) {
+    // Headless — parked off-screen but not minimized, so the page's timers are not throttled (see admEnsureTab)
+    let win;
+    try { win = await chrome.windows.create({ url: "about:blank", focused: false, left: 30000, top: 30000, width: 1000, height: 760 }); }
+    catch (e) { win = await chrome.windows.create({ url: "about:blank", focused: false, state: "minimized" }); }
+    try { await chrome.windows.update(win.id, { left: 30000, top: 30000, focused: false }); } catch (e) {}
+    ccTab = { tabId: win && win.tabs && win.tabs[0] && win.tabs[0].id, winId: win.id };
+  } else {
+    const tb = await chrome.tabs.create({ url: "about:blank", active: true });
+    ccTab = { tabId: tb.id, winId: null };
+  }
+  return ccTab.tabId;
+}
+/* Navigate and wait for THIS navigation to finish loading: a "complete" counts only after a
+   "loading" seen once the navigation was asked for, so the page that was already there — the last
+   student's search page, a receipt, the form after an unsure Submit — can never answer for the new
+   one, even when the address is the same.
+   It goes by load status, not by address, on purpose. Without the "tabs" permission Chrome shows an
+   extension no address for a page outside its host list, about:blank included: the first cut parked
+   the tab on about:blank between students and then waited for an address it could never see, so
+   every student after a successful cancel lost the full 10 s timeout (17 Oct 2026, "ekta cancel korar
+   por … blank window ashe").
+   kick() starts the navigation — an address, or a click on the page (the old way's "Cancel Course"
+   button) — and resolves false if it decided not to; it is called only once the listener is up.
+   → "complete" | "timeout" | "gone" (tab closed) | "refused" (kick said no) */
+function ccLoadBy(tabId, kick, ms) {
+  return new Promise(function (resolve) {
+    let started = false, over = false, timer = null;
+    const h = function (id, info) {
+      if (id !== tabId) return;
+      if (info.status === "loading") started = true;
+      else if (info.status === "complete" && started) fin("complete");
+    };
+    const fin = function (v) { if (over) return; over = true; clearTimeout(timer); chrome.tabs.onUpdated.removeListener(h); resolve(v); };
+    chrome.tabs.onUpdated.addListener(h);           // listening BEFORE the navigation is asked for
+    timer = setTimeout(function () { fin("timeout"); }, ms);
+    Promise.resolve().then(kick).then(function (r) { if (r === false) fin("refused"); }, function () { fin("gone"); });
+  });
+}
+function ccLoad(tabId, url, ms) {
+  return ccLoadBy(tabId, function () {
+    return new Promise(function (res, rej) {
+      chrome.tabs.update(tabId, { url: url }, function () { if (chrome.runtime.lastError) rej(chrome.runtime.lastError); else res(true); });
+    });
+  }, ms);
+}
+/* Move the tab and make sure it landed on a page of that kind (or say where it went instead). */
+async function ccGo(tabId, url, re, base) {
+  if (!(await getTab(tabId))) return { ok: false, code: "tab", why: "UMS ট্যাব বন্ধ হয়ে গেছে" };
+  return ccLanded(tabId, await ccLoad(tabId, url, 45000), re, base);
+}
+async function ccLanded(tabId, how, re, base) {
+  const info = how === "gone" ? null : await getTab(tabId);
+  if (!info) return { ok: false, code: "tab", why: "UMS ট্যাব বন্ধ হয়ে গেছে" };
+  if (/Account\/Login/i.test(info.url || "")) return { ok: false, code: "login", why: ccLoginMsg(base) };
+  if (how === "timeout") return { ok: false, code: "timeout", why: "UMS পাতা ৪৫ সেকেন্ডে খোলেনি" };
+  if (!re.test(info.url || "")) return { ok: false, code: "page", why: "UMS অন্য পাতায় নিয়ে গেছে: " + (info.url || "(ঠিকানা দেখা যায়নি)") };
+  await bgSleep(200);   // let the page's own ready-handlers bind before a step is injected
+  return { ok: true };
+}
+// one read-only step (search / fill / probe); a step that hangs is given up on after `ms`
+async function ccStep(tabId, step, msg, ms) {
+  await chrome.scripting.executeScript({ target: { tabId: tabId }, files: CC_FILES });
+  const res = await fnRace(chrome.scripting.executeScript({ target: { tabId: tabId },
+    func: function (s, m) { return self.UMSCCPAGE[s](m); }, args: [step, msg] }), ms);
+  return (res && res[0] && res[0].result) || { ok: false, code: "page", why: "পাতা কোনো উত্তর দেয়নি" };
+}
+/* After an unsure Submit: open the form again and look — read only — so the row says which way it
+   went instead of leaving a guess. The row stays "unsure" either way; a person confirms it. */
+async function ccRecheck(tabId, href, p) {
+  try {
+    const g = await ccGo(tabId, href, CC_FORM_RE, p.base);
+    if (!g.ok) return "";
+    const q = await ccStep(tabId, "probe", { spid: p.spid, courses: p.courses }, 20000);
+    if (!q.ok) return "";
+    const st = p.courses.map(function (id) { return q.state[id]; });
+    if (st.every(function (x) { return x === "ticked"; })) return " · আবার খুলে দেখা গেল course এখনো আছে — বাতিল হয়নি বলে মনে হচ্ছে";
+    if (st.every(function (x) { return x !== "ticked"; })) return " · আবার খুলে দেখা গেল course আর টিক দেওয়া নেই — বাতিল হয়েছে বলে মনে হচ্ছে, Payment History-তে CRN দেখো";
+    return " · কিছু course আছে, কিছু নেই — হাতে দেখো";
+  } catch (e) { return ""; }
+}
+/* p: { base, reg, spid, courses[], pin, reason, nextDate, dry, show } →
+   { status: "done" | "dry" | "skip" | "unsure", why, code, fatal, program, amounts, names, approver, url } */
+async function ccBrowserRun(p) {
+  if (!ccCanWrite(p.base)) return { status: "skip", code: "host", fatal: true, why: "Course Cancel শুধু *.osl.team আর orgbd.net-এ চলে" };
+  const info = {};
+  try {
+    const tabId = await ccEnsureTab(p);
+    if (tabId == null) return { status: "skip", code: "tab", fatal: true, why: "ট্যাব খুলল না" };
+
+    /* Fast path: straight to the form — the very address UMS's own "Cancel Course" link points at —
+       and, from that form, UMS's own lookup confirms this Reg has this StudentProgramId (cc-page.js
+       check). One page load fewer per student than clicking through the search page (asked for on
+       17 Oct 2026: "url bania … ro fast hoto"). Until that answer is in, the form is not touched. */
+    let href = p.base + "/Student/CancelCourse/CancelCourse?studentProgramId=" + encodeURIComponent(p.spid) +
+      "&stdRollOrRegistrationNo=" + encodeURIComponent(p.reg);
+    let confirmed = false;
+    // p.route "search" = the old way only (the menu's 🔎 switch): no direct address at all
+    if (p.route !== "search") {
+      const g = await ccGo(tabId, href, CC_FORM_RE, p.base);
+      if (!g.ok && (g.code === "login" || g.code === "tab")) return { status: "skip", code: g.code, fatal: true, why: g.why };
+      if (g.ok) {
+        let c;
+        try { c = await ccStep(tabId, "check", { reg: p.reg, spid: p.spid }, 60000); }
+        catch (e) { c = { ok: false, code: "lookup", why: String((e && e.message) || e) }; }
+        if (c.code === "login") return { status: "skip", code: "login", fatal: true, why: ccLoginMsg(p.base) };
+        if (c.ok) { confirmed = true; info.program = [c.program, c.session].filter(Boolean).join(" "); }
+        // UMS answered, and the answer is no: this Reg has no such programme to cancel
+        else if (c.code !== "lookup" && c.code !== "page") return { status: "skip", code: c.code, why: c.why };
+      }
+    }
+
+    /* The old way, as a person clicks through: the Cancel Course search page → type the Reg → its
+       Submit → this programme's "Cancel Course" button → the form. Chosen with the 🔎 switch, and
+       also the fallback when the fast path got no answer (the form did not open, or the lookup came
+       back as something unreadable). */
+    if (!confirmed) {
+      let s = null;
+      for (let a = 0; a < 3; a++) {      // a lookup changes nothing, so it may be repeated
+        const gs = await ccGo(tabId, p.base + "/Student/CancelCourse/CancelCourseOrSubject", CC_SEARCH_RE, p.base);
+        if (!gs.ok) {
+          if (gs.code === "login" || gs.code === "tab") return { status: "skip", code: gs.code, fatal: true, why: gs.why };
+          s = gs; continue;
+        }
+        try { s = await ccStep(tabId, "search", { reg: p.reg, spid: p.spid }, 90000); }
+        catch (e) { s = { ok: false, code: "timeout", why: String((e && e.message) || e) }; }
+        if (s.ok || (s.code !== "timeout" && s.code !== "page")) break;
+      }
+      if (!s.ok) return { status: "skip", code: s.code, why: s.why };
+      info.program = [s.program, s.session].filter(Boolean).join(" ");
+      // only ever follow the programme's link on the same UMS the run was pointed at
+      if (new URL(s.href).host !== new URL(p.base).host) return Object.assign({ status: "skip", code: "page", why: "লিংক অন্য সার্ভারে: " + s.href }, info);
+      href = s.href;
+      // press the programme's own "Cancel Course" button (cc-page.js follow), and wait for the form it opens
+      let refused = null;
+      const how = await ccLoadBy(tabId, async function () {
+        try {
+          await chrome.scripting.executeScript({ target: { tabId: tabId }, files: CC_FILES });
+          const res = await chrome.scripting.executeScript({ target: { tabId: tabId },
+            func: function (m) { return self.UMSCCPAGE.follow(m); }, args: [{ reg: p.reg, spid: p.spid }] });
+          const r = res && res[0] && res[0].result;
+          if (r && !r.ok) { refused = r; return false; }
+          return true;
+        } catch (e) { return true; }      // the click already took the page away — the load decides
+      }, 45000);
+      if (refused) return Object.assign({ status: "skip", code: refused.code, why: refused.why }, info);
+      const g2 = await ccLanded(tabId, how, CC_FORM_RE, p.base);
+      if (!g2.ok) return Object.assign({ status: "skip", code: g2.code, fatal: g2.code === "login" || g2.code === "tab", why: g2.why }, info);
+    }
+    let f;
+    try { f = await ccStep(tabId, "fill", { spid: p.spid, courses: p.courses, pin: p.pin, reason: p.reason, nextDate: p.nextDate, zeroOnly: p.zeroOnly === true }, 60000); }
+    catch (e) { f = { ok: false, code: "timeout", why: String((e && e.message) || e) }; }
+    info.amounts = f.amounts || null;
+    info.names = (f.courses || []).map(function (c) { return c.name; });
+    if (!f.ok) return Object.assign({ status: "skip", code: f.code, why: f.why }, info);
+    if (p.dry) return Object.assign({ status: "dry", approver: f.approver }, info);
+
+    // the one step that writes to UMS — injected once, never retried
+    let r = null;
+    try {
+      await chrome.scripting.executeScript({ target: { tabId: tabId }, files: CC_FILES });
+      const res = await chrome.scripting.executeScript({ target: { tabId: tabId },
+        func: function (m) { return self.UMSCCPAGE.submit(m); },
+        args: [{ spid: p.spid, courses: p.courses, reason: p.reason, approverId: f.approverId, expect: f.amounts, zeroOnly: p.zeroOnly === true }] });
+      r = res && res[0] && res[0].result;
+    } catch (e) { r = null; }          // the receipt page replaced the form mid-call — the address decides
+    if (r && !r.ok && r.code !== "unsure") return Object.assign({ status: "skip", code: r.code, sent: r.sent, why: r.why }, info);
+    const rc = await waitTabUrl(tabId, RECEIPT_RE, r ? 5000 : 25000);
+    if (rc) return Object.assign({ status: "done", url: rc }, info);
+    const why = (r && r.why) || "Submit-এর পর রসিদের পাতা আসেনি";
+    return Object.assign({ status: "unsure", why: why + await ccRecheck(tabId, href, p) }, info);
+  } catch (e) { return Object.assign({ status: "skip", code: "error", why: String((e && e.message) || e) }, info); }
+}
+async function ccClose() {
+  const c = ccTab; ccTab = { tabId: null, winId: null };
+  try { if (c.winId != null) await chrome.windows.remove(c.winId); else if (c.tabId != null) await chrome.tabs.remove(c.tabId); } catch (e) {}
+}
+
 chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   // These commands drive real browsing (open tabs, fill forms, click buttons), so only our OWN
   // extension pages may issue them. menus/*.js and app.html are web-accessible on the UMS hosts, so
@@ -955,6 +1151,8 @@ chrome.runtime.onMessage.addListener(function (msg, sender, sendResponse) {
   if (!sender.url || sender.url.indexOf(chrome.runtime.getURL("")) !== 0) return;   // extension page only
   if (msg && msg.type === "admBrowser") { admBrowserRun(msg.params || {}).then(sendResponse); return true; }
   if (msg && msg.type === "admBrowserClose") { admCloseRun(msg.slot).then(function () { sendResponse({ ok: true }); }); return true; }
+  if (msg && msg.type === "ccBrowser") { ccBrowserRun(msg.params || {}).then(sendResponse); return true; }
+  if (msg && msg.type === "ccBrowserClose") { ccClose().then(function () { sendResponse({ ok: true }); }); return true; }
   if (msg && msg.type === "fnShot") { fnShotRun(msg.url).then(sendResponse); return true; }
   if (msg && msg.type === "fnShotClose") { fnShotClose().then(function () { sendResponse({ ok: true }); }); return true; }
   if (msg && msg.type === "fnVisit") { fnVisitRun(msg.url, msg.mode, msg.base, msg.actions, msg.vals, msg.slot, msg.pace).then(sendResponse); return true; }

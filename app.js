@@ -160,6 +160,93 @@
     nav_crm: { bn: "CRM", en: "CRM" },
     nav_adm: { bn: "New Admission", en: "New Admission" },
     nav_fn: { bn: "Function Check", en: "Function Check" },
+    nav_cc: { bn: "Course Cancel", en: "Course Cancel" },
+    /* Course Cancel (menus/cc) — writes real cancellations, so the words keep saying so */
+    cc_sub: { bn: "Course Cancel — Excel থেকে অনেক ছাত্রের course বাতিল, আগে মহড়া", en: "Course Cancel — cancel courses for many students from a sheet, dry run first" },
+    cc_h: { bn: "Course Cancel", en: "Course Cancel" },
+    cc_intro: { bn: "Reg · StudentProgramId · CourseId দাও → আগে 🔍 মহড়া চালাও (সব ধাপ হয়, শুধু Submit বাদে) → অঙ্ক দেখে মহড়া বন্ধ করে ✂ বাতিল শুরু। ⚠ আসল বাতিল হয়, এখান থেকে ফেরানো যায় না — শুধু *.osl.team আর orgbd.net।",
+      en: "Give Reg · StudentProgramId · CourseId → run a 🔍 dry run first (every step except Submit) → check the amounts, switch the dry run off and ✂ start cancelling. ⚠ These are real cancellations and cannot be undone from here — *.osl.team and orgbd.net only." },
+    cc_base_l: { bn: "UMS Address — বাতিল এই সার্ভারেই হবে", en: "UMS Address — cancellations happen on this server" },
+    cc_show: { bn: "🌐 Browser", en: "🌐 Browser" },
+    cc_headless: { bn: "⚙️ Headless", en: "⚙️ Headless" },
+    cc_route_direct: { bn: "⚡ সরাসরি URL", en: "⚡ Direct URL" },
+    cc_route_search: { bn: "🔎 Reg খুঁজে", en: "🔎 Search Reg" },
+    cc_route_t: { bn: "সরাসরি URL = Reg ও StudentProgramId দিয়ে form-এর ঠিকানা খোলে, UMS-এর খোঁজ দিয়ে জোড়া মিলিয়ে নেয় (দ্রুত) · Reg খুঁজে = আগের পদ্ধতি: Cancel Course পাতায় Reg লিখে Submit, তারপর Cancel Course বোতাম চেপে form",
+      en: "Direct URL = opens the form's own address from Reg and StudentProgramId, the pair confirmed by UMS's lookup (fast) · Search Reg = the old way: type the Reg on the Cancel Course page, Submit, then press the Cancel Course button" },
+    cc_mode_t: { bn: "Browser = সামনের ট্যাবে দেখা যায় · Headless = স্ক্রিনের বাইরের উইন্ডোতে, focus কাড়ে না", en: "Browser = in a tab you can watch · Headless = in an off-screen window that never takes focus" },
+    cc_paste_ph: { bn: "…Excel থেকে কপি করে এখানে পেস্ট করো — প্রতি লাইনে: Reg ⇥ StudentProgramId ⇥ CourseId (একাধিক course হলে কমা দিয়ে)", en: "…or copy from Excel and paste here — one per line: Reg ⇥ StudentProgramId ⇥ CourseId (several courses: separate with commas)" },
+    cc_check: { bn: "✓ Check", en: "✓ Check" },
+    cc_import: { bn: "⬆ Import Excel", en: "⬆ Import Excel" },
+    cc_clear: { bn: "✕ Clear", en: "✕ Clear" },
+    cc_pasted: { bn: "পেস্ট", en: "pasted" },
+    cc_pin_l: { bn: "Approved By (PIN)", en: "Approved By (PIN)" },
+    cc_reason_l: { bn: "Cancellation Reason", en: "Cancellation Reason" },
+    cc_date_l: { bn: "Next Receiving Date — ঐচ্ছিক", en: "Next Receiving Date — optional" },
+    cc_date_hint: { bn: "Next Receiving Date শুধু তখন লাগে যখন বাতিলের পরও Current Due থাকে — না দিলে সেই ছাত্র বাদ পড়ে, কারণসহ। একই ছাত্রের একাধিক course এক রসিদে বাতিল হয়।",
+      en: "Next Receiving Date is only needed when a Current Due remains after the cancellation — without it that student is skipped, with the reason. Several courses of one student are cancelled on one receipt." },
+    cc_dry: { bn: "🔍 মহড়া — Submit চাপবে না", en: "🔍 Dry run — never presses Submit" },
+    cc_zero: { bn: "💰 শুধু ০ টাকা — অন্য অঙ্ক এলে বাদ", en: "💰 Zero taka only — skip any other amount" },
+    cc_zero_confirm: { bn: "💰 শুধু ০ টাকার বাতিল — form-এ কোনো অঙ্ক ০ না হলে সেই ছাত্র বাদ পড়বে", en: "💰 Zero-taka cancellations only — any student whose form shows a non-zero amount is skipped" },
+    cc_run_dry: { bn: "▶ মহড়া শুরু", en: "▶ Start dry run" },
+    cc_run_live: { bn: "✂ বাতিল শুরু", en: "✂ Start cancelling" },
+    cc_stop: { bn: "⏹ থামাও", en: "⏹ Stop" },
+    cc_live: { bn: "⚠ মহড়া বন্ধ — Start চাপলে প্রতিটা সারি UMS-এ সত্যিই বাতিল হবে। এখান থেকে ফেরানো যায় না।", en: "⚠ Dry run is off — Start will really cancel every row in UMS. This cannot be undone from here." },
+    cc_res_h: { bn: "ফলাফল", en: "Results" },
+    cc_t_done: { bn: "বাতিল হয়েছে", en: "Cancelled" },
+    cc_t_dry: { bn: "মহড়া ঠিক", en: "Dry run OK" },
+    cc_t_skip: { bn: "বাদ — কিছু পাঠানো হয়নি", en: "Skipped — nothing sent" },
+    cc_t_unsure: { bn: "অনিশ্চিত — হাতে দেখো", en: "Unsure — check by hand" },
+    cc_t_wait: { bn: "বাকি", en: "Left" },
+    cc_tile_t: { bn: "চাপলে নিচে শুধু এগুলো দেখায় (CSV-ও) · আবার চাপলে সব", en: "Click to list only these (the CSV too) · click again for all" },
+    cc_csv: { bn: "⬇ ফল (CSV)", en: "⬇ Results (CSV)" },
+    cc_none_yet: { bn: "এখনো কিছু চালানো হয়নি", en: "Nothing has been run yet" },
+    cc_col_line: { bn: "লাইন", en: "Line" },
+    cc_col_res: { bn: "ফল", en: "Result" },
+    cc_more: { bn: "দেখাচ্ছে {a} / মোট {b}", en: "showing {a} of {b}" },
+    cc_rows: { bn: "{a} সারি → {b} টি বাতিল ({c} টি course)", en: "{a} rows → {b} cancellations ({c} courses)" },
+    cc_grouped: { bn: "একই Reg + StudentProgramId-এর সারিগুলো এক রসিদে", en: "rows with the same Reg + StudentProgramId go on one receipt" },
+    cc_dupes: { bn: "{n} টি course দুবার ছিল, একবার ধরা হয়েছে", en: "{n} courses were listed twice and are counted once" },
+    cc_bad: { bn: "{n} সারি বাদ (কারণ নিচে)", en: "{n} rows left out (reasons below)" },
+    cc_lost: { bn: "হেডারে {cols} কলাম চেনা যায়নি — কলামের নাম দাও: Reg, StudentProgramId, CourseId", en: "The header has no {cols} column — name the columns: Reg, StudentProgramId, CourseId" },
+    cc_mixed: { bn: "sheet-এ একাধিক {what} আছে ({vals}) — এক রানে একটাই পাঠানো হয়; আলাদা sheet-এ ভাগ করো", en: "The sheet has more than one {what} ({vals}) — one run sends one; split the sheet" },
+    cc_sheet_pin: { bn: "Approved By sheet থেকে বসানো হলো: {pin}", en: "Approved By taken from the sheet: {pin}" },
+    cc_sheet_reason: { bn: "Reason sheet থেকে: \"{reason}\"", en: "Reason taken from the sheet: \"{reason}\"" },
+    cc_empty: { bn: "কোনো সারি নেই", en: "No rows" },
+    cc_excel_fail: { bn: "Excel পড়া গেল না", en: "Couldn't read the Excel file" },
+    cc_e_reg_blank: { bn: "Reg ফাঁকা", en: "Reg is blank" },
+    cc_e_reg_two: { bn: "Reg-এর ঘরে একাধিক সংখ্যা", en: "More than one number in the Reg cell" },
+    cc_e_reg_digits: { bn: "Reg-এ শুধু সংখ্যা থাকবে", en: "Reg must be digits only" },
+    cc_e_reg_len: { bn: "Reg ৭ (Registration) বা ১১ (Roll) অঙ্কের হতে হবে", en: "Reg must be 7 digits (Registration) or 11 (Roll)" },
+    cc_e_spid_blank: { bn: "StudentProgramId ফাঁকা", en: "StudentProgramId is blank" },
+    cc_e_spid_digits: { bn: "StudentProgramId-তে শুধু সংখ্যা থাকবে", en: "StudentProgramId must be digits only" },
+    cc_e_course_blank: { bn: "CourseId ফাঁকা", en: "CourseId is blank" },
+    cc_e_course_digits: { bn: "CourseId-তে শুধু সংখ্যা থাকবে (একাধিক হলে কমা দিয়ে)", en: "CourseId must be digits only (several: separate with commas)" },
+    cc_p_wait: { bn: "অপেক্ষায়", en: "Waiting" },
+    cc_p_run: { bn: "চলছে…", en: "Running…" },
+    cc_p_done: { bn: "✓ বাতিল হয়েছে", en: "✓ Cancelled" },
+    cc_p_dry: { bn: "🔍 মহড়া ঠিক", en: "🔍 Dry run OK" },
+    cc_p_skip: { bn: "✕ বাদ", en: "✕ Skipped" },
+    cc_p_unsure: { bn: "⚠ অনিশ্চিত", en: "⚠ Unsure" },
+    cc_dry_ok: { bn: "Submit চাপলে বাতিল হতো · Approved By: {who}", en: "Would be cancelled on Submit · Approved By: {who}" },
+    cc_receipt: { bn: "↗ রসিদ", en: "↗ Receipt" },
+    cc_need_rows: { bn: "আগে সারি দাও — পেস্ট করে ✓ Check, বা ⬆ Import Excel", en: "Give the rows first — paste and ✓ Check, or ⬆ Import Excel" },
+    cc_need_pin: { bn: "Approved By-তে PIN দাও (শুধু সংখ্যা)", en: "Enter the Approved By PIN (digits only)" },
+    cc_need_reason: { bn: "Cancellation Reason লেখো", en: "Write a Cancellation Reason" },
+    cc_need_host: { bn: "Course Cancel শুধু *.osl.team আর orgbd.net-এ চলে (যেমন https://orgbd.net বা https://ums-2.osl.team) — umsbd.net সহ অন্য সার্ভারে কিছু লেখা হয় না", en: "Course Cancel runs on *.osl.team and orgbd.net only (e.g. https://orgbd.net or https://ums-2.osl.team) — nothing is written to umsbd.net or any other server" },
+    cc_confirm: { bn: "{base}\n\n{n} জন ছাত্রের {c} টি course সত্যিই বাতিল হবে।\nApproved By: {pin} · Reason: {reason}\n\nএটা এখান থেকে ফেরানো যায় না। চালাবো?",
+      en: "{base}\n\n{c} courses of {n} students will really be cancelled.\nApproved By: {pin} · Reason: {reason}\n\nThis cannot be undone from here. Go ahead?" },
+    cc_checking_login: { bn: "UMS-এ লগইন যাচাই হচ্ছে…", en: "Checking the UMS login…" },
+    cc_conn_ok: { bn: "✓ লগইন আছে", en: "✓ Logged in" },
+    cc_conn_no: { bn: "✗ লগইন নেই", en: "✗ Not logged in" },
+    cc_login_no: { bn: "🔒 লগইন নেই — আগে এই সার্ভারে ব্রাউজারে লগইন করুন: {base}", en: "🔒 Not logged in — log in to this server in the browser first: {base}" },
+    cc_noperm: { bn: "Cancel Course পাতা খোলেনি — এই অ্যাকাউন্টে অনুমতি নেই?", en: "The Cancel Course page did not open — does this account have permission?" },
+    cc_running_dry: { bn: "মহড়া চলছে — Submit চাপা হবে না", en: "Dry run in progress — Submit will not be pressed" },
+    cc_running_live: { bn: "বাতিল চলছে — UMS ট্যাবটা বন্ধ কোরো না", en: "Cancelling — don't close the UMS tab" },
+    cc_stopping: { bn: "থামছে — যেটা চলছে সেটা শেষ করে", en: "Stopping — after the one in progress" },
+    cc_done: { bn: "শেষ", en: "Done" },
+    cc_stopped: { bn: "থামানো হয়েছে — {n} টি বাকি", en: "Stopped — {n} left" },
+    cc_halted: { bn: "থেমে গেছে: {why}", en: "Halted: {why}" },
+    cc_left: { bn: "{n} টি বাকি", en: "{n} left" },
     fn_sub: { bn: "Clickable Function Check — পেজের সব লিংক (menu/সাব-মেনু সহ) দ্রুত যাচাই", en: "Clickable Function Check — sweep every link on the page (menus & sub-menus included)" },
     fn_h: { bn: "Clickable Function Check", en: "Clickable Function Check" },
     fn_intro: { bn: "UMS ঠিকানা দাও, Check Now চাপো। প্রতিটা menu ও সাব-মেনু পেজ খুলে Pass/Fail দেখাবে (Fail হলে স্ক্রিনশট সহ)। শুধু পেজ খোলে — কিছু save/delete হয় না, তাই নিরাপদ।", en: "Enter a UMS address and press Check Now. It opens every menu and sub-menu page and marks each Pass or Fail (with a screenshot on failure). It only opens pages — nothing is saved or deleted — so it's safe." },
@@ -464,6 +551,7 @@
     if (self.APP.crm) self.APP.crm.setConn(self.APP.crm.getConn());
     if (self.APP.adm) self.APP.adm.setConn(self.APP.adm.getConn());
     if (self.APP.fn && self.APP.fn.relang) self.APP.fn.relang();
+    if (self.APP.cc && self.APP.cc.relang) self.APP.cc.relang();
     const pv = $("preview"); if (pv) pv.removeAttribute("data-col"); // force head rebuild in the new language
     /* Everything whose words are written by JS rather than by a data-i18n node has to be
        repainted here too, or it keeps the language it was first drawn in. paintSaveRow() runs
@@ -2593,17 +2681,18 @@
   let page = "pay";
 
   function showPage(p) {
-    page = (p === "crm" || p === "adm" || p === "fn") ? p : "pay";
+    page = (p === "crm" || p === "adm" || p === "fn" || p === "cc") ? p : "pay";
     const set = function (id, yes) { const e = $(id); if (e) e.classList.toggle("on", yes); };
-    set("pgPay", page === "pay"); set("pgCrm", page === "crm"); set("pgAdm", page === "adm"); set("pgFn", page === "fn");
-    set("navPay", page === "pay"); set("navCrm", page === "crm"); set("navAdm", page === "adm"); set("navFn", page === "fn");
+    set("pgPay", page === "pay"); set("pgCrm", page === "crm"); set("pgAdm", page === "adm"); set("pgFn", page === "fn"); set("pgCc", page === "cc");
+    set("navPay", page === "pay"); set("navCrm", page === "crm"); set("navAdm", page === "adm"); set("navFn", page === "fn"); set("navCc", page === "cc");
     /* what is inside CRM is listed only while CRM is the open section */
     set("crmSub", page === "crm");
     if (page === "crm") self.APP.crm.show(crmTab);
     if (page === "adm") self.APP.adm.onShow();
+    if (page === "cc" && self.APP.cc) self.APP.cc.onShow();
     /* The subtitle belongs to whichever section is open. Written as a data-i18n key rather than
        as text, so applyLang() keeps it right when the language changes under it. */
-    const key = page === "pay" ? "subtitle" : page === "crm" ? "crm_sub" : page === "fn" ? "fn_sub" : "adm_sub";
+    const key = page === "pay" ? "subtitle" : page === "crm" ? "crm_sub" : page === "fn" ? "fn_sub" : page === "cc" ? "cc_sub" : "adm_sub";
     const sub = $("sub");
     if (sub) { sub.setAttribute("data-i18n", key); sub.textContent = t(key); }
     try { chrome.storage.local.set({ page: page }); } catch (e) {}
@@ -2721,6 +2810,7 @@
     $("navCrmDash").addEventListener("click", function () { if (hasSel()) return; showPage("crm"); self.APP.crm.show("dash"); });
     if ($("navAdm")) $("navAdm").addEventListener("click", function () { if (hasSel()) return; showPage("adm"); });
     if ($("navFn")) $("navFn").addEventListener("click", function () { if (hasSel()) return; showPage("fn"); });
+    if ($("navCc")) $("navCc").addEventListener("click", function () { if (hasSel()) return; showPage("cc"); });
     if ($("admRun")) $("admRun").addEventListener("click", self.APP.adm.run);
     if ($("admStop")) $("admStop").addEventListener("click", self.APP.adm.stop);
     if ($("admSeq")) $("admSeq").addEventListener("click", function () { self.APP.adm.setMode("sequential"); });
@@ -2968,7 +3058,7 @@
       if ($("nightConc")) $("nightConc").value = nightConc; if ($("nightCfg")) $("nightCfg").style.display = nightOn ? "" : "none"; })();
     saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
     if ($("singleSw")) { const on = o.singleOn !== false; $("singleSw").checked = on; if ($("singleSw").parentNode) $("singleSw").parentNode.classList.toggle("on", on); }
-    showPage((o.page === "crm" || o.page === "adm" || o.page === "fn") ? o.page : "pay");
+    showPage((o.page === "crm" || o.page === "adm" || o.page === "fn" || o.page === "cc") ? o.page : "pay");
     if (o.crmBase && $("crmBase")) $("crmBase").value = o.crmBase;
     if ($("admBase")) $("admBase").value = o.admBase || "https://ums-4.osl.team";
     self.APP.adm.setConn(null);
