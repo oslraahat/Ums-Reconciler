@@ -1049,7 +1049,7 @@ async function ccRecheck(tabId, href, p) {
 /* p: { base, reg, spid, courses[], pin, reason, nextDate, dry, show } →
    { status: "done" | "dry" | "skip" | "unsure", why, code, fatal, program, amounts, names, approver, url } */
 async function ccBrowserRun(p) {
-  if (!ccCanWrite(p.base)) return { status: "skip", code: "host", fatal: true, why: "Course Cancel শুধু *.osl.team আর orgbd.net-এ চলে" };
+  if (!ccCanWrite(p.base)) return { status: "skip", code: "host", fatal: true, why: "Bulk Course Cancel শুধু *.osl.team আর orgbd.net-এ চলে" };
   const info = {};
   try {
     const tabId = await ccEnsureTab(p);

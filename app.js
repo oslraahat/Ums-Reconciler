@@ -160,10 +160,10 @@
     nav_crm: { bn: "CRM", en: "CRM" },
     nav_adm: { bn: "New Admission", en: "New Admission" },
     nav_fn: { bn: "Function Check", en: "Function Check" },
-    nav_cc: { bn: "Course Cancel", en: "Course Cancel" },
-    /* Course Cancel (menus/cc) — writes real cancellations, so the words keep saying so */
-    cc_sub: { bn: "Course Cancel — Excel থেকে অনেক ছাত্রের course বাতিল, আগে মহড়া", en: "Course Cancel — cancel courses for many students from a sheet, dry run first" },
-    cc_h: { bn: "Course Cancel", en: "Course Cancel" },
+    nav_cc: { bn: "Bulk Course Cancel", en: "Bulk Course Cancel" },
+    /* Bulk Course Cancel (menus/cc) — writes real cancellations, so the words keep saying so */
+    cc_sub: { bn: "Bulk Course Cancel — Excel থেকে অনেক ছাত্রের course বাতিল, আগে মহড়া", en: "Bulk Course Cancel — cancel courses for many students from a sheet, dry run first" },
+    cc_h: { bn: "Bulk Course Cancel", en: "Bulk Course Cancel" },
     cc_intro: { bn: "Reg · StudentProgramId · CourseId দাও → আগে 🔍 মহড়া চালাও (সব ধাপ হয়, শুধু Submit বাদে) → অঙ্ক দেখে মহড়া বন্ধ করে ✂ বাতিল শুরু। ⚠ আসল বাতিল হয়, এখান থেকে ফেরানো যায় না — শুধু *.osl.team আর orgbd.net।",
       en: "Give Reg · StudentProgramId · CourseId → run a 🔍 dry run first (every step except Submit) → check the amounts, switch the dry run off and ✂ start cancelling. ⚠ These are real cancellations and cannot be undone from here — *.osl.team and orgbd.net only." },
     cc_base_l: { bn: "UMS Address — বাতিল এই সার্ভারেই হবে", en: "UMS Address — cancellations happen on this server" },
@@ -232,7 +232,7 @@
     cc_need_rows: { bn: "আগে সারি দাও — পেস্ট করে ✓ Check, বা ⬆ Import Excel", en: "Give the rows first — paste and ✓ Check, or ⬆ Import Excel" },
     cc_need_pin: { bn: "Approved By-তে PIN দাও (শুধু সংখ্যা)", en: "Enter the Approved By PIN (digits only)" },
     cc_need_reason: { bn: "Cancellation Reason লেখো", en: "Write a Cancellation Reason" },
-    cc_need_host: { bn: "Course Cancel শুধু *.osl.team আর orgbd.net-এ চলে (যেমন https://orgbd.net বা https://ums-2.osl.team) — umsbd.net সহ অন্য সার্ভারে কিছু লেখা হয় না", en: "Course Cancel runs on *.osl.team and orgbd.net only (e.g. https://orgbd.net or https://ums-2.osl.team) — nothing is written to umsbd.net or any other server" },
+    cc_need_host: { bn: "Bulk Course Cancel শুধু *.osl.team আর orgbd.net-এ চলে (যেমন https://orgbd.net বা https://ums-2.osl.team) — umsbd.net সহ অন্য সার্ভারে কিছু লেখা হয় না", en: "Bulk Course Cancel runs on *.osl.team and orgbd.net only (e.g. https://orgbd.net or https://ums-2.osl.team) — nothing is written to umsbd.net or any other server" },
     cc_confirm: { bn: "{base}\n\n{n} জন ছাত্রের {c} টি course সত্যিই বাতিল হবে।\nApproved By: {pin} · Reason: {reason}\n\nএটা এখান থেকে ফেরানো যায় না। চালাবো?",
       en: "{base}\n\n{c} courses of {n} students will really be cancelled.\nApproved By: {pin} · Reason: {reason}\n\nThis cannot be undone from here. Go ahead?" },
     cc_checking_login: { bn: "UMS-এ লগইন যাচাই হচ্ছে…", en: "Checking the UMS login…" },
