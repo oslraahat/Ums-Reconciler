@@ -87,5 +87,33 @@ check("but a transfer type with no service IS flagged", r.reportDrift !== 0, "dr
 r = C.checkRows([row(100, 0, 0, [100], [60])], "fe", 10);
 check("rule 3 is not applied to the Franchisee side", r.rows[0].fails.length === 0, JSON.stringify(r.rows[0].fails));
 
+/* A failure has to carry the way back to itself, in whichever language the panel is in. A recipe
+   that stayed Bangla under EN, or that printed a programme id instead of its name, would be no
+   use to the person asked to reproduce the bug. */
+{
+  const row = C.checkRows([{
+    CourseName: "Engineering Full Course", SessionName: "2023",
+    TotalCollection: 24000, FranchisorPercent: 50, BaseCut: 12000,
+    TotalReceivable: 19200, FranchisorService: 7200,
+    collections: [10000, 15000], services: [4800, 7200]
+  }], "fr", 10).rows[0];
+  check("a wrong Total Collection is reported", row.fails.length === 1, JSON.stringify(row.fails));
+
+  const ctx = {
+    base: "https://ums-3.osl.team/", side: "fr",
+    orgText: "UDVASH (1)", progText: "Engineering Admission Program (68)",
+    sessText: "2023 (61)", branchText: "Rajshahi Kadirganj Udvash (89)",
+    transferText: "Franchisee → All", dateFrom: "2023-01-01", dateTo: "2026-11-01", showZero: true
+  };
+  const steps = C.repro(ctx, row, row.fails.join(" · "));
+  check("the recipe has every step", steps.length === 9, steps.length);
+  check("it names the page to open", steps[0].indexOf("FranchisorCalculation/CourseWise") > 0);
+  check("it spells the filters out, not their ids", steps[1].indexOf("Engineering Admission Program") > 0);
+  check("it says which row", steps[6].indexOf("Engineering Full Course") > 0);
+  check("it ends with what is wrong", steps[8].indexOf("24000") > 0 && steps[8].indexOf("25000") > 0, steps[8]);
+  check("no step leaked an unfilled {slot}", !steps.some(s => /{w+}/.test(s)),
+    steps.filter(s => /{w+}/.test(s)).join(" | "));
+}
+
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
 process.exit(fail ? 1 : 0);

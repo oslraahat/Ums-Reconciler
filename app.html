@@ -605,6 +605,12 @@
   /* the franchise check filters: a stacked label so a dozen of them wrap tidily */
   /* a course name in the results: a name, not a link — .fnlk would dress it with ::after “↗” */
   .fvname{font-weight:600}
+  /* the reproduction recipe under a failure: quiet, indented, and numbered so it can be followed */
+  .fvsteps{flex:1 1 100%;margin:4px 0 2px 26px;padding:7px 10px;border-left:2px solid rgba(225,75,94,.35);
+    background:rgba(127,127,127,.06);border-radius:0 4px 4px 0}
+  .fvsteph{font-size:11px;font-weight:700;color:var(--mut);margin-bottom:3px}
+  .fvsteps ol{margin:0;padding-left:18px}
+  .fvsteps li{font-size:11.5px;line-height:1.6;color:var(--mut)}
   .fvl{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--mut);font-weight:600}
   .fvl input,.fvl select{height:var(--ctl-h);font-size:13px;padding:0 8px;min-width:120px}
   .fvl input[type=date]{min-width:132px}

@@ -158,12 +158,25 @@ const SRC = APP + "\n" + read("menus/adm/adm.js") + "\n" + read("menus/crm/crm.j
       return !DICT[k] || typeof DICT[k].bn !== "string" || typeof DICT[k].en !== "string";
     }));
 
-  /* a {placeholder} nobody fills is printed literally */
+  /* a {placeholder} nobody fills is printed literally. Two ways a slot gets filled: by naming it,
+     .replace("{n}", x), or through a generic filler — fill("key", { n: x }) walks /\{(\w+)\}/ and
+     substitutes by property name, so the literal "{n}" never appears in the source. The second way
+     still has to be checked, not waved through: the slot counts as filled only if THAT key's own
+     fill() call names a property of that name, so forgetting one property is still caught. */
   const unfilled = [];
+  const filledBy = function (key, name) {
+    const at = SRC.indexOf('fill("' + key + '"');
+    if (at < 0) return false;
+    const open = SRC.indexOf("{", at);
+    const close = SRC.indexOf("}", open);
+    if (open < 0 || close < 0 || close > at + 600) return false;
+    return new RegExp("\\b" + name + "\\s*:").test(SRC.slice(open, close));
+  };
   keys.forEach(function (k) {
     const marks = uniq((String(DICT[k].bn) + String(DICT[k].en)).match(/\{(\w+)\}/g) || []);
     marks.forEach(function (mk) {
-      if (SRC.indexOf('"' + mk + '"') < 0) unfilled.push(k + " " + mk);
+      const name = mk.slice(1, -1);
+      if (SRC.indexOf('"' + mk + '"') < 0 && !filledBy(k, name)) unfilled.push(k + " " + mk);
     });
   });
   check("every {placeholder} is filled somewhere", unfilled);

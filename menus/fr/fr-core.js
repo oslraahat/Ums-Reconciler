@@ -24,6 +24,14 @@
     { v: 20, t: "Franchisor → Franchisee" }
   ];
 
+  /* Every sentence this module produces goes through the dictionary: a hardcoded Bangla string
+     would simply stay Bangla when the panel is switched to English. {name} marks a slot. */
+  function T(k) { return (A.t ? A.t(k) : k); }
+  function fill(key, vals) {
+    return String(T(key)).replace(/\{(\w+)\}/g, function (m, n) {
+      return vals[n] === undefined ? m : String(vals[n]);
+    });
+  }
   function root(base) { return String(base || "").replace(/\/+$/, "") + "/"; }
 
   /* These endpoints answer 302 unless the Referer is their OWN page, and a page cannot set Referer
@@ -198,14 +206,14 @@
       sumSvc += svc; sumRest += (total - baseCut);
 
       var bad = [];
-      if (!near(netSum, total)) bad.push("Total Collection " + r2(total) + " ≠ শাখাগুলোর Net-এর যোগফল " + r2(netSum));
+      if (!near(netSum, total)) bad.push(fill("fv_f_total", { shown: r2(total), sum: r2(netSum) }));
       // a row with no Base % at all is a gap in the setup, not arithmetic that disagrees
       if (row.FranchisorPercent != null && !near(total * pct / 100, baseCut))
-        bad.push("Base% পাওনা " + r2(baseCut) + " ≠ Total × " + pct + "% = " + r2(total * pct / 100));
+        bad.push(fill("fv_f_base", { shown: r2(baseCut), pct: pct, want: r2(total * pct / 100) }));
       if (side === "fr" && row.TotalReceivable != null) {
         var want = baseCut + (Number(row.FranchisorService) || 0);
         if (!near(want, row.TotalReceivable))
-          bad.push("Total Receivable " + r2(row.TotalReceivable) + " ≠ Base% + Franchisor-এর Value of Service " + r2(want));
+          bad.push(fill("fv_f_recv", { shown: r2(row.TotalReceivable), want: r2(want) }));
       }
 
       out.push({
@@ -227,10 +235,32 @@
      8801 — so it can never outlive the panel that armed it. */
   try { disarmReferer(); } catch (e) {}
 
+  /* A fault is only useful if someone else can get back to it. Instead of a screenshot, every
+     failure carries the path to itself: the page to open, the filter values spelled as they appear
+     in the dropdowns (not as ids), the row to look at, what UMS put on screen, and what the FRS
+     says it should have been. Follow the lines in order and the same figure appears. */
+  function repro(ctx, row, problem) {
+    var s = [
+      fill("fv_r_open", { url: root(ctx.base) + SIDE[ctx.side].page }),
+      fill("fv_r_who", { org: ctx.orgText, prog: ctx.progText }),
+      fill("fv_r_what", { sess: ctx.sessText, branch: ctx.branchText }),
+      fill("fv_r_tt", { tt: ctx.transferText }),
+      fill("fv_r_period", { from: ctx.dateFrom, to: ctx.dateTo, zero: ctx.showZero ? "ON" : "OFF" }),
+      T("fv_r_calc")
+    ];
+    if (row) {
+      s.push(fill("fv_r_row", { row: row.course + (row.session ? " (Session " + row.session + ")" : "") }));
+      s.push(fill("fv_r_screen", { total: row.total, pct: row.pct, base: row.baseCut, svc: row.svc }));
+    } else {
+      s.push(T("fv_r_sum"));
+    }
+    s.push(fill("fv_r_wrong", { problem: problem }));
+    return s;
+  }
   A.frCore = {
     SIDE: SIDE, TRANSFER: TRANSFER,
     api: api, programs: programs, sessions: sessions, branches: branches,
-    courseWise: courseWise, checkRows: checkRows, r2: r2,
+    courseWise: courseWise, checkRows: checkRows, r2: r2, repro: repro,
     armReferer: armReferer, disarmReferer: disarmReferer
   };
 })();

@@ -58,6 +58,13 @@
       '<div class="mut" id="' + p + 'Note" style="margin-top:10px;font-size:12.5px"></div>' +
       '<div id="' + p + 'Out" style="margin-top:10px"></div>';
 
+    /* the dropdown's own wording — a recipe saying "Program = 68" would help nobody */
+    function selText(sel) {
+      var e = $(p + sel);
+      if (!e || e.selectedIndex < 0) return "";
+      var o = e.options[e.selectedIndex];
+      return (o ? o.text : "") + (e.value ? " (" + e.value + ")" : "");
+    }
     function note(s) { var n = $(p + "Note"); if (n) n.textContent = s; }
     function base() { return ($(p + "Base").value || "").trim(); }
     function fill(sel, list) {
@@ -115,11 +122,25 @@
           branchId: $(p + "Branch").value, dateFrom: $(p + "From").value, dateTo: $(p + "To").value,
           showZero: true
         };
+        var ctx = {
+          base: base(), side: side,
+          orgText: selText("Org"), progText: selText("Prog"),
+          sessText: selText("Sess"), branchText: selText("Branch"),
+          dateFrom: f.dateFrom, dateTo: f.dateTo, showZero: f.showZero
+        };
         for (var i = 0; i < C.TRANSFER.length; i++) {
           var tr = C.TRANSFER[i];
           note(t("fv_checking") + " — " + tr.t);
           var rows = await C.courseWise(base(), side, Object.assign({ transferType: tr.v }, f));
-          results.push({ transfer: tr, res: C.checkRows(rows, side, tr.v) });
+          var res = C.checkRows(rows, side, tr.v);
+          var rctx = Object.assign({ transferText: tr.t }, ctx);
+          res.rows.forEach(function (x) {
+            if (x.fails.length) x.repro = C.repro(rctx, x, x.fails.join("  ·  "));
+          });
+          if (res.apportions && Math.abs(res.reportDrift) > 0.01) {
+            res.balanceRepro = C.repro(rctx, null, t("fv_balance_off") + " " + res.reportDrift);
+          }
+          results.push({ transfer: tr, res: res });
           render();
         }
         note(t("fv_done"));
@@ -133,6 +154,12 @@
       }
     }
 
+    /* the recipe, numbered so it can be followed by hand or pasted into a bug report */
+    function steps(list) {
+      if (!list || !list.length) return "";
+      return '<div class="fvsteps"><div class="fvsteph">' + esc(t("fv_repro_h")) + '</div><ol>' +
+        list.map(function (s) { return '<li>' + esc(s) + '</li>'; }).join("") + '</ol></div>';
+    }
     function render() {
       var h = "";
       results.forEach(function (g) {
@@ -150,13 +177,15 @@
         broken.forEach(function (x) {
           h += '<div class="fnrow f"><span class="fnst">✗</span>' +
                '<span class="fvname">' + esc(x.course) + '</span>' +
-               '<span class="fnwhy">' + esc(x.fails.join(" · ")) + '</span></div>';
+               '<span class="fnwhy">' + esc(x.fails.join(" · ")) + '</span>' +
+               steps(x.repro) + '</div>';
         });
         if (r.apportions) {
           if (Math.abs(r.reportDrift) > 0.01) {
             h += '<div class="fnrow f"><span class="fnst">✗</span>' +
                  '<span class="fvname">' + esc(t("fv_balance")) + '</span>' +
-                 '<span class="fnwhy">' + esc(t("fv_balance_off")) + " " + r.reportDrift + '</span></div>';
+                 '<span class="fnwhy">' + esc(t("fv_balance_off")) + " " + r.reportDrift + '</span>' +
+                 steps(r.balanceRepro) + '</div>';
           } else {
             h += '<div class="fnrow p"><span class="fnst">✓</span>' +
                  '<span class="fvname">' + esc(t("fv_balance")) + '</span>' +
@@ -170,11 +199,12 @@
 
     async function exportXlsx() {
       if (!results.length || !A.buildBook) return;
-      var header = ["Transfer Type", "Course", "Session", "Total", "Base %", "Base Cut", "Service", "Movement", "Problem"];
+      var header = ["Transfer Type", "Course", "Session", "Total", "Base %", "Base Cut", "Service", "Movement", "Problem", t("fv_repro_h")];
       var mat = [], colors = [];
       results.forEach(function (g) {
         g.res.rows.forEach(function (x) {
-          mat.push([g.transfer.t, x.course, x.session, x.total, x.pct, x.baseCut, x.svc, x.drift, x.fails.join(" · ")]);
+          mat.push([g.transfer.t, x.course, x.session, x.total, x.pct, x.baseCut, x.svc, x.drift,
+            x.fails.join(" · "), (x.repro || []).map(function (s, n) { return (n + 1) + ". " + s; }).join("\n")]);
           colors.push(x.fails.length ? "r" : (Math.abs(x.drift) > 0.01 ? "y" : "g"));
         });
       });
