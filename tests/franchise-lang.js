@@ -33,8 +33,7 @@ const missing = used.filter(k => !DICT[k]);
 if (missing.length) { fail++; console.log("MISSING FROM DICT: " + missing.join(", ")); }
 
 // a label that is the same in both languages is only right when it names a UMS term
-const sameOk = new Set(["fv_c_tt", "fv_c_pct", "fv_c_svc", "fv_org", "fv_prog", "fv_sess",
-  "fv_branch", "fv_export", "fv_unmark", "fv_r_who", "fv_r_what", "fv_r_tt"]);
+const sameOk = new Set(["fv_c_tt", "fv_c_pct", "fv_c_svc", "fv_export", "fv_unmark", "fv_r_who", "fv_r_what", "fv_r_tt"]);
 const suspicious = used.filter(k => DICT[k] && DICT[k].bn === DICT[k].en && !sameOk.has(k));
 console.log("keys the menus use: " + used.length);
 console.log("identical in bn and en, and not a UMS term: " + suspicious.length +

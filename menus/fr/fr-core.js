@@ -104,6 +104,9 @@
     });
     if (res.redirected && /\/Account\/Login/i.test(res.url)) throw new Error("login");
     var text = await res.text();
+    /* 401 and 403 here mean one thing in practice: no session on THIS server. Reporting them as a
+       bare status code sent the reader looking for a fault in the report instead of logging in. */
+    if (res.status === 401 || res.status === 403) throw new Error("login");
     if (!res.ok) throw new Error("HTTP " + res.status);
     try { return JSON.parse(text); }
     catch (e) { throw new Error(/\/Account\/Login/i.test(text) ? "login" : "unreadable reply"); }
