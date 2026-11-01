@@ -18,6 +18,9 @@
     fe: { base: "Student/FranchiseeCalculation/", course: "CourseWiseCalculationData",
           page: "Student/FranchiseeCalculation/CourseWiseCalculation" }
   };
+  /* These stay in English in both languages on purpose: they are the UMS dropdown's own wording,
+     and the recipe tells the reader to pick one of them there. A translated name would not be
+     findable in the dropdown it refers to. */
   var TRANSFER = [
     { v: 30, t: "Non-Transfer" },
     { v: 10, t: "Franchisee → All" },
@@ -245,7 +248,7 @@
       fill("fv_r_who", { org: ctx.orgText, prog: ctx.progText }),
       fill("fv_r_what", { sess: ctx.sessText, branch: ctx.branchText }),
       fill("fv_r_tt", { tt: ctx.transferText }),
-      fill("fv_r_period", { from: ctx.dateFrom, to: ctx.dateTo, zero: ctx.showZero ? "ON" : "OFF" }),
+      fill("fv_r_period", { from: ctx.dateFrom, to: ctx.dateTo, zero: T(ctx.showZero ? "fv_on" : "fv_off") }),
       T("fv_r_calc")
     ];
     if (row) {

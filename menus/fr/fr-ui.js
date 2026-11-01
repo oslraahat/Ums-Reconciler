@@ -199,7 +199,9 @@
 
     async function exportXlsx() {
       if (!results.length || !A.buildBook) return;
-      var header = ["Transfer Type", "Course", "Session", "Total", "Base %", "Base Cut", "Service", "Movement", "Problem", t("fv_repro_h")];
+      // the sheet's own column names, so an export made in Bangla reads in Bangla
+      var header = ["fv_c_tt", "fv_c_course", "fv_c_sess", "fv_c_total", "fv_c_pct",
+                    "fv_c_base", "fv_c_svc", "fv_c_move", "fv_c_prob", "fv_repro_h"].map(t);
       var mat = [], colors = [];
       results.forEach(function (g) {
         g.res.rows.forEach(function (x) {
