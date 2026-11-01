@@ -81,16 +81,45 @@ records, so it belongs behind an explicit switch.
 
 ## New admission
 
-The page is a shell; the logic is `/Scripts/Student/NewAdmission.js`. Every dropdown is a step in a
-cascade, each one POSTing to the next:
+The page is a shell; the logic lives in `/Scripts/Student/NewAdmission.js`. Walked read-only
+against ums-3, so the parameter names and shapes below are what the server actually answered, not
+what the field labels suggest.
 
-    GetProgramByClass -> GetSessionByProgram -> GetBranchByProgramSession
-      -> GetCampusByProgramSessionAndBranch
-      -> GetBatchDayByProgramSessionBranchAndCampus
-      -> GetBatchTimeByProgramSessionBranchCampusAndBatchDay
-      -> GetBatchByProgramSessionBranchCampusAndBatchDayTime
+**Two things are easy to get wrong.**
 
-then `POST /Student/Admission/CalculateCourseFee` for the money, and finally
+First, these loaders do not return data. They return rendered `<option>` markup inside a JSON
+string — `{"SessionOptions": "<option value=\"66\">2026</option>…"}` — so the options have to be
+parsed out. Treating the reply as a list of objects yields an empty list and no error.
+
+Second, and the one that costs real time: **the course list is not its own endpoint.** It arrives
+from `GetBranchByProgramSession` — but only when `isOnlyBranch` is **false**. With `true` the reply
+carries `BrunchOptions` alone; with `false` it also carries `CourseView`, ~144 KB of markup holding
+the course checkboxes. That is the only place the course ids live, and `studentObj` cannot be built
+without them. `sessionChange()` is what calls it that way, and it empties `#CouseCheckList` first
+(the typo is theirs).
+
+    POST GetSessionByProgram               { programId, sessionId }
+    POST GetBranchByProgramSession         { programId, sessionId, studentId, isOffice,
+                                             versionStudy, gender, isOnlyBranch, selectedCourseId }
+         → SessionOptions, BrunchOptions, AttachedPhysicalBrunchOptions,
+           CourseView  ← the course checkboxes, only when isOnlyBranch = false
+           ExamBoardView, MaxNextPaymentDate
+    POST GetCampusByProgramSessionAndBranch { branchId, campusId, programId, sessionId,
+                                              versionStudy, gender }
+    POST GetBatchDayByProgramSessionBranchAndCampus  { …, courseIds }
+    POST GetBatchTimeBy… / GetBatchBy…
+
+Each course checkbox in `CourseView` carries what the payload needs:
+
+    data-course-id · data-course-name · data-officeminsub · data-maximumsubject
+    data-isofficecompulsary · data-program-id · data-session-id
+
+Then the money, which needs the assembled student rather than ids:
+
+    POST /Student/Admission/CalculateCourseFee
+         { format: "json", studentViewModelJson: <studentObj>, previousStudentId, bookingId }
+
+and only then the write:
 
     POST /Student/Admission/NewStudentAdmission   { studentObj, boardInfos }
 
@@ -101,12 +130,18 @@ then `POST /Student/Admission/CalculateCourseFee` for the money, and finally
     Courses[]: Id, Name, ProgramId, SessionId, IsTaken, BatchId, BranchId, CampusId,
                OfficeMinSub, maxSubject, IsOfficeCompulsary, + subjects and the discount fields
 
-The course rows carry their own ids as `data-course-id` / `data-officeminsub` /
-`data-maximumsubject` / `data-isofficecompulsary` attributes, so the course list has to be fetched
-and parsed before studentObj can be built — the ids are not knowable in advance.
-
 `POST /Student/Admission/StudentRegistration { studentObj }` is the registration-only variant
 (`#saveStudent`), without payment.
+
+### Resolved on ums-3, for the QA suite's own scenario
+
+    Program 68  Engineering Admission Program
+    Session 66  2026            Gender 1 Male · VersionOfStudy 1 Bangla
+    Branch  89  Rajshahi Kadirganj Udvash   ← the suite's "Rajshahi"
+    Campus 100  Rajshahi Campus
+    Course 2474 Engineering Full Course 2026 [Offline]  (minSub 4, maxSub 4)
+
+15 courses come back for that combination.
 
 ## The follow-on pages are search-then-act
 
