@@ -602,6 +602,10 @@
   .fnlk:hover{text-decoration:underline;color:#b7acff}
   .fnlk::after{content:"↗";font-size:10px;margin-left:3px;opacity:.6}
   .fnpath{font-size:11px;font-family:ui-monospace,Consolas,monospace}
+  /* the franchise check filters: a stacked label so a dozen of them wrap tidily */
+  .fvl{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--mut);font-weight:600}
+  .fvl input,.fvl select{height:var(--ctl-h);font-size:13px;padding:0 8px;min-width:120px}
+  .fvl input[type=date]{min-width:132px}
   .fnwhy{color:#e14b5e;font-size:12px;flex:1 1 100%;margin-left:26px}
   /* a reason that carries a fuller explanation on hover — dotted underline hints it is worth hovering */
   .fnwhy.hashelp{cursor:help;text-decoration:underline dotted;text-underline-offset:3px;text-decoration-color:rgba(225,75,94,.45)}
@@ -742,6 +746,8 @@
         <button id="navAdm"><span class="ic">🎓</span><span data-i18n="nav_adm">New Admission</span></button>
         <button id="navFn"><span class="ic">🩺</span><span data-i18n="nav_fn">Function Check</span></button>
         <button id="navCc"><span class="ic">✂</span><span data-i18n="nav_cc">Bulk Course Cancel</span></button>
+        <button id="navFr"><span class="ic">⚖</span><span data-i18n="nav_fr">For Franchisor</span></button>
+        <button id="navFe"><span class="ic">⚖</span><span data-i18n="nav_fe">For Franchisee</span></button>
       </div>
     </div></nav>
     <div class="main">
@@ -1152,6 +1158,8 @@
         </div>
       </div>
     </section>
+    <section id="pgFr" class="page"><div class="card"><div class="ch" data-i18n="fr_h">For Franchisor — calculation check</div><div class="cb" id="frBox"></div></div></section>
+    <section id="pgFe" class="page"><div class="card"><div class="ch" data-i18n="fe_h">For Franchisee — calculation check</div><div class="cb" id="feBox"></div></div></section>
     </div>
   </div>
   <script src="reconcile.js"></script>
@@ -1163,6 +1171,10 @@
   <script src="menus/fn/fn.js"></script>
   <script src="menus/cc/cc-core.js"></script>
   <script src="menus/cc/cc.js"></script>
+  <script src="menus/fr/fr-core.js"></script>
+  <script src="menus/fr/fr-ui.js"></script>
+  <script src="menus/fr/fr.js"></script>
+  <script src="menus/fe/fe.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

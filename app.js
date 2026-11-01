@@ -288,6 +288,31 @@
     fn_visiting: { bn: "পেজ লোড করে যাচাই করছি…", en: "Loading & checking pages…" },
     fn_shooting: { bn: "Fail-এর স্ক্রিনশট নিচ্ছি…", en: "Capturing failure screenshots…" },
     fn_done: { bn: "✓ শেষ", en: "✓ Done" },
+    nav_fr: { bn: "For Franchisor", en: "For Franchisor" },
+    nav_fe: { bn: "For Franchisee", en: "For Franchisee" },
+    fr_h: { bn: "For Franchisor — হিসাব যাচাই", en: "For Franchisor — calculation check" },
+    fe_h: { bn: "For Franchisee — হিসাব যাচাই", en: "For Franchisee — calculation check" },
+    fr_sub: { bn: "Franchisor Calculation রিপোর্টের অংক FRS-এর সাথে মিলিয়ে দেখে — কিছু লেখে না", en: "Checks the Franchisor Calculation report against the FRS — read-only" },
+    fe_sub: { bn: "Franchisee Calculation রিপোর্টের অংক FRS-এর সাথে মিলিয়ে দেখে — কিছু লেখে না", en: "Checks the Franchisee Calculation report against the FRS — read-only" },
+    fv_base: { bn: "UMS ঠিকানা", en: "UMS address" },
+    fv_org: { bn: "Organization", en: "Organization" },
+    fv_prog: { bn: "Program", en: "Program" },
+    fv_sess: { bn: "Session", en: "Session" },
+    fv_branch: { bn: "Franchisee Branch", en: "Franchisee Branch" },
+    fv_from: { bn: "থেকে", en: "From" },
+    fv_to: { bn: "পর্যন্ত", en: "To" },
+    fv_run: { bn: "যাচাই করো", en: "Check" },
+    fv_export: { bn: "↓ Excel", en: "↓ Excel" },
+    fv_loading: { bn: "তালিকা আসছে…", en: "Loading the lists…" },
+    fv_checking: { bn: "যাচাই চলছে", en: "Checking" },
+    fv_done: { bn: "✓ শেষ", en: "✓ Done" },
+    fv_err: { bn: "সমস্যা", en: "Problem" },
+    fv_login: { bn: "লগইন দরকার — আগে এই সার্ভারে ব্রাউজারে লগইন করো", en: "Login needed — sign in to this server in the browser first" },
+    fv_needbase: { bn: "আগে UMS ঠিকানা দাও", en: "Enter the UMS address first" },
+    fv_norows: { bn: "এই ফিল্টারে কোনো সারি নেই", en: "No rows for this filter" },
+    fv_balance: { bn: "রিপোর্ট-পর্যায়ের মিল", en: "Report balance" },
+    fv_balance_off: { bn: "মিলছে না — পার্থক্য", en: "Does not balance — difference" },
+    fv_moved: { bn: "মিলেছে · {n} টি কোর্সের মান একে অপরের সাথে সরেছে (বহু-কোর্স শিক্ষার্থীর কারণে স্বাভাবিক)", en: "Balances · value moved between {n} course rows (normal with multi-course students)" },
     // the label reads the same in both languages, on purpose — it names the status, not a sentence
     fn_mark: { bn: "✓ As Pass", en: "✓ As Pass" },
     fn_mark_t: { bn: "এই Fail জানা ও গ্রহণযোগ্য — As Pass ধরো", en: "This failure is known and acceptable — count it As Pass" },
@@ -551,6 +576,8 @@
     if (self.APP.crm) self.APP.crm.setConn(self.APP.crm.getConn());
     if (self.APP.adm) self.APP.adm.setConn(self.APP.adm.getConn());
     if (self.APP.fn && self.APP.fn.relang) self.APP.fn.relang();
+    if (self.APP.fr && self.APP.fr.relang) self.APP.fr.relang();
+    if (self.APP.fe && self.APP.fe.relang) self.APP.fe.relang();
     if (self.APP.cc && self.APP.cc.relang) self.APP.cc.relang();
     const pv = $("preview"); if (pv) pv.removeAttribute("data-col"); // force head rebuild in the new language
     /* Everything whose words are written by JS rather than by a data-i18n node has to be
@@ -2681,18 +2708,22 @@
   let page = "pay";
 
   function showPage(p) {
-    page = (p === "crm" || p === "adm" || p === "fn" || p === "cc") ? p : "pay";
+    page = (p === "crm" || p === "adm" || p === "fn" || p === "cc" || p === "fr" || p === "fe") ? p : "pay";
     const set = function (id, yes) { const e = $(id); if (e) e.classList.toggle("on", yes); };
     set("pgPay", page === "pay"); set("pgCrm", page === "crm"); set("pgAdm", page === "adm"); set("pgFn", page === "fn"); set("pgCc", page === "cc");
+    set("pgFr", page === "fr"); set("pgFe", page === "fe");
     set("navPay", page === "pay"); set("navCrm", page === "crm"); set("navAdm", page === "adm"); set("navFn", page === "fn"); set("navCc", page === "cc");
+    set("navFr", page === "fr"); set("navFe", page === "fe");
     /* what is inside CRM is listed only while CRM is the open section */
     set("crmSub", page === "crm");
     if (page === "crm") self.APP.crm.show(crmTab);
     if (page === "adm") self.APP.adm.onShow();
     if (page === "cc" && self.APP.cc) self.APP.cc.onShow();
+    if (page === "fr" && self.APP.fr) self.APP.fr.onShow();
+    if (page === "fe" && self.APP.fe) self.APP.fe.onShow();
     /* The subtitle belongs to whichever section is open. Written as a data-i18n key rather than
        as text, so applyLang() keeps it right when the language changes under it. */
-    const key = page === "pay" ? "subtitle" : page === "crm" ? "crm_sub" : page === "fn" ? "fn_sub" : page === "cc" ? "cc_sub" : "adm_sub";
+    const key = page === "pay" ? "subtitle" : page === "crm" ? "crm_sub" : page === "fn" ? "fn_sub" : page === "cc" ? "cc_sub" : page === "fr" ? "fr_sub" : page === "fe" ? "fe_sub" : "adm_sub";
     const sub = $("sub");
     if (sub) { sub.setAttribute("data-i18n", key); sub.textContent = t(key); }
     try { chrome.storage.local.set({ page: page }); } catch (e) {}
@@ -2811,6 +2842,8 @@
     if ($("navAdm")) $("navAdm").addEventListener("click", function () { if (hasSel()) return; showPage("adm"); });
     if ($("navFn")) $("navFn").addEventListener("click", function () { if (hasSel()) return; showPage("fn"); });
     if ($("navCc")) $("navCc").addEventListener("click", function () { if (hasSel()) return; showPage("cc"); });
+    if ($("navFr")) $("navFr").addEventListener("click", function () { if (hasSel()) return; showPage("fr"); });
+    if ($("navFe")) $("navFe").addEventListener("click", function () { if (hasSel()) return; showPage("fe"); });
     if ($("admRun")) $("admRun").addEventListener("click", self.APP.adm.run);
     if ($("admStop")) $("admStop").addEventListener("click", self.APP.adm.stop);
     if ($("admSeq")) $("admSeq").addEventListener("click", function () { self.APP.adm.setMode("sequential"); });
