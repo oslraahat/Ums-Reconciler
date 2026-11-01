@@ -14,6 +14,12 @@
     });
   };
 
+  /* The Referer rule is ONE shared session rule, so only one flow may hold it at a time — and that
+     is true ACROSS the two panels, not just within one. Navigating Franchisor→Franchisee mid-run
+     calls the other panel's loader, which would rewrite the Referer to the other page and then tear
+     the rule out from under the running check. Hence module scope, shared by both mounts. */
+  var busy = false;
+
   var ORGS = [[1, "UDVASH"], [2, "UNMESH"], [3, "OSL"], [11, "Shikkha Poribar"],
               [12, "UTTORON"], [13, "ONLINE CARE"], [14, "UTKORSHO"]];
 
@@ -30,10 +36,7 @@
     var p = side;
     var C = A.frCore;
     var results = [];
-    /* The Referer rule is ONE shared session rule, so only one flow may hold it at a time: a
-       dropdown reload firing mid-run would disarm the rule under the running check and every
-       remaining request would come back 302. */
-    var busy = false;
+
 
     var today = new Date(), from = new Date();
     from.setMonth(from.getMonth() - 12);
@@ -69,7 +72,7 @@
       if (busy) return;
       busy = true;
       try {
-        await C.armReferer(base(), side);
+        if (!(await C.armReferer(base(), side))) { note(t("fv_noref")); return; }
         fill("Sess", await C.sessions(base(), $(p + "Org").value, $(p + "Prog").value));
         fill("Branch", await C.branches(base(), side, $(p + "Org").value, $(p + "Prog").value));
         note("");
@@ -84,7 +87,7 @@
       busy = true;
       try {
         note(t("fv_loading"));
-        await C.armReferer(base(), side);
+        if (!(await C.armReferer(base(), side))) { note(t("fv_noref")); return; }
         fill("Prog", await C.programs(base(), $(p + "Org").value));
         await C.disarmReferer();
         busy = false;
@@ -98,6 +101,7 @@
 
     async function run() {
       if (busy) return;
+      if (!base()) { note(t("fv_needbase")); return; }
       busy = true;
       var btn = $(p + "Run");
       btn.disabled = true;
@@ -105,7 +109,7 @@
       $(p + "Out").innerHTML = "";
       $(p + "Export").disabled = true;
       try {
-        await C.armReferer(base(), side);
+        if (!(await C.armReferer(base(), side))) { note(t("fv_noref")); return; }
         var f = {
           orgId: $(p + "Org").value, progId: $(p + "Prog").value, sessionId: $(p + "Sess").value,
           branchId: $(p + "Branch").value, dateFrom: $(p + "From").value, dateTo: $(p + "To").value,
@@ -135,27 +139,27 @@
         var r = g.res;
         var broken = r.rows.filter(function (x) { return x.fails.length; });
         var moved = r.rows.filter(function (x) { return Math.abs(x.drift) > 0.01; });
-        var ok = !broken.length && r.reportDrift === 0;
+        var ok = !broken.length && Math.abs(r.reportDrift) <= 0.01;
         h += '<div class="fngrp"><div class="fnghead">' + esc(g.transfer.t) +
           ' <span class="mut">(' + r.rows.length + ')</span>' +
           (ok ? ' <span class="fnpill ok">✓</span>'
-              : ' <span class="fnpill bad">✗ ' + (broken.length || 1) + '</span>') + '</div>';
+              : ' <span class="fnpill bad">✗ ' + (broken.length ? broken.length : t("fv_balance")) + '</span>') + '</div>';
         if (!r.rows.length) {
           h += '<div class="mut" style="padding:8px 12px">' + esc(t("fv_norows")) + '</div>';
         }
         broken.forEach(function (x) {
           h += '<div class="fnrow f"><span class="fnst">✗</span>' +
-               '<span class="fnlk">' + esc(x.course) + '</span>' +
+               '<span class="fvname">' + esc(x.course) + '</span>' +
                '<span class="fnwhy">' + esc(x.fails.join(" · ")) + '</span></div>';
         });
         if (r.apportions) {
-          if (r.reportDrift !== 0) {
+          if (Math.abs(r.reportDrift) > 0.01) {
             h += '<div class="fnrow f"><span class="fnst">✗</span>' +
-                 '<span class="fnlk">' + esc(t("fv_balance")) + '</span>' +
+                 '<span class="fvname">' + esc(t("fv_balance")) + '</span>' +
                  '<span class="fnwhy">' + esc(t("fv_balance_off")) + " " + r.reportDrift + '</span></div>';
           } else {
             h += '<div class="fnrow p"><span class="fnst">✓</span>' +
-                 '<span class="fnlk">' + esc(t("fv_balance")) + '</span>' +
+                 '<span class="fvname">' + esc(t("fv_balance")) + '</span>' +
                  '<span class="fnwarn">' + esc(t("fv_moved").replace("{n}", moved.length)) + '</span></div>';
           }
         }
@@ -196,6 +200,7 @@
     $(p + "Base").addEventListener("change", loadProgs);
 
     return {
+      isRunning: function () { return busy; },
       loadProgs: loadProgs,
       setBase: function (v) { if (v && !$(p + "Base").value) $(p + "Base").value = v; }
     };

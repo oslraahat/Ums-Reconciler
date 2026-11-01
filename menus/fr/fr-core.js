@@ -14,10 +14,8 @@
      the Franchisee what it owes. Same filters, same row shape, different controller. */
   var SIDE = {
     fr: { base: "Student/FranchisorCalculation/", course: "CourseWiseDataTable",
-          student: "StudentWiseDataTable", summary: "SummaryReportDataTable",
           page: "Student/FranchisorCalculation/CourseWise" },
     fe: { base: "Student/FranchiseeCalculation/", course: "CourseWiseCalculationData",
-          student: "StudentWiseCalculationData", summary: "SummaryReportData",
           page: "Student/FranchiseeCalculation/CourseWiseCalculation" }
   };
   var TRANSFER = [
@@ -35,20 +33,33 @@
      dropdowns across the UMS last time it was too broad. Our calls are initiated by the extension
      page, so they still get the header. Always disarmed again by the caller. */
   var RULE_ID = 8802;
+  /* Scoped to the handful of paths this feature calls, and nothing else. The header rewrite used to
+     cover every xmlhttprequest to the host for as long as a run lasted — minutes — so anything else
+     the extension was doing against the same UMS at the time (a Payment History run left going, CRM,
+     Function Check) had its Referer and Origin rewritten to the Franchisor page underneath it.
+     excludedInitiatorDomains keeps the rewrite off the user's own UMS tabs but cannot protect the
+     extension's own other traffic, because that really is initiated by the extension page. Path
+     scoping can. A distinct priority also keeps it from tying with New Admission's rule 8801, which
+     stands for the rest of the session once that feature has run. */
+  var RULE_PATHS = "/Student/Franchis(or|ee)Calculation/|/Administration/CommonAjax/Load(Program|Session|Course)";
   async function armReferer(base, side) {
-    var b = root(base), host;
-    try { host = new URL(b).hostname; } catch (e) { return false; }
+    var b = root(base), u;
+    try { u = new URL(b); } catch (e) { return false; }
+    var host = u.hostname;
     var reg = host.split(".").slice(-2).join(".");
     try {
       await chrome.declarativeNetRequest.updateSessionRules({
         removeRuleIds: [RULE_ID],
         addRules: [{
-          id: RULE_ID, priority: 1,
+          id: RULE_ID, priority: 2,
           action: { type: "modifyHeaders", requestHeaders: [
             { header: "referer", operation: "set", value: b + SIDE[side].page },
-            { header: "origin", operation: "set", value: b.slice(0, -1) }
+            { header: "origin", operation: "set", value: u.origin }
           ] },
-          condition: { requestDomains: [host], resourceTypes: ["xmlhttprequest"], excludedInitiatorDomains: [reg] }
+          condition: {
+            requestDomains: [host], resourceTypes: ["xmlhttprequest"],
+            excludedInitiatorDomains: [reg], regexFilter: RULE_PATHS
+          }
         }]
       });
       return true;
@@ -188,7 +199,9 @@
 
       var bad = [];
       if (!near(netSum, total)) bad.push("Total Collection " + r2(total) + " ≠ শাখাগুলোর Net-এর যোগফল " + r2(netSum));
-      if (!near(total * pct / 100, baseCut)) bad.push("Base% পাওনা " + r2(baseCut) + " ≠ Total × " + pct + "% = " + r2(total * pct / 100));
+      // a row with no Base % at all is a gap in the setup, not arithmetic that disagrees
+      if (row.FranchisorPercent != null && !near(total * pct / 100, baseCut))
+        bad.push("Base% পাওনা " + r2(baseCut) + " ≠ Total × " + pct + "% = " + r2(total * pct / 100));
       if (side === "fr" && row.TotalReceivable != null) {
         var want = baseCut + (Number(row.FranchisorService) || 0);
         if (!near(want, row.TotalReceivable))
@@ -208,6 +221,12 @@
       reportDrift: apportions ? r2(sumSvc - sumRest) : 0
     };
   }
+  /* The service worker usually survives closing and reopening the tool, so background.js clearing
+     this rule at worker start is not enough on its own: a rule leaked by a panel closed mid-run
+     would still be standing. Clear it as this module loads too — New Admission does the same for
+     8801 — so it can never outlive the panel that armed it. */
+  try { disarmReferer(); } catch (e) {}
+
   A.frCore = {
     SIDE: SIDE, TRANSFER: TRANSFER,
     api: api, programs: programs, sessions: sessions, branches: branches,

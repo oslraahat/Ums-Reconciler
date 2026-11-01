@@ -18,10 +18,21 @@
     }
   }
 
-  /* The panel is built from JS, so applyLang() cannot repaint it; rebuild it in the new language. */
+  /* The panel is written from JS, so applyLang() cannot repaint it — it has to be rebuilt. Two
+     things that rebuild must not do: leave the section empty (the old version cleared the box and
+     waited for the user to navigate away and back), and pull the panel out from under a running
+     check (render() would then write to a detached node, the throw would be swallowed, and the run
+     would die with nothing on screen — while a fresh mount armed the shared Referer rule over the
+     old run's requests). So: skip while busy, and remount at once if this section is the open one. */
   function relang() {
+    if (panel && panel.isRunning && panel.isRunning()) return;
     var box = document.getElementById("frBox");
-    if (box && box.dataset.built) { box.dataset.built = ""; box.innerHTML = ""; panel = null; }
+    if (!box || !box.dataset.built) return;
+    box.dataset.built = "";
+    box.innerHTML = "";
+    panel = null;
+    var sec = document.getElementById("pgFr");
+    if (sec && sec.classList.contains("on")) onShow();
   }
 
   A.fr = { onShow: onShow, relang: relang };

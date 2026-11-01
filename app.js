@@ -308,6 +308,7 @@
     fv_done: { bn: "✓ শেষ", en: "✓ Done" },
     fv_err: { bn: "সমস্যা", en: "Problem" },
     fv_login: { bn: "লগইন দরকার — আগে এই সার্ভারে ব্রাউজারে লগইন করো", en: "Login needed — sign in to this server in the browser first" },
+    fv_noref: { bn: "রিকোয়েস্ট-হেডার বসানো গেল না — এক্সটেনশন Reload করে আবার দেখো", en: "Could not set the request header — reload the extension and try again" },
     fv_needbase: { bn: "আগে UMS ঠিকানা দাও", en: "Enter the UMS address first" },
     fv_norows: { bn: "এই ফিল্টারে কোনো সারি নেই", en: "No rows for this filter" },
     fv_balance: { bn: "রিপোর্ট-পর্যায়ের মিল", en: "Report balance" },
