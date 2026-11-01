@@ -3076,6 +3076,7 @@
   self.APP = self.APP || {};
   Object.assign(self.APP, {
     $: $, t: t, sleep: sleep, fetchHtml: fetchHtml, parseCSV: parseCSV, readXlsx: readXlsx,
+    buildBook: buildBook,
     resolvePrograms: resolvePrograms,
     getLang: function () { return lang; }, getBaseUrl: function () { return baseUrl; }
   });
@@ -3091,7 +3092,7 @@
       if ($("nightConc")) $("nightConc").value = nightConc; if ($("nightCfg")) $("nightCfg").style.display = nightOn ? "" : "none"; })();
     saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
     if ($("singleSw")) { const on = o.singleOn !== false; $("singleSw").checked = on; if ($("singleSw").parentNode) $("singleSw").parentNode.classList.toggle("on", on); }
-    showPage((o.page === "crm" || o.page === "adm" || o.page === "fn" || o.page === "cc") ? o.page : "pay");
+    showPage((o.page === "crm" || o.page === "adm" || o.page === "fn" || o.page === "cc" || o.page === "fr" || o.page === "fe") ? o.page : "pay");
     if (o.crmBase && $("crmBase")) $("crmBase").value = o.crmBase;
     if ($("admBase")) $("admBase").value = o.admBase || "https://ums-4.osl.team";
     self.APP.adm.setConn(null);

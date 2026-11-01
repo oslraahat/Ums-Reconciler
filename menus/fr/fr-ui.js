@@ -30,6 +30,10 @@
     var p = side;
     var C = A.frCore;
     var results = [];
+    /* The Referer rule is ONE shared session rule, so only one flow may hold it at a time: a
+       dropdown reload firing mid-run would disarm the rule under the running check and every
+       remaining request would come back 302. */
+    var busy = false;
 
     var today = new Date(), from = new Date();
     from.setMonth(from.getMonth() - 12);
@@ -62,6 +66,8 @@
     }
 
     async function loadSess() {
+      if (busy) return;
+      busy = true;
       try {
         await C.armReferer(base(), side);
         fill("Sess", await C.sessions(base(), $(p + "Org").value, $(p + "Prog").value));
@@ -69,24 +75,30 @@
         note("");
       } catch (e) {
         note(e.message === "login" ? t("fv_login") : t("fv_err") + " — " + e.message);
-      } finally { await C.disarmReferer(); }
+      } finally { await C.disarmReferer(); busy = false; }
     }
 
     async function loadProgs() {
+      if (busy) return;
       if (!base()) { note(t("fv_needbase")); return; }
+      busy = true;
       try {
         note(t("fv_loading"));
         await C.armReferer(base(), side);
         fill("Prog", await C.programs(base(), $(p + "Org").value));
         await C.disarmReferer();
+        busy = false;
         await loadSess();
       } catch (e) {
         note(e.message === "login" ? t("fv_login") : t("fv_err") + " — " + e.message);
         await C.disarmReferer();
+        busy = false;
       }
     }
 
     async function run() {
+      if (busy) return;
+      busy = true;
       var btn = $(p + "Run");
       btn.disabled = true;
       results = [];
@@ -113,6 +125,7 @@
       } finally {
         await C.disarmReferer();
         btn.disabled = false;
+        busy = false;
       }
     }
 

@@ -50,19 +50,22 @@ chrome.runtime.onInstalled.addListener(function (details) {
   chrome.tabs.create({ url: chrome.runtime.getURL(PAGE) });
 });
 
-/* Safety net: New Admission's HTTP mode installs a declarativeNetRequest session rule (id 8801) that
-   rewrites the Referer/Origin of its own admission POSTs. If an old build left one standing, it could
-   quietly interfere with normal UMS AJAX. Clear it whenever the service worker starts (install, update,
-   browser start, or wake) so no stale rule ever lingers; New Admission re-adds a correctly-scoped one
-   only for the brief moment it actually posts. */
+/* Safety net for the two declarativeNetRequest session rules that rewrite Referer/Origin on our
+   OWN requests: 8801 (New Admission's HTTP posts) and 8802 (the Franchise check, whose endpoints
+   answer 302 unless the Referer is their own page). Both are armed only for the moment they are
+   needed and disarmed in a finally — but a panel closed mid-run never reaches that finally, and a
+   session rule outlives the page that made it. A stale one would quietly rewrite headers on
+   unrelated UMS AJAX, which is exactly the breakage 8801's scoping comment warns about. So clear
+   both whenever the service worker starts (install, update, browser start, or wake); each is
+   re-added, correctly scoped, only while it is actually in use. */
 (function clearStaleRefererRule() {
   try {
     if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.updateSessionRules)
-      chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [8801] });
+      chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [8801, 8802] });
   } catch (e) {}
 })();
 chrome.runtime.onStartup && chrome.runtime.onStartup.addListener(function () {
-  try { chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [8801] }); } catch (e) {}
+  try { chrome.declarativeNetRequest.updateSessionRules({ removeRuleIds: [8801, 8802] }); } catch (e) {}
 });
 
 /* Reopen the tool after an in-tool update. chrome.runtime.reload() (called once an update is written)
