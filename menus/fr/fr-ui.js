@@ -192,6 +192,45 @@
           }
           await C.disarmReferer();
         }
+
+        /* The Summary Report is the third level and it does not fit the loop above: it has no
+           Transfer Type, it is filtered by a report type instead, and the two sides answer in
+           shapes with nothing in common. So it runs on its own, once per report type. */
+        if (!stopFlag) {
+          if (!(await C.armReferer(base(), side, "summary"))) { note(t("fv_noref")); return; }
+          var types = C.SUMMARY_TYPES[side];
+          for (var k = 0; k < types.length && !stopFlag; k++) {
+            var ty = types[k];
+            note(t("fv_checking") + " — " + t("fv_lv_summary") + " · " + ty.t);
+            var srows = [];
+            /* One report type having nothing to say is not a failure of the run: on the Franchisee
+               side, reportType 10 answered with no rows and 20 with them on the same filter. */
+            try {
+              srows = await C.summaryWise(base(), side, Object.assign({ reportType: ty.v }, f));
+            } catch (e) {
+              if (e.message === "login") throw e;
+              note(t("fv_err") + " — " + ty.t + " — " + e.message);
+            }
+            var sres = C.checkSummary(side, srows);
+            var sctx = Object.assign({ transferText: ty.t, level: "summary" }, ctx);
+            sres.rows.forEach(function (x) {
+              if (x.fails.length) x.repro = C.repro(sctx, { course: x.particular, session: "",
+                total: "", pct: "", baseCut: "", svc: "" }, x.fails.join("  ·  "));
+            });
+            results.push({ level: "summary", levelLabel: t("fv_lv_summary"),
+              transfer: ty, res: sres, summary: true });
+            render();
+          }
+          await C.disarmReferer();
+        }
+
+        /* And the one check that exists only because all three levels are now in hand. The Summary
+           page says its Net Receivable comes from "Course Wise Calculation থেকে
+           (Franchisee→Franchisor T + Franchisor→Franchisee T + Non-Transfer E)" — so it should equal
+           what the Course Wise level reported over the three transfer types. Neither level can say
+           this on its own, and nobody checks it by eye across two screens. */
+        crossCheck();
+
         note(stopFlag ? t("fv_stopped") : t("fv_done"));
         $(p + "Export").disabled = !results.length;
       } catch (e) {
@@ -315,6 +354,36 @@
       $(p + "Out").innerHTML = h;
     }
 
+    /* Across the levels: the Summary's Net Receivable against what Course Wise added up to.
+       Only on the Franchisor side — that is whose page makes the claim, and the Franchisee summary
+       does not carry a comparable single figure. Reported as its own result rather than folded into
+       a level, because it is a statement about two levels agreeing and belongs nowhere else. */
+    function crossCheck() {
+      if (side !== "fr") return;
+      var course = results.filter(function (g) { return g.level === "course"; });
+      var summ = results.filter(function (g) { return g.level === "summary"; });
+      if (!course.length || !summ.length) return;
+      var courseTotal = 0, seen = 0;
+      course.forEach(function (g) {
+        g.res.rows.forEach(function (x) { courseTotal += Number(x.total) - Number(x.baseCut); seen++; });
+      });
+      if (!seen) return;
+      var fails = [];
+      summ.forEach(function (g) {
+        g.res.rows.filter(function (x) { return !x.isTotal; }).forEach(function (x) {
+          var shown = x.row.netReceivable;
+          if (Math.abs(Math.abs(shown) - Math.abs(C.r2(courseTotal))) > 0.01) {
+            fails.push({ what: g.transfer.t + " · " + x.particular,
+              why: msg("fv_x_net", { shown: C.r2(shown), sum: C.r2(courseTotal),
+                diff: C.r2(Math.abs(shown) - Math.abs(courseTotal)) }) });
+          }
+        });
+      });
+      results.push({ level: "cross", levelLabel: t("fv_x_head"), cross: true,
+        fails: fails, courseTotal: C.r2(courseTotal) });
+      render();
+    }
+
     /* the recipe, numbered so it can be followed by hand or pasted into a bug report */
     function steps(list) {
       if (!list || !list.length) return "";
@@ -324,7 +393,47 @@
     function render() {
       var h = "";
       results.forEach(function (g) {
+        /* The across-the-levels result is a verdict about two levels agreeing, not a list of rows,
+           so it renders as one line either way rather than being squeezed into the shape below. */
+        if (g.cross) {
+          h += '<div class="fngrp"><div class="fnghead">' + esc(g.levelLabel) +
+            (g.fails.length ? ' <span class="fnpill bad">✗ ' + g.fails.length + '</span>'
+                            : ' <span class="fnpill ok">✓</span>') + '</div>';
+          if (!g.fails.length) {
+            h += '<div class="fnrow p"><span class="fnst">✓</span>' +
+                 '<span class="fvname">' + esc(t("fv_x_head")) + '</span>' +
+                 '<span class="fnwarn">' + esc(t("fv_x_ok")) + '</span></div>';
+          }
+          g.fails.forEach(function (x) {
+            h += '<div class="fnrow f"><span class="fnst">✗</span>' +
+                 '<span class="fvname">' + esc(x.what) + '</span>' +
+                 '<span class="fnwhy">' + esc(x.why) + '</span></div>';
+          });
+          h += '</div>';
+          return;
+        }
         var r = g.res;
+        /* The Summary level has no Transfer Type and no report-level balance of its own; its rows
+           are named by their Particular. Its report-total rows are sums of the rows above them, so
+           they are shown but not put through the per-row rules. */
+        if (g.summary) {
+          var sbroken = r.rows.filter(function (x) { return x.fails.length; });
+          h += '<div class="fngrp"><div class="fnghead">' + esc(g.levelLabel + " · " + g.transfer.t) +
+            ' <span class="mut">(' + r.rows.length + ')</span>' +
+            (sbroken.length ? ' <span class="fnpill bad">✗ ' + sbroken.length + '</span>'
+                            : ' <span class="fnpill ok">✓</span>') + '</div>';
+          if (!r.rows.length) {
+            h += '<div class="mut" style="padding:8px 12px">' + esc(t("fv_norows")) + '</div>';
+          }
+          sbroken.forEach(function (x) {
+            h += '<div class="fnrow f"><span class="fnst">✗</span>' +
+                 '<span class="fvname">' + esc(x.particular) + '</span>' +
+                 '<span class="fnwhy">' + esc(x.fails.join(" · ")) + '</span>' +
+                 steps(x.repro) + '</div>';
+          });
+          h += '</div>';
+          return;
+        }
         var broken = r.rows.filter(function (x) { return x.fails.length; });
         var moved = r.rows.filter(function (x) { return Math.abs(x.drift) > 0.01; });
         var ok = !broken.length && Math.abs(r.reportDrift) <= 0.01;
@@ -388,6 +497,22 @@
             header: header, mat: mat, colors: colors });
         }
       });
+      /* The Summary level has its own columns, so it gets its own sheet rather than being squeezed
+         into the course/student header — which, before this, meant it was simply left out of the
+         export with nothing saying so. */
+      var sumRows = results.filter(function (g) { return g.level === "summary"; });
+      if (sumRows.length) {
+        var sh = ["fv_c_tt", "fv_c_who", "fv_c_prob", "fv_repro_h"].map(t);
+        var smat = [], scol = [];
+        sumRows.forEach(function (g) {
+          g.res.rows.forEach(function (x) {
+            smat.push([g.transfer.t, x.particular, x.fails.join(" · "),
+              (x.repro || []).map(function (s, n) { return (n + 1) + ". " + s; }).join("\n")]);
+            scol.push(x.fails.length ? "r" : "g");
+          });
+        });
+        if (smat.length) tabs.push({ name: who + " Summary", header: sh, mat: smat, colors: scol });
+      }
       if (!tabs.length) return;
       try {
         var bytes = await A.buildBook(tabs);

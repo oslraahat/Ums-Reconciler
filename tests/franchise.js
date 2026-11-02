@@ -167,6 +167,129 @@ check("rule 3 is not applied to the Franchisee side", r.rows[0].fails.length ===
     steps.filter(s => /{w+}/.test(s)).join(" | "));
 }
 
+/* The Summary Report — the third level, and the one whose arithmetic the page states itself.
+ *
+ * The fixtures below are REAL rows from ums-3, not invented ones: the Franchisor row is EAP 2023 at
+ * branch 89, the Franchisee row the same programme with its two branch columns. Every rule was
+ * checked against these figures before it was written, so a test built on anything else would be
+ * testing the rule against itself. */
+{
+  // the live Franchisor row, field for field as SummaryReportDataTable answered
+  const FR_ROW = {
+    RowType: 0, Particular: "EAP 2023", NetReceivable: -665041.66,
+    ReceivedCash: 0, ReceivedBank: 0, ReceivedMfs: 0, ReceivedTotal: 0,
+    CollectedFromFranchisorStudents: -192665, FranchisorCollectedCash: -186539,
+    FranchisorCollectedMerchant: 0, OtherAdjustment: 0, AdjustmentTotal: -6126,
+    TotalNetReceivable: -671167.66, IsSettled: false
+  };
+
+  // normaliseSummary is internal, so go through the same door the panel does
+  const sum = (side, payload) => {
+    const rows = [];
+    // summaryWise() does the fetch; checkSummary() takes what it normalised. Rebuild that shape by
+    // hand, which is also a check that the field names have not drifted.
+    if (side === "fr") {
+      payload.data.forEach(r => rows.push({
+        kind: "fr", isTotal: Number(r.RowType) !== 0, particular: r.Particular,
+        netReceivable: r.NetReceivable, cash: r.ReceivedCash, bank: r.ReceivedBank,
+        mfs: r.ReceivedMfs, receivedTotal: r.ReceivedTotal,
+        g: r.CollectedFromFranchisorStudents, h: r.FranchisorCollectedCash,
+        i: r.FranchisorCollectedMerchant, jj: r.OtherAdjustment,
+        adjustmentTotal: r.AdjustmentTotal, totalNetReceivable: r.TotalNetReceivable,
+        isSettled: r.IsSettled === true
+      }));
+    }
+    return C.checkSummary(side, rows);
+  };
+
+  let s = sum("fr", { data: [FR_ROW] });
+  check("the real Franchisor summary row passes every rule",
+    s.rows[0].fails.length === 0, JSON.stringify(s.rows[0].fails));
+
+  // each rule, broken one at a time, on the row that otherwise passes
+  const bend = (k, v) => sum("fr", { data: [Object.assign({}, FR_ROW, { [k]: v })] }).rows[0].fails;
+  check("a wrong Total Received is caught",
+    bend("ReceivedTotal", 50).some(f => f.indexOf("Cash") >= 0), JSON.stringify(bend("ReceivedTotal", 50)));
+  check("a wrong Adjustment Total is caught",
+    bend("AdjustmentTotal", -1).some(f => f.indexOf("G") >= 0), JSON.stringify(bend("AdjustmentTotal", -1)));
+  check("a wrong overall Total is caught",
+    bend("TotalNetReceivable", -1).length > 0);
+  check("Final Settled on a row with money left is caught",
+    bend("IsSettled", true).some(f => f.indexOf("671167.66") >= 0), JSON.stringify(bend("IsSettled", true)));
+  /* The live row has OtherAdjustment = 0, which makes "− J" and "+ J" the same arithmetic: flipping
+     that sign in the product changed nothing any check could see. So a second row, with J non-zero
+     and the figures worked through consistently:
+       adj   = −192665 − (−186539) − 0 − (−500) = −5626
+       total = −665041.66 − 0 + (−5626)          = −670667.66 */
+  const FR_J = Object.assign({}, FR_ROW, {
+    OtherAdjustment: -500, AdjustmentTotal: -5626, TotalNetReceivable: -670667.66
+  });
+  check("a row with a non-zero Other Adjustment passes, so the J term is exercised",
+    sum("fr", { data: [FR_J] }).rows[0].fails.length === 0,
+    JSON.stringify(sum("fr", { data: [FR_J] }).rows[0].fails));
+  check("…and J entering with the wrong sign would be caught",
+    sum("fr", { data: [Object.assign({}, FR_J, { AdjustmentTotal: -6626 })] }).rows[0].fails.length > 0);
+
+  check("…and a settled row at zero is NOT a failure",
+    sum("fr", { data: [Object.assign({}, FR_ROW, {
+      NetReceivable: 0, ReceivedTotal: 0, AdjustmentTotal: 0, TotalNetReceivable: 0,
+      CollectedFromFranchisorStudents: 0, FranchisorCollectedCash: 0, IsSettled: true
+    })] }).rows[0].fails.length === 0);
+
+  // the live Franchisee row: arrays per branch column, with a Total beside each
+  const feRow = {
+    kind: "fe", isTotal: false, particular: "EAP 2023",
+    transfer: [49343.52, 102.56], transferTotal: 49446.08,
+    otherFromOwn: [15000, 0], otherFromOwnTotal: 15000,
+    ownFromOther: [19500, 19000], ownFromOtherTotal: 38500,
+    receivable: [44843.52, -18897.44], receivableTotal: 25946.08,
+    paid: [0, 0], paidTotal: 0,
+    net: [44843.52, -18897.44], netTotal: 25946.08
+  };
+  let fs2 = C.checkSummary("fe", [feRow]);
+  check("the real Franchisee summary row passes every rule",
+    fs2.rows[0].fails.length === 0, JSON.stringify(fs2.rows[0].fails));
+
+  const bendFe = (patch) => C.checkSummary("fe",
+    [Object.assign({}, feRow, patch)]).rows[0].fails;
+  check("a column Total that is not its branches added up is caught",
+    bendFe({ transferTotal: 49447.08 }).length === 1, JSON.stringify(bendFe({ transferTotal: 49447.08 })));
+  check("a wrong Total Receivable in one branch column is caught",
+    bendFe({ receivable: [44843.52, -18000] }).some(f => f.indexOf("2") >= 0),
+    JSON.stringify(bendFe({ receivable: [44843.52, -18000] })));
+  check("a wrong Net Receivable in one branch column is caught",
+    bendFe({ net: [44843.52, -18000] }).length > 0);
+  check("the rules do not cross sides — a Franchisor row is not judged by Franchisee rules",
+    C.checkSummary("fr", [{ kind: "fr", particular: "x", netReceivable: 0, cash: 0, bank: 0, mfs: 0,
+      receivedTotal: 0, g: 0, h: 0, i: 0, jj: 0, adjustmentTotal: 0, totalNetReceivable: 0,
+      isSettled: true }]).rows[0].fails.length === 0);
+
+  check("both sides' Summary endpoints are configured",
+    C.SIDE.fr.summary === "SummaryReportDataTable" && C.SIDE.fe.summary === "SummaryReportData",
+    C.SIDE.fr.summary + " / " + C.SIDE.fe.summary);
+  check("both sides' Summary pages are configured, for the recipe to point at",
+    /FranchisorCalculation\/Summary$/.test(C.SIDE.fr.summaryPage) &&
+    /FranchiseeCalculation\/SummaryReport$/.test(C.SIDE.fe.summaryPage));
+  /* The branch is posted as franchiseeBranchId even though the dropdown it comes from is called
+     BranchId. Posting BranchId answers "Error code: 9999." and nothing else — an hour, found once,
+     and worth one line so it is not found again. */
+  {
+    const core = fs.readFileSync(path.join(__dirname, "..", "menus", "fr", "fr-core.js"), "utf8");
+    const req = core.slice(core.indexOf("async function summaryWise"), core.indexOf("function normaliseSummary"));
+    check("the Summary request posts franchiseeBranchId, not BranchId",
+      /franchiseeBranchId: f\.branchId/.test(req) && !/\bBranchId: f\.branchId/.test(req));
+    check("the Franchisor side sends the DataTables fields it needs",
+      /p\.draw = 1/.test(req) && /p\.start = 0/.test(req) && /p\.length =/.test(req));
+    check("the Franchisor side sends reportingType and salesScope",
+      /p\.reportingType = f\.reportType/.test(req) && /p\.salesScope/.test(req));
+    check("the Franchisee side sends reportType", /p\.reportType = f\.reportType/.test(req));
+  }
+
+  check("the report types are the ones the pages use",
+    C.SUMMARY_TYPES.fe.map(x => x.v).join(",") === "10,20" &&
+    C.SUMMARY_TYPES.fr.map(x => x.v).join(",") === "1,2");
+}
+
 /* The address each panel is pointed at is its own, and it has to survive a refresh.
  *
  * "UMS address refresh or new update er pore ums-5 hoye jay." It was never saved: every mount seeded
@@ -271,6 +394,26 @@ check("rule 3 is not applied to the Franchisee side", r.rows[0].fails.length ===
   check("each result remembers which level it came from", /level: lv\.k, levelLabel/.test(ui));
   check("the export splits the two levels into their own sheets",
     /\["course", "student"\]\.forEach/.test(ui) && /g\.level === k/.test(ui));
+
+  /* Student Wise sat in the engine unused for three versions because nothing asked whether the Run
+     called it. The third level gets that check on the day it lands, and so does the export, which
+     silently omitted Summary rows until it was given a sheet. */
+  check("the Run covers the Summary level", /C\.summaryWise\(base\(\), side,/.test(ui));
+  check("the Summary level is armed on its own page's Referer",
+    /armReferer\(base\(\), side, "summary"\)/.test(ui));
+  check("the Summary level runs once per report type, not per transfer type",
+    /C\.SUMMARY_TYPES\[side\]/.test(ui) && /reportType: ty\.v/.test(ui));
+  check("one report type with nothing to say does not end the run",
+    /if \(e\.message === "login"\) throw e;[\s\S]{0,120}fv_err/.test(ui));
+  check("the Summary level has its own sheet in the export",
+    /who \+ " Summary"/.test(ui));
+  check("the across-the-levels check runs after all three", /crossCheck\(\);/.test(ui));
+  check("it compares the Summary's Net Receivable with the Course Wise total",
+    /g\.level === "course"/.test(ui) && /netReceivable/.test(ui) && /fv_x_net/.test(ui));
+  check("it is Franchisor-only, since that is whose page makes the claim",
+    /if \(side !== "fr"\) return;/.test(ui));
+  check("a report total row is not put through the per-row rules",
+    /!x\.isTotal/.test(ui));
 }
 
 /* The two buttons belong in a row of their own.

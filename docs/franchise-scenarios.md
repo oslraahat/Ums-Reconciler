@@ -1,3 +1,14 @@
+> **Parked, 2 Nov 2026.** The scope was narrowed to one thing: verifying that the calculation is
+> right in the three report levels — Course Wise, Student Wise and Summary Report — read-only. All
+> three are now covered, and the Summary Report's rules came from the page's own column tooltips
+> rather than from inference.
+>
+> Creating data — admission, add course, due payment, transfer, cancel course, program migration —
+> is NOT being built. Everything below is kept because the API map in it is real and was paid for,
+> and because if the question ever comes back the work does not have to be redone. Nothing in the
+> product depends on it. `tools/discover.js` stays: it is what mapped the report endpoints, and the
+> Summary Report's two endpoints came out of it.
+
 # Testing For Franchisor / For Franchisee per transfer type — what data each case needs
 
 Six passes over an empty filter report nothing six times. That is what

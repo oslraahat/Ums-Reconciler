@@ -162,3 +162,67 @@ page, reads `#DataGrid`, posts to `GenerateStudentProgramDetails`, and copes wit
 Unlike the report endpoints, these flows depend on page state that only exists after the cascade has
 run in a real document. The established pattern in this codebase is an injected page script
 (cc-page.js), driving the real UI with the user's own session, rather than replaying POSTs blind.
+
+---
+
+## The Summary Report — the third level
+
+Read off ums-3 on 2 Nov 2026. Unlike the other two levels the arithmetic did not have to be
+inferred: the page states it in its own column tooltips, and every rule was then checked against a
+real row before being written into `checkSummary()`.
+
+| Side | Page | Data endpoint |
+|---|---|---|
+| Franchisor | `/Student/FranchisorCalculation/Summary` | `POST SummaryReportDataTable` |
+| Franchisee | `/Student/FranchiseeCalculation/SummaryReport` | `POST SummaryReportData` |
+
+No Transfer Type at this level. A report type takes its place: the Franchisor posts `reportingType`
+(1, 2) with `salesScope`, the Franchisee posts `reportType` — `SUMMARY_TYPE = { Franchisor: 10,
+OtherFranchisee: 20 }` from the page's own script, with `reportingType` applying only when it is not
+OtherFranchisee. On the filter tried, 10 answered with no rows and 20 with them.
+
+**The branch is posted as `franchiseeBranchId`**, though the dropdown it comes from is `#BranchId`.
+Posting `BranchId` answers `{"error":"Error code: 9999."}` and nothing else. The Franchisor endpoint
+is server-side DataTables, so it also wants `draw`, `start` and `length`.
+
+### Franchisor fields, and what the page says they are
+
+`RowType, Particular, NetReceivable, ReceivedCash, ReceivedBank, ReceivedMfs, ReceivedTotal,
+CollectedFromFranchisorStudents, FranchisorCollectedCash, FranchisorCollectedMerchant,
+OtherAdjustment, AdjustmentTotal, TotalNetReceivable, IsSettled`
+
+`RowType` ≠ 0 marks the report's own total lines — sums of the rows above them, not rows in their
+own right.
+
+    Total Received   = Cash + Bank + MFS
+    Adjustment Total = (G − H − I − J)
+    Total            = Net Receivable − Total Received + Adjustment Total
+    Final Settled    ⇔ that total is zero
+
+G is what the selected branch collected from Franchisor students; H and I what the Franchisor branch
+collected from this branch's students, in cash and by MFS/merchant; J the cross-programme adjustment
+made in the Adjustment menu.
+
+Checked on EAP 2023, branch 89: `−192665 − (−186539) − 0 − 0 = −6126` = AdjustmentTotal, and
+`−665041.66 − 0 + (−6126) = −671167.66` = TotalNetReceivable, with IsSettled false.
+
+### Franchisee fields
+
+`Particular, NetFromTransfer, OtherCollectedFromOwn, OwnCollectedFromOther, TotalReceivable,
+ReceivedPaid, NetReceivable` — each an ARRAY, one entry per branch column, each with a matching
+`*Total` scalar beside it. The answer also carries `Totals`, `OtherBranches` and `Header`.
+
+    each *Total      = that column's entries added up
+    Total Receivable = Net from Transfer + Other Collected from Own − Own Collected from Other
+    Net Receivable   = Total Receivable − Received/Paid
+
+Checked on the same programme's two columns: `49343.52 + 15000 − 19500 = 44843.52` and
+`102.56 + 0 − 19000 = −18897.44`, both matching TotalReceivable.
+
+### The check that needs two levels
+
+The Franchisor page says its Net Receivable comes from "Course Wise Calculation থেকে
+(Franchisee→Franchisor T + Franchisor→Franchisee T + Non-Transfer E)" — so it should equal what the
+Course Wise level reports over the three transfer types. Neither level can say this alone, and
+nobody checks it by eye across two screens, which is why it is the one check worth most here. It
+runs after all three levels, Franchisor-side only.

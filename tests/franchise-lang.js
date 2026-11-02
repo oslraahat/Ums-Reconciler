@@ -36,8 +36,13 @@ if (missing.length) { fail++; console.log("MISSING FROM DICT: " + missing.join("
 /* fv_lv_course and fv_lv_student name the report's two levels. UMS spells them "Course Wise" and
    "Student Wise" in its own left menu and the QA cases quote them that way 652 times, so the words
    are the report's, not ours, and translating them would stop them matching the screen. */
+/* The fv_s_c_* keys are the Summary Report's own column headings, as that page prints them, and
+   fv_lv_summary is the report's name in the menu. A failure message that says "Own Collected from
+   Other" sends the reader to a column with that heading on it; a translated one sends them hunting. */
 const sameOk = new Set(["fv_c_tt", "fv_c_pct", "fv_c_svc", "fv_export", "fv_r_who", "fv_r_what",
-  "fv_r_tt", "fv_lv_course", "fv_lv_student"]);
+  "fv_r_tt", "fv_lv_course", "fv_lv_student", "fv_lv_summary",
+  "fv_s_c_transfer", "fv_s_c_otherown", "fv_s_c_ownother", "fv_s_c_recvable", "fv_s_c_paid",
+  "fv_s_c_net"]);
 const suspicious = used.filter(k => DICT[k] && DICT[k].bn === DICT[k].en && !sameOk.has(k));
 console.log("keys the menus use: " + used.length);
 console.log("identical in bn and en, and not a UMS term: " + suspicious.length +

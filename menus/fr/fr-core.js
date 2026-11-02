@@ -14,13 +14,29 @@
      the Franchisee what it owes. Same filters, same row shape, different controller. */
   var SIDE = {
     fr: { base: "Student/FranchisorCalculation/", course: "CourseWiseDataTable",
-          student: "StudentWiseDataTable",
+          student: "StudentWiseDataTable", summary: "SummaryReportDataTable",
           page: "Student/FranchisorCalculation/CourseWise",
-          studentPage: "Student/FranchisorCalculation/StudentWise" },
+          studentPage: "Student/FranchisorCalculation/StudentWise",
+          summaryPage: "Student/FranchisorCalculation/Summary" },
     fe: { base: "Student/FranchiseeCalculation/", course: "CourseWiseCalculationData",
-          student: "StudentWiseCalculationData",
+          student: "StudentWiseCalculationData", summary: "SummaryReportData",
           page: "Student/FranchiseeCalculation/CourseWiseCalculation",
-          studentPage: "Student/FranchiseeCalculation/StudentWiseCalculation" }
+          studentPage: "Student/FranchiseeCalculation/StudentWiseCalculation",
+          summaryPage: "Student/FranchiseeCalculation/SummaryReport" }
+  };
+
+  /* The Summary Report is the third level, and it is not the other two with different rows: it has no
+     Transfer Type at all, it is filtered by a report type instead, and the two sides answer in shapes
+     that have nothing in common. Both were read off ums-3 rather than guessed, and both sides' rules
+     were checked against a real row before being written down — see checkSummary().
+
+     Franchisor: reportingType (1 = Program wise, 2 = the other) × salesScope.
+     Franchisee: reportType 10 = Franchisor, 20 = Other Franchisee, from the page's own SUMMARY_TYPE,
+     and reportingType only applies when it is not OtherFranchisee — which is why 10 answered with no
+     rows and 20 answered with them on the filter tried. */
+  var SUMMARY_TYPES = {
+    fr: [{ v: 1, t: "Reporting Type 1" }, { v: 2, t: "Reporting Type 2" }],
+    fe: [{ v: 10, t: "Franchisor" }, { v: 20, t: "Other Franchisee" }]
   };
   /* These stay in English in both languages on purpose: they are the UMS dropdown's own wording,
      and the recipe tells the reader to pick one of them there. A translated name would not be
@@ -196,6 +212,69 @@
     return normalise(side, j, "student");
   }
 
+  /* The Summary Report, both sides. The Franchisor side is a DataTables endpoint, so it wants
+     draw/start/length as well, and it keys the branch as franchiseeBranchId even though the dropdown
+     it comes from is called BranchId — posting BranchId answers "Error code: 9999." and nothing else,
+     which is how long that cost to find. */
+  async function summaryWise(base, side, f) {
+    var p = {
+      organizationId: f.orgId, programId: f.progId, sessionId: f.sessionId,
+      franchiseeBranchId: f.branchId, dateFrom: f.dateFrom, dateTo: f.dateTo
+    };
+    if (side === "fr") {
+      p.reportingType = f.reportType;
+      p.salesScope = f.salesScope == null ? 1 : f.salesScope;
+      p.draw = 1; p.start = 0; p.length = 1000;
+    } else {
+      p.reportType = f.reportType;
+      p.reportingType = f.reportingType == null ? 1 : f.reportingType;
+      p.perPage = 1000;
+      p.courseIds = f.courseIds || "";
+      p.showZeroPayment = !!f.showZero;
+    }
+    var j = await api(base, SIDE[side].base + SIDE[side].summary, p);
+    if (j && (j.error || j.Error)) throw new Error(String(j.error || j.Error));
+    return normaliseSummary(side, j);
+  }
+
+  /* Two shapes with nothing in common, flattened to one row each.
+     Franchisor: scalars per row, and a RowType that marks the report's own total lines — those are
+     sums of the rows above them, not rows in their own right, so they are kept separately and not
+     put through the per-row rules.
+     Franchisee: every figure is an ARRAY, one entry per branch column, with a matching *Total scalar
+     beside it. That pairing is the whole of what there is to check on that side. */
+  function normaliseSummary(side, j) {
+    if (side === "fr") {
+      return ((j && j.data) || []).map(function (r) {
+        return {
+          kind: "fr", isTotal: Number(r.RowType) !== 0,
+          particular: r.Particular || "",
+          netReceivable: num(r.NetReceivable), cash: num(r.ReceivedCash),
+          bank: num(r.ReceivedBank), mfs: num(r.ReceivedMfs),
+          receivedTotal: num(r.ReceivedTotal),
+          g: num(r.CollectedFromFranchisorStudents), h: num(r.FranchisorCollectedCash),
+          i: num(r.FranchisorCollectedMerchant), jj: num(r.OtherAdjustment),
+          adjustmentTotal: num(r.AdjustmentTotal),
+          totalNetReceivable: num(r.TotalNetReceivable),
+          isSettled: r.IsSettled === true
+        };
+      });
+    }
+    var arr = function (v) { return (v || []).map(num); };
+    return ((j && j.Rows) || []).map(function (r) {
+      return {
+        kind: "fe", isTotal: false, particular: r.Particular || "",
+        transfer: arr(r.NetFromTransfer), transferTotal: num(r.NetFromTransferTotal),
+        otherFromOwn: arr(r.OtherCollectedFromOwn), otherFromOwnTotal: num(r.OtherCollectedFromOwnTotal),
+        ownFromOther: arr(r.OwnCollectedFromOther), ownFromOtherTotal: num(r.OwnCollectedFromOtherTotal),
+        receivable: arr(r.TotalReceivable), receivableTotal: num(r.TotalReceivableTotal),
+        paid: arr(r.ReceivedPaid), paidTotal: num(r.ReceivedPaidTotal),
+        net: arr(r.NetReceivable), netTotal: num(r.NetReceivableTotal)
+      };
+    });
+  }
+  function num(v) { return Number(v) || 0; }
+
   // ---- the arithmetic the FRS promises --------------------------------------
   var r2 = function (n) { return Math.round((Number(n) || 0) * 100) / 100; };
   var near = function (a, b) { return Math.abs(r2(a) - r2(b)) <= 0.01; };
@@ -282,6 +361,87 @@
       reportDrift: apportions ? r2(sumSvc - sumRest) : 0
     };
   }
+  /* The Summary Report's arithmetic. Unlike the other two levels this did not have to be inferred:
+     the page states it in its own column tooltips, and every rule below was then checked against a
+     real row from ums-3 before it was written down.
+
+     Franchisor — the page's words, and the row they were checked on (EAP 2023, branch 89):
+       Total Received   = Cash + Bank + MFS                         0 + 0 + 0 = 0
+       Adjustment Total = (G − H − I − J)                            −192665 − (−186539) − 0 − 0 = −6126
+       Total Receivable = Net Receivable − Total Received + Adj      −665041.66 − 0 + (−6126) = −671167.66
+       Final Settled    ⇔ that total is zero                         −671167.66, IsSettled false ✓
+     G is what the selected branch collected from Franchisor students, H and I what the Franchisor
+     branch collected from this branch's students in cash and by MFS, J the cross-programme
+     adjustment.
+
+     Franchisee — same row, two branch columns:
+       each *Total       = the branch column's entries added up      49343.52 + 102.56 = 49446.08
+       Total Receivable  = transfer + other-from-own − own-from-other
+                                                                     49343.52 + 15000 − 19500 = 44843.52
+                                                                     102.56 + 0 − 19000 = −18897.44
+       Net Receivable    = Total Receivable − Received/Paid          44843.52 − 0 = 44843.52
+
+     One thing this level does NOT check on its own: Net Receivable is "Course Wise Calculation থেকে
+     (Franchisee→Franchisor T + Franchisor→Franchisee T + Non-Transfer E)", by the page's own account
+     — so it should equal what the Course Wise level reports over the three transfer types. That is a
+     check ACROSS levels, and it belongs where both numbers are in hand; see fr-ui's run(). */
+  function checkSummary(side, rows) {
+    var out = [];
+    rows.forEach(function (row) {
+      var bad = [];
+      if (side === "fr") {
+        if (!near(row.cash + row.bank + row.mfs, row.receivedTotal)) {
+          bad.push(fill("fv_s_recv", { shown: r2(row.receivedTotal),
+            sum: r2(row.cash + row.bank + row.mfs) }));
+        }
+        var adj = row.g - row.h - row.i - row.jj;
+        if (!near(adj, row.adjustmentTotal)) {
+          bad.push(fill("fv_s_adj", { shown: r2(row.adjustmentTotal), want: r2(adj) }));
+        }
+        var tot = row.netReceivable - row.receivedTotal + row.adjustmentTotal;
+        if (!near(tot, row.totalNetReceivable)) {
+          bad.push(fill("fv_s_total", { shown: r2(row.totalNetReceivable), want: r2(tot) }));
+        }
+        /* "শূন্য হলে Final Settled" — so the flag and the figure have to agree. A row marked settled
+           with money still on it is the one mistake here that would be read as good news. */
+        if (row.isSettled !== near(row.totalNetReceivable, 0)) {
+          bad.push(fill("fv_s_settled", { flag: T(row.isSettled ? "fv_on" : "fv_off"),
+            total: r2(row.totalNetReceivable) }));
+        }
+      } else {
+        var pairs = [
+          ["transfer", "transferTotal", "fv_s_c_transfer"],
+          ["otherFromOwn", "otherFromOwnTotal", "fv_s_c_otherown"],
+          ["ownFromOther", "ownFromOtherTotal", "fv_s_c_ownother"],
+          ["receivable", "receivableTotal", "fv_s_c_recvable"],
+          ["paid", "paidTotal", "fv_s_c_paid"],
+          ["net", "netTotal", "fv_s_c_net"]
+        ];
+        pairs.forEach(function (p) {
+          var sum = (row[p[0]] || []).reduce(function (a, b) { return a + b; }, 0);
+          if (!near(sum, row[p[1]])) {
+            bad.push(fill("fv_s_coltotal", { col: T(p[2]), shown: r2(row[p[1]]), sum: r2(sum) }));
+          }
+        });
+        // and per branch column, the two relationships the figures stand in
+        (row.receivable || []).forEach(function (v, n) {
+          var want = (row.transfer[n] || 0) + (row.otherFromOwn[n] || 0) - (row.ownFromOther[n] || 0);
+          if (!near(want, v)) {
+            bad.push(fill("fv_s_recvable", { col: n + 1, shown: r2(v), want: r2(want) }));
+          }
+        });
+        (row.net || []).forEach(function (v, n) {
+          var want = (row.receivable[n] || 0) - (row.paid[n] || 0);
+          if (!near(want, v)) {
+            bad.push(fill("fv_s_net", { col: n + 1, shown: r2(v), want: r2(want) }));
+          }
+        });
+      }
+      out.push({ particular: row.particular, isTotal: !!row.isTotal, row: row, fails: bad });
+    });
+    return { rows: out };
+  }
+
   /* The service worker usually survives closing and reopening the tool, so background.js clearing
      this rule at worker start is not enough on its own: a rule leaked by a panel closed mid-run
      would still be standing. Clear it as this module loads too — New Admission does the same for
@@ -320,6 +480,7 @@
     SIDE: SIDE, TRANSFER: TRANSFER,
     api: api, programs: programs, sessions: sessions, branches: branches,
     courseWise: courseWise, studentWise: studentWise, checkRows: checkRows, r2: r2, repro: repro,
+    summaryWise: summaryWise, checkSummary: checkSummary, SUMMARY_TYPES: SUMMARY_TYPES,
     armReferer: armReferer, disarmReferer: disarmReferer
   };
 })();
