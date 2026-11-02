@@ -322,6 +322,7 @@
     fv_c_svc: { bn: "Value of Service", en: "Value of Service" },
     fv_c_move: { bn: "কোর্সে-কোর্সে সরেছে", en: "Moved between courses" },
     fv_c_prob: { bn: "যা ভুল", en: "What is wrong" },
+    fv_f_svccount: { bn: "Total Class/Exam {shown} ≠ শাখাগুলোর Service-এর যোগফল {sum}", en: "Total Class/Exam {shown} is not the branches' service counts added up, {sum}" },
     fv_repro_h: { bn: "যেভাবে নিজে আবার দেখবে", en: "How to see this yourself" },
     fv_r_open: { bn: "খোলো: {url}", en: "Open: {url}" },
     fv_r_who: { bn: "Organization = {org}  ·  Program = {prog}", en: "Organization = {org}  ·  Program = {prog}" },

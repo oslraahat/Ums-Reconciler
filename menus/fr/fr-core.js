@@ -14,9 +14,13 @@
      the Franchisee what it owes. Same filters, same row shape, different controller. */
   var SIDE = {
     fr: { base: "Student/FranchisorCalculation/", course: "CourseWiseDataTable",
-          page: "Student/FranchisorCalculation/CourseWise" },
+          student: "StudentWiseDataTable",
+          page: "Student/FranchisorCalculation/CourseWise",
+          studentPage: "Student/FranchisorCalculation/StudentWise" },
     fe: { base: "Student/FranchiseeCalculation/", course: "CourseWiseCalculationData",
-          page: "Student/FranchiseeCalculation/CourseWiseCalculation" }
+          student: "StudentWiseCalculationData",
+          page: "Student/FranchiseeCalculation/CourseWiseCalculation",
+          studentPage: "Student/FranchiseeCalculation/StudentWiseCalculation" }
   };
   /* These stay in English in both languages on purpose: they are the UMS dropdown's own wording,
      and the recipe tells the reader to pick one of them there. A translated name would not be
@@ -53,7 +57,7 @@
      scoping can. A distinct priority also keeps it from tying with New Admission's rule 8801, which
      stands for the rest of the session once that feature has run. */
   var RULE_PATHS = "/Student/Franchis(or|ee)Calculation/|/Administration/CommonAjax/Load(Program|Session|Course)";
-  async function armReferer(base, side) {
+  async function armReferer(base, side, level) {
     var b = root(base), u;
     try { u = new URL(b); } catch (e) { return false; }
     var host = u.hostname;
@@ -64,7 +68,7 @@
         addRules: [{
           id: RULE_ID, priority: 2,
           action: { type: "modifyHeaders", requestHeaders: [
-            { header: "referer", operation: "set", value: b + SIDE[side].page },
+            { header: "referer", operation: "set", value: b + (level === "student" ? SIDE[side].studentPage : SIDE[side].page) },
             { header: "origin", operation: "set", value: u.origin }
           ] },
           condition: {
@@ -135,11 +139,16 @@
      branch object per column, the Franchisee side with flat Own/Other/Franchisor fields and a
      negative Franchisor collection where money flows the other way. Normalise both to one row so the
      arithmetic below does not have to care which menu asked. */
-  function normalise(side, j) {
+  /* Student rows carry the same branch objects as course rows, plus the student's name and
+     registration number, and a TotalService the report shows in its own column. Keeping one shape
+     means the arithmetic below does not have to know which level it is looking at. */
+  function normalise(side, j, level) {
     if (side === "fr") {
       return ((j && j.data) || []).map(function (r) {
         return {
           CourseId: r.CourseId, CourseName: r.CourseName, SessionName: r.SessionName,
+          StudentName: r.StudentName, RegistrationNo: r.RegistrationNo,
+          TotalService: r.TotalService,
           TotalCollection: r.TotalCollection, FranchisorPercent: r.FranchisorPercent,
           BaseCut: r.ReceivableAgainstBasePercent,
           TotalReceivable: r.FranchisorTotalReceivable,
@@ -147,7 +156,9 @@
           collections: [r.SelectedBranch].concat(r.OtherFranchiseeBranches || [], [r.FranchisorBranch])
             .filter(Boolean).map(function (b) { return Number(b.NetCollection) || 0; }),
           services: [r.SelectedBranch].concat(r.OtherFranchiseeBranches || [], [r.FranchisorBranch])
-            .filter(Boolean).map(function (b) { return Number(b.ValueOfService) || 0; })
+            .filter(Boolean).map(function (b) { return Number(b.ValueOfService) || 0; }),
+          serviceCounts: [r.SelectedBranch].concat(r.OtherFranchiseeBranches || [], [r.FranchisorBranch])
+            .filter(Boolean).map(function (b) { return Number(b.Services) || 0; })
         };
       });
     }
@@ -172,8 +183,19 @@
       showZeroPayment: !!f.showZero
     });
     if (j && j.error) throw new Error(String(j.error));
-    return normalise(side, j);
+    return normalise(side, j, "course");
   }
+  async function studentWise(base, side, f) {
+    var j = await api(base, SIDE[side].base + SIDE[side].student, {
+      organizationId: f.orgId, programId: f.progId, sessionId: f.sessionId,
+      franchiseeBranchId: f.branchId, courseIds: f.courseIds || "",
+      transferType: f.transferType, dateFrom: f.dateFrom, dateTo: f.dateTo,
+      showZeroPayment: !!f.showZero
+    });
+    if (j && j.error) throw new Error(String(j.error));
+    return normalise(side, j, "student");
+  }
+
   // ---- the arithmetic the FRS promises --------------------------------------
   var r2 = function (n) { return Math.round((Number(n) || 0) * 100) / 100; };
   var near = function (a, b) { return Math.abs(r2(a) - r2(b)) <= 0.01; };
@@ -212,6 +234,13 @@
       sumSvc += svc; sumRest += (total - baseCut);
 
       var bad = [];
+      /* The Student Wise report shows Total Class/Exam in its own column, and the cases assert it
+         114 times — so it has to agree with the per-branch service counts beside it. */
+      if (row.TotalService != null) {
+        var svcCount = (row.serviceCounts || []).reduce(function (a, b) { return a + b; }, 0);
+        if (!near(svcCount, row.TotalService))
+          bad.push(fill("fv_f_svccount", { shown: r2(row.TotalService), sum: r2(svcCount) }));
+      }
       if (!near(netSum, total)) bad.push(fill("fv_f_total", { shown: r2(total), sum: r2(netSum) }));
       // a row with no Base % at all is a gap in the setup, not arithmetic that disagrees
       if (row.FranchisorPercent != null && !near(total * pct / 100, baseCut))
@@ -224,6 +253,7 @@
 
       out.push({
         course: row.CourseName || ("#" + row.CourseId), session: row.SessionName || "",
+        who: row.StudentName ? (row.StudentName + " · " + (row.RegistrationNo || "")) : "",
         total: r2(total), pct: pct, baseCut: r2(baseCut), svc: r2(svc),
         drift: apportions ? r2(svc - (total - baseCut)) : 0,
         fails: bad
@@ -266,7 +296,7 @@
   A.frCore = {
     SIDE: SIDE, TRANSFER: TRANSFER,
     api: api, programs: programs, sessions: sessions, branches: branches,
-    courseWise: courseWise, checkRows: checkRows, r2: r2, repro: repro,
+    courseWise: courseWise, studentWise: studentWise, checkRows: checkRows, r2: r2, repro: repro,
     armReferer: armReferer, disarmReferer: disarmReferer
   };
 })();
