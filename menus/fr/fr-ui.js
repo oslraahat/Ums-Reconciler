@@ -8,6 +8,13 @@
   var A = self.APP || (self.APP = {});
   var $ = function (id) { return document.getElementById(id); };
   var t = function (k) { return (A.t ? A.t(k) : k); };
+  /* fill(sel, list) in the panel below fills a DROPDOWN. This fills slots in a sentence, which is a
+     different job with the same obvious name, so it gets a name that cannot be mistaken for it. */
+  var msg = function (k, vals) {
+    return String(t(k)).replace(/{(w+)}/g, function (m, slot) {
+      return vals && vals[slot] != null ? String(vals[slot]) : m;
+    });
+  };
   var esc = function (s) {
     return String(s == null ? "" : s).replace(/[&<>"]/g, function (c) {
       return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c];
@@ -29,6 +36,8 @@
      hoye jay." A loader is safe to remount over: the element ids do not change, so the fetch that
      is already open fills the dropdowns of whichever panel is mounted when it lands. */
   var running = false;
+  /* Stop is one button for whichever of the two is in flight; both loops test it between requests. */
+  var stopFlag = false;
 
   var ORGS = [[1, "UDVASH"], [2, "UNMESH"], [3, "OSL"], [11, "Shikkha Poribar"],
               [12, "UTTORON"], [13, "ONLINE CARE"], [14, "UTKORSHO"]];
@@ -65,6 +74,11 @@
       '</div>' +
       '<div class="fvact">' +
         '<button class="btn" id="' + p + 'Run" style="height:var(--ctl-h)">' + esc(t("fv_run")) + '</button>' +
+        /* Six passes over an empty filter report nothing six times, which is what "No rows for this
+           filter" × 6 means and does not say where the data IS. Scan answers that instead of asking
+           the person to guess their way through every session and branch by hand. */
+        '<button class="btn" id="' + p + 'Scan" style="height:var(--ctl-h)">' + esc(t("fv_scan")) + '</button>' +
+        '<button class="btn" id="' + p + 'Stop" style="height:var(--ctl-h);display:none">' + esc(t("fv_stop")) + '</button>' +
         '<button class="btn" id="' + p + 'Export" style="height:var(--ctl-h)" disabled>' + esc(t("fv_export")) + '</button>' +
       '</div>' +
       '<div class="mut" id="' + p + 'Note" style="margin-top:10px;font-size:12.5px"></div>' +
@@ -123,8 +137,11 @@
       if (!base()) { note(t("fv_needbase")); return; }
       busy = true;
       running = true;
+      stopFlag = false;
       var btn = $(p + "Run");
       btn.disabled = true;
+      $(p + "Scan").disabled = true;
+      $(p + "Stop").style.display = "";
       results = [];
       $(p + "Out").innerHTML = "";
       $(p + "Export").disabled = true;
@@ -151,10 +168,10 @@
           { k: "course", label: t("fv_lv_course"), fetch: C.courseWise },
           { k: "student", label: t("fv_lv_student"), fetch: C.studentWise }
         ];
-        for (var L = 0; L < LEVELS.length; L++) {
+        for (var L = 0; L < LEVELS.length && !stopFlag; L++) {
           var lv = LEVELS[L];
           if (!(await C.armReferer(base(), side, lv.k))) { note(t("fv_noref")); return; }
-          for (var i = 0; i < C.TRANSFER.length; i++) {
+          for (var i = 0; i < C.TRANSFER.length && !stopFlag; i++) {
             var tr = C.TRANSFER[i];
             note(t("fv_checking") + " — " + lv.label + " · " + tr.t);
             var rows = await lv.fetch(base(), side, Object.assign({ transferType: tr.v }, f));
@@ -171,16 +188,127 @@
           }
           await C.disarmReferer();
         }
-        note(t("fv_done"));
+        note(stopFlag ? t("fv_stopped") : t("fv_done"));
         $(p + "Export").disabled = !results.length;
       } catch (e) {
         note(e.message === "login" ? t("fv_login") : t("fv_err") + " — " + e.message);
       } finally {
         await C.disarmReferer();
         btn.disabled = false;
+        $(p + "Scan").disabled = false;
+        $(p + "Stop").style.display = "none";
         busy = false;
         running = false;
       }
+    }
+
+    /* Where is there anything to check?
+     *
+     * Running the six passes over a filter with no data reports nothing six times. The filters that
+     * DO have rows are findable, because the report itself will say so: walk every session × branch
+     * the dropdowns offer, ask for each transfer type at the course level, and keep the ones that
+     * come back with rows. Read-only, and it reuses the report endpoint already in hand — no new
+     * surface, nothing created.
+     *
+     * Stoppable, because sessions × branches × 3 is a few hundred requests on a wide program, and
+     * the answer is usually in the first few. */
+    function optsOf(sel) {
+      var e = $(p + sel), out = [];
+      if (!e) return out;
+      for (var i = 0; i < e.options.length; i++) {
+        if (e.options[i].value) out.push({ v: e.options[i].value, t: e.options[i].text });
+      }
+      return out;
+    }
+    async function scan() {
+      if (busy) return;
+      if (!base()) { note(t("fv_needbase")); return; }
+      var sessions = optsOf("Sess"), branches = optsOf("Branch");
+      if (!sessions.length || !branches.length) { note(t("fv_scan_need")); return; }
+      busy = true;
+      running = true;
+      stopFlag = false;
+      $(p + "Run").disabled = true;
+      $(p + "Scan").disabled = true;
+      $(p + "Stop").style.display = "";
+      $(p + "Out").innerHTML = "";
+      var hits = [], done = 0, total = sessions.length * branches.length * C.TRANSFER.length;
+      try {
+        if (!(await C.armReferer(base(), side, "course"))) { note(t("fv_noref")); return; }
+        var f = {
+          orgId: $(p + "Org").value, progId: $(p + "Prog").value,
+          dateFrom: $(p + "From").value, dateTo: $(p + "To").value, showZero: true
+        };
+        for (var s = 0; s < sessions.length && !stopFlag; s++) {
+          for (var b = 0; b < branches.length && !stopFlag; b++) {
+            for (var i = 0; i < C.TRANSFER.length && !stopFlag; i++) {
+              var tr = C.TRANSFER[i];
+              note(msg("fv_scan_at", { done: done, total: total, found: hits.length }));
+              var rows = [];
+              /* One dead combination must not end the scan — a session a branch never ran, or a
+                 branch the report refuses for this program, is exactly what we are looking for the
+                 absence of. Record nothing and carry on. */
+              try {
+                rows = await C.courseWise(base(), side, Object.assign({
+                  sessionId: sessions[s].v, branchId: branches[b].v, transferType: tr.v
+                }, f));
+              } catch (e) {
+                if (e.message === "login") throw e;
+              }
+              done++;
+              if (rows.length) {
+                hits.push({ sess: sessions[s], branch: branches[b], tr: tr, n: rows.length });
+                renderScan(hits);
+              }
+            }
+          }
+        }
+        note(stopFlag ? t("fv_stopped") : msg("fv_scan_done", { found: hits.length, total: total }));
+        if (!hits.length) renderScan(hits);
+      } catch (e) {
+        note(e.message === "login" ? t("fv_login") : t("fv_err") + " — " + e.message);
+      } finally {
+        await C.disarmReferer();
+        $(p + "Run").disabled = false;
+        $(p + "Scan").disabled = false;
+        $(p + "Stop").style.display = "none";
+        busy = false;
+        running = false;
+      }
+    }
+    function renderScan(hits) {
+      if (!hits.length) {
+        $(p + "Out").innerHTML = '<div class="mut" style="padding:8px 12px">' + esc(t("fv_scan_none")) + '</div>';
+        return;
+      }
+      /* Grouped by transfer type, because testing "transfer type onusare" is what the list is for:
+         under each type, the session and branch to set the filters to. */
+      var h = "";
+      C.TRANSFER.forEach(function (tr) {
+        var mine = hits.filter(function (x) { return x.tr.v === tr.v; });
+        if (!mine.length) return;
+        h += '<div class="fngrp"><div class="fnghead">' + esc(tr.t) +
+          ' <span class="mut">(' + mine.length + ')</span></div>';
+        mine.forEach(function (x) {
+          h += '<div class="fnrow p"><span class="fnst">✓</span>' +
+               '<span class="fvname">' + esc(x.sess.t + " · " + x.branch.t) + '</span>' +
+               '<span class="fnwarn">' + esc(msg("fv_scan_hit", { n: x.n })) + '</span></div>';
+        });
+        h += '</div>';
+      });
+      // and name the types with nothing anywhere, since that is the gap data creation has to fill
+      var empty = C.TRANSFER.filter(function (tr) {
+        return !hits.some(function (x) { return x.tr.v === tr.v; });
+      });
+      if (empty.length) {
+        h += '<div class="fngrp"><div class="fnghead">' + esc(t("fv_scan_gap")) + '</div>' +
+          empty.map(function (tr) {
+            return '<div class="fnrow f"><span class="fnst">✗</span>' +
+                   '<span class="fvname">' + esc(tr.t) + '</span>' +
+                   '<span class="fnwhy">' + esc(t("fv_scan_gapwhy")) + '</span></div>';
+          }).join("") + '</div>';
+      }
+      $(p + "Out").innerHTML = h;
     }
 
     /* the recipe, numbered so it can be followed by hand or pasted into a bug report */
@@ -210,7 +338,11 @@
                '<span class="fnwhy">' + esc(x.fails.join(" · ")) + '</span>' +
                steps(x.repro) + '</div>';
         });
-        if (r.apportions) {
+        /* With nothing in the report there is nothing to balance, and saying "Balances · value moved
+           between 0 rows" is a pass claimed over no evidence — which is worse than silence, because
+           it reads as "checked, fine". The "no rows" line above has already said everything true
+           about an empty filter. */
+        if (r.apportions && r.rows.length) {
           if (Math.abs(r.reportDrift) > 0.01) {
             h += '<div class="fnrow f"><span class="fnst">✗</span>' +
                  '<span class="fvname">' + esc(t("fv_balance")) + '</span>' +
@@ -268,6 +400,10 @@
     $(p + "Org").addEventListener("change", loadProgs);
     $(p + "Prog").addEventListener("change", loadSess);
     $(p + "Run").addEventListener("click", run);
+    $(p + "Scan").addEventListener("click", scan);
+    /* Stop only raises the flag. The loop that owns the request decides where it is safe to stop,
+       and the finally that disarms the shared Referer rule still runs. */
+    $(p + "Stop").addEventListener("click", function () { stopFlag = true; note(t("fv_stopping")); });
     $(p + "Export").addEventListener("click", exportXlsx);
     $(p + "Base").addEventListener("change", loadProgs);
 

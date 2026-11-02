@@ -164,13 +164,20 @@ const SRC = APP + "\n" + read("menus/adm/adm.js") + "\n" + read("menus/crm/crm.j
      still has to be checked, not waved through: the slot counts as filled only if THAT key's own
      fill() call names a property of that name, so forgetting one property is still caught. */
   const unfilled = [];
+  /* There is more than one generic filler now. fr-ui.js already had fill(sel, list) for filling a
+     DROPDOWN, so its sentence filler had to be called something else — msg(key, vals) — and a check
+     that knew only the name "fill" reported fv_scan_done's slots as nobody's job. Both names are
+     tried; each still has to name the property, so a forgotten one is caught either way. */
+  const FILLERS = ["fill", "msg"];
   const filledBy = function (key, name) {
-    const at = SRC.indexOf('fill("' + key + '"');
-    if (at < 0) return false;
-    const open = SRC.indexOf("{", at);
-    const close = SRC.indexOf("}", open);
-    if (open < 0 || close < 0 || close > at + 600) return false;
-    return new RegExp("\\b" + name + "\\s*:").test(SRC.slice(open, close));
+    return FILLERS.some(function (fn) {
+      const at = SRC.indexOf(fn + '("' + key + '"');
+      if (at < 0) return false;
+      const open = SRC.indexOf("{", at);
+      const close = SRC.indexOf("}", open);
+      if (open < 0 || close < 0 || close > at + 600) return false;
+      return new RegExp("\\b" + name + "\\s*:").test(SRC.slice(open, close));
+    });
   };
   keys.forEach(function (k) {
     const marks = uniq((String(DICT[k].bn) + String(DICT[k].en)).match(/\{(\w+)\}/g) || []);

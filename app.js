@@ -343,6 +343,20 @@
     fv_c_prob: { bn: "যা ভুল", en: "What is wrong" },
     /* The report has two levels and one Run now covers both, so every line that could mean either
        one has to say which. */
+    /* Six passes over an empty filter say "no rows" six times and never say where the rows ARE.
+       Scan walks every session × branch the dropdowns offer and reports the ones that have data,
+       grouped by transfer type — because testing per transfer type is what the list is for. */
+    fv_scan: { bn: "ডেটা কোথায় আছে", en: "Find data" },
+    fv_scan_need: { bn: "আগে সেশন আর শাখা লোড হতে দাও", en: "Let the sessions and branches load first" },
+    fv_scan_at: { bn: "খুঁজছি {done}/{total} — পেয়েছি {found}", en: "Scanning {done}/{total} — found {found}" },
+    fv_scan_done: { bn: "✓ শেষ — {total} টি সমন্বয়ে {found} টিতে ডেটা আছে", en: "✓ Done — {found} of {total} combinations have data" },
+    fv_scan_hit: { bn: "{n} টি সারি", en: "{n} rows" },
+    fv_scan_none: { bn: "এই প্রোগ্রামের কোনো সেশন বা শাখাতেই কোনো সারি নেই — যাচাই করার মতো কিছু নেই, আগে ডেটা বানাতে হবে", en: "Not one session or branch of this program has any rows — there is nothing to check, so the data has to be created first" },
+    fv_scan_gap: { bn: "যে Transfer Type-গুলোর কোথাও ডেটা নেই", en: "Transfer types with no data anywhere" },
+    fv_scan_gapwhy: { bn: "কোনো সেশন/শাখায় একটিও সারি নেই — এই Transfer Type এখনো যাচাই করা যায়নি", en: "Not one row in any session or branch — this transfer type has not been checked at all" },
+    fv_stop: { bn: "থামাও", en: "Stop" },
+    fv_stopping: { bn: "থামানো হচ্ছে…", en: "Stopping…" },
+    fv_stopped: { bn: "⏹ থামানো হয়েছে", en: "⏹ Stopped" },
     fv_lv_course: { bn: "Course Wise", en: "Course Wise" },
     fv_lv_student: { bn: "Student Wise", en: "Student Wise" },
     fv_c_who: { bn: "ছাত্র", en: "Student" },

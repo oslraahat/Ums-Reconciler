@@ -55,7 +55,8 @@ const html = els.frBox.innerHTML;
 check("the panel mounts and returns its handle", !!panel);
 check("no label fell back to a raw key", html.indexOf("!!MISSING:") < 0,
   (html.match(/!!MISSING:[a-z_]+/g) || []).join(", "));
-["frBase", "frOrg", "frProg", "frSess", "frBranch", "frFrom", "frTo", "frRun", "frExport", "frNote", "frOut"]
+["frBase", "frOrg", "frProg", "frSess", "frBranch", "frFrom", "frTo",
+ "frRun", "frScan", "frStop", "frExport", "frNote", "frOut"]
   .forEach(id => check("control " + id + " is in the markup", html.indexOf('id="' + id + '"') >= 0));
 check("the two sides cannot collide on ids", self.APP.frUi.mount("fe", "feBox") !== null
   && els.feBox.innerHTML.indexOf('id="feBase"') >= 0);
@@ -161,6 +162,34 @@ check("rule 3 is not applied to the Franchisee side", r.rows[0].fails.length ===
   check("it ends with what is wrong", steps[8].indexOf("24000") > 0 && steps[8].indexOf("25000") > 0, steps[8]);
   check("no step leaked an unfilled {slot}", !steps.some(s => /{w+}/.test(s)),
     steps.filter(s => /{w+}/.test(s)).join(" | "));
+}
+
+/* An empty report must not claim a pass, and Scan must say where the data is.
+ *
+ * Six passes over a filter with no data reported "No rows for this filter" and then, under it,
+ * "Report balance ✓ Balances · value moved between 0 course rows". A pass claimed over no evidence
+ * is worse than silence, because it reads as "checked, fine". */
+{
+  const ui = fs.readFileSync(path.join(__dirname, "..", "menus", "fr", "fr-ui.js"), "utf8");
+  check("the balance verdict needs rows to have been seen",
+    /if \(r\.apportions && r\.rows\.length\)/.test(ui));
+
+  check("Scan walks the sessions and branches the dropdowns offer",
+    /optsOf\("Sess"\)/.test(ui) && /optsOf\("Branch"\)/.test(ui));
+  check("Scan covers every transfer type", /C\.TRANSFER\.length && !stopFlag/.test(ui));
+  check("Scan is read-only — it asks for the report and nothing else",
+    /C\.courseWise\(base\(\), side, Object\.assign\(\{\s*\n?\s*sessionId/.test(ui));
+  check("a dead session or branch does not end the scan",
+    /catch \(e\) \{\s*\n\s*if \(e\.message === "login"\) throw e;/.test(ui));
+  check("Scan names the transfer types with no data anywhere, which is the gap to create",
+    /fv_scan_gap/.test(ui) && /!hits\.some/.test(ui));
+
+  check("Stop reaches the check as well as the scan",
+    /L < LEVELS\.length && !stopFlag/.test(ui) && /i < C\.TRANSFER\.length && !stopFlag/.test(ui));
+  check("Stop only raises a flag, so the Referer rule is still disarmed",
+    /stopFlag = true; note\(t\("fv_stopping"\)\)/.test(ui));
+  check("stopping is reported as stopped, not as done",
+    /note\(stopFlag \? t\("fv_stopped"\) : t\("fv_done"\)\)/.test(ui));
 }
 
 /* One Run has to cover both levels, and the Referer has to be re-armed for each.
