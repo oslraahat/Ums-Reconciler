@@ -411,10 +411,42 @@
     $(p + "Export").addEventListener("click", exportXlsx);
     $(p + "Base").addEventListener("change", loadProgs);
 
+    /* The address this panel is pointed at is its own, and it was never saved. Every mount seeded it
+       from the topbar's #base instead — and #base falls back to ums-5 whenever it is empty — so a
+       refresh or an extension update put ums-5 in a field that had been set to ums-3, and the next
+       Run asked the wrong server. Saved under the panel's own key, per side, debounced the way the
+       topbar does it. Storage survives an update, which is the half of the report that a seed from
+       #base could never have fixed. */
+    var SAVE_KEY = "fv" + side + "Base";
+    var baseSaveT = null;
+    $(p + "Base").addEventListener("input", function () {
+      var v = this.value.trim();
+      clearTimeout(baseSaveT);
+      baseSaveT = setTimeout(function () {
+        var o = {};
+        o[SAVE_KEY] = v;
+        try { chrome.storage.local.set(o); } catch (e) {}
+      }, 400);
+    });
+    async function restoreBase() {
+      var saved = "";
+      try {
+        saved = await new Promise(function (res) {
+          chrome.storage.local.get([SAVE_KEY], function (o) { res((o && o[SAVE_KEY]) || ""); });
+        });
+      } catch (e) { /* no storage is not a reason to show the wrong server */ }
+      if (saved) $(p + "Base").value = saved;
+      return $(p + "Base").value;
+    }
+
     return {
       isRunning: function () { return running; },
       isLoading: function () { return busy; },
       loadProgs: loadProgs,
+      restoreBase: restoreBase,
+      /* Only ever a seed, and only into an empty field. The address the person last used here is
+         restored by the mount itself, from storage; this is what fills the field the FIRST time,
+         before there is anything of its own to remember. */
       setBase: function (v) { if (v && !$(p + "Base").value) $(p + "Base").value = v; }
     };
   }

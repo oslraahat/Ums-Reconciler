@@ -1,2 +1,5 @@
 .claude/
 node_modules/
+
+# a saved page dump from tools/discover.js is a logged-in page, token and all
+*_raw.html

@@ -13,10 +13,15 @@
         var b = document.getElementById("base");
         if (b && b.value) panel.setBase(b.value);
       } catch (e) {}
-      /* A remount while a loader is open must not fire a second one: the open fetch fills the
-         dropdowns of whichever panel is mounted when it lands, and loadProgs() would only bail on
-         the shared flag and leave the selects empty. */
-      if (!(panel.isLoading && panel.isLoading())) panel.loadProgs();
+      /* The address this panel last used comes back from storage BEFORE the dropdowns are asked
+         for, or they would be loaded from the seeded address and then be wrong. setBase() above is
+         only a seed into an empty field, for the first visit. */
+      panel.restoreBase().then(function () {
+        /* A remount while a loader is open must not fire a second one: the open fetch fills the
+           dropdowns of whichever panel is mounted when it lands, and loadProgs() would only bail on
+           the shared flag and leave the selects empty. */
+        if (!(panel.isLoading && panel.isLoading())) panel.loadProgs();
+      });
     }
   }
 

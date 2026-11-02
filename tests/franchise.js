@@ -46,6 +46,9 @@ new Function("self", fs.readFileSync(ROOT + "/menus/fr/fr-core.js", "utf8"))(sel
 new Function("self", fs.readFileSync(ROOT + "/menus/fr/fr-ui.js", "utf8"))(self);
 
 let fail = 0;
+/* Checks that have to wait for something — a debounce, a storage round trip — are parked here and
+   awaited before the summary, so the exit code still accounts for them. */
+const later = [];
 const check = (name, ok, extra) => { if (!ok) fail++; console.log((ok ? "PASS  " : "FAIL  ") + name + (!ok && extra !== undefined ? "   " + extra : "")); };
 
 // ---- mount ----
@@ -164,6 +167,65 @@ check("rule 3 is not applied to the Franchisee side", r.rows[0].fails.length ===
     steps.filter(s => /{w+}/.test(s)).join(" | "));
 }
 
+/* The address each panel is pointed at is its own, and it has to survive a refresh.
+ *
+ * "UMS address refresh or new update er pore ums-5 hoye jay." It was never saved: every mount seeded
+ * it from the topbar's #base, and #base falls back to ums-5 whenever it is empty — so a field set to
+ * ums-3 came back as ums-5 and the next Run asked the wrong server. Driven here rather than read,
+ * because the thing to prove is that the value makes a round trip. */
+{
+  const store = {};
+  const chromeWas = global.chrome;
+  global.chrome = {
+    storage: { local: {
+      set: function (o) { Object.keys(o).forEach(function (k) { store[k] = o[k]; }); },
+      get: function (keys, cb) {
+        const out = {};
+        keys.forEach(function (k) { if (store[k] !== undefined) out[k] = store[k]; });
+        cb(out);
+      }
+    } }
+  };
+
+  els.frBox2 = { dataset: {}, innerHTML: "", querySelector: () => null };
+  const p2 = self.APP.frUi.mount("fr2", "frBox2");
+  check("a panel mounts for the persistence check", !!p2 && !!p2.restoreBase);
+
+  const field = els["fr2Base"];
+  check("its address field exists", !!field);
+  if (field && p2) {
+    // nothing saved yet: the seed is what shows, and it is only used while the field is empty
+    p2.setBase("https://ums-5.osl.team");
+    check("the first visit takes the seeded address", field.value === "https://ums-5.osl.team");
+    p2.setBase("https://ums-9.osl.team");
+    check("a seed does not overwrite an address already there", field.value === "https://ums-5.osl.team");
+
+    /* The save is debounced 400ms, so the round trip has to be waited for. Checked for real rather
+       than asserted true — a check that cannot fail is worse than no check, because it reads in the
+       output exactly like one that passed. */
+    later.push((async function () {
+      field.value = "https://ums-3.osl.team";
+      (((field._listeners || {}).input) || []).forEach(fn => fn.call(field));
+      await new Promise(r => setTimeout(r, 500));
+      check("the address the person typed is saved", store["fvfr2Base"] === "https://ums-3.osl.team",
+        JSON.stringify(store));
+
+      // and a fresh panel, as after a refresh, comes back to it rather than to the seed
+      els.frBox3 = { dataset: {}, innerHTML: "", querySelector: () => null };
+      const p3 = self.APP.frUi.mount("fr3", "frBox3");
+      store["fvfr3Base"] = store["fvfr2Base"];   // the third panel's own key, same saved value
+      p3.setBase("https://ums-5.osl.team");
+      const back = await p3.restoreBase();
+      check("after a refresh the saved address wins over the ums-5 seed",
+        back === "https://ums-3.osl.team" && els["fr3Base"].value === "https://ums-3.osl.team",
+        back);
+      global.chrome = chromeWas;
+    })());
+  } else {
+    global.chrome = chromeWas;
+  }
+}
+
 /* An empty report must not claim a pass, and Scan must say where the data is.
  *
  * Six passes over a filter with no data reported "No rows for this filter" and then, under it,
@@ -254,5 +316,10 @@ check("rule 3 is not applied to the Franchisee side", r.rows[0].fails.length ===
     /@media \(max-width:560px\)\{ \.fvact\{margin-left:0/.test(css));
 }
 
-console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
-process.exit(fail ? 1 : 0);
+Promise.all(later).then(function () {
+  console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
+  process.exit(fail ? 1 : 0);
+}, function (e) {
+  console.log("FAIL  a waiting check threw   " + (e && e.message ? e.message : e));
+  process.exit(1);
+});

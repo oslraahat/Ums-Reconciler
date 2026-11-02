@@ -163,6 +163,18 @@ bad("of those, holding Bengali under en", frKeys.filter(k => DICT[k] && BN.test(
   console.log((guarded.length === 2 ? "ok    " : "FAIL  ") +
     "both wrappers skip loadProgs() while a loader is open: " + guarded.length + "/2");
   if (guarded.length !== 2) fail++;
+
+  /* The saved address has to be back BEFORE the dropdowns are asked for, or they are loaded from
+     the seeded one and are then wrong — the same ordering fault as the language, one layer down.
+     loadProgs() must therefore sit inside restoreBase().then(), not beside it. */
+  const sequenced = ["menus/fr/fr.js", "menus/fe/fe.js"].filter(function (f) {
+    const src = fs.readFileSync(path.join(ROOT, f), "utf8");
+    const at = src.indexOf("panel.restoreBase().then(function () {");
+    return at >= 0 && src.indexOf("panel.loadProgs()", at) > at;
+  });
+  console.log((sequenced.length === 2 ? "ok    " : "FAIL  ") +
+    "both wrappers wait for the saved address before loading the dropdowns: " + sequenced.length + "/2");
+  if (sequenced.length !== 2) fail++;
 }
 
 console.log("\n" + (fail ? "FAILED (" + fail + ")" : "PASS"));
