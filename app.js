@@ -3067,6 +3067,12 @@
     getLang: function () { return lang; }, getBaseUrl: function () { return baseUrl; }
   });
 
+  /* The two franchise menus each saved the UMS address it was pointed at, under its own key. Those
+     menus are gone and nothing reads the keys any more, so they would sit in the profile forever —
+     litter, and litter that still names a removed feature. Cleared once, and harmless to anyone who
+     never had them. Nothing else of theirs persisted: the open-section key self-heals, because
+     showPage() falls back to "pay" for a name it no longer knows and writes that back. */
+  try { chrome.storage.local.remove(["fvfrBase", "fvfeBase"]); } catch (e) {}
   try { chrome.storage.local.get(["baseUrl", "baseUrl2", "srvMode", "appConc", "appTol", "tolMigrated", "theme", "lang", "manualOk", "saveOnFinish", "saveDirName", "page", "crmBase", "admBase", "singleOn", "nightOn", "nightFrom", "nightTo", "nightConc", "nightConcMigrated"], function (o) { if (o.manualOk) manualOk = o.manualOk;
     /* night-window "Students at once" — restore the toggle, times and count */
     nightOn = o.nightOn === true; if (o.nightFrom != null) nightFrom = o.nightFrom; if (o.nightTo != null) nightTo = o.nightTo;
