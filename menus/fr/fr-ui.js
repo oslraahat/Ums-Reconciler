@@ -20,6 +20,16 @@
      the rule out from under the running check. Hence module scope, shared by both mounts. */
   var busy = false;
 
+  /* busy says the Referer rule is held — by a check OR by a dropdown loader. running says a CHECK
+     is in flight, which is the only thing a language switch must not interrupt.
+     They were one flag, and that stranded the panel's language: onShow() fires loadProgs(), which
+     takes busy immediately, and a page restored on load reached applyLang() while that fetch was
+     still open. relang() asked isRunning(), got busy, and refused — so a panel mounted in the
+     default language before the stored one was read kept Bengali for good. "page refresh korle bn
+     hoye jay." A loader is safe to remount over: the element ids do not change, so the fetch that
+     is already open fills the dropdowns of whichever panel is mounted when it lands. */
+  var running = false;
+
   var ORGS = [[1, "UDVASH"], [2, "UNMESH"], [3, "OSL"], [11, "Shikkha Poribar"],
               [12, "UTTORON"], [13, "ONLINE CARE"], [14, "UTKORSHO"]];
 
@@ -42,7 +52,7 @@
     from.setMonth(from.getMonth() - 12);
 
     root.innerHTML =
-      '<div style="display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end">' +
+      '<div class="fvrow">' +
         '<label class="fvl">' + esc(t("fv_base")) + '<input id="' + p + 'Base" spellcheck="false" placeholder="https://ums-3.osl.team/"></label>' +
         '<label class="fvl">' + esc(t("fv_org")) + '<select id="' + p + 'Org">' +
           ORGS.map(function (o) { return '<option value="' + o[0] + '">' + esc(o[1]) + '</option>'; }).join("") +
@@ -52,8 +62,10 @@
         '<label class="fvl">' + esc(t("fv_branch")) + '<select id="' + p + 'Branch"></select></label>' +
         '<label class="fvl">' + esc(t("fv_from")) + '<input type="date" id="' + p + 'From" value="' + ymd(from) + '"></label>' +
         '<label class="fvl">' + esc(t("fv_to")) + '<input type="date" id="' + p + 'To" value="' + ymd(today) + '"></label>' +
+      '</div>' +
+      '<div class="fvact">' +
         '<button class="btn" id="' + p + 'Run" style="height:var(--ctl-h)">' + esc(t("fv_run")) + '</button>' +
-        '<button class="btn" id="' + p + 'Export" style="height:var(--ctl-h);margin-left:auto" disabled>' + esc(t("fv_export")) + '</button>' +
+        '<button class="btn" id="' + p + 'Export" style="height:var(--ctl-h)" disabled>' + esc(t("fv_export")) + '</button>' +
       '</div>' +
       '<div class="mut" id="' + p + 'Note" style="margin-top:10px;font-size:12.5px"></div>' +
       '<div id="' + p + 'Out" style="margin-top:10px"></div>';
@@ -110,6 +122,7 @@
       if (busy) return;
       if (!base()) { note(t("fv_needbase")); return; }
       busy = true;
+      running = true;
       var btn = $(p + "Run");
       btn.disabled = true;
       results = [];
@@ -151,6 +164,7 @@
         await C.disarmReferer();
         btn.disabled = false;
         busy = false;
+        running = false;
       }
     }
 
@@ -232,7 +246,8 @@
     $(p + "Base").addEventListener("change", loadProgs);
 
     return {
-      isRunning: function () { return busy; },
+      isRunning: function () { return running; },
+      isLoading: function () { return busy; },
       loadProgs: loadProgs,
       setBase: function (v) { if (v && !$(p + "Base").value) $(p + "Base").value = v; }
     };

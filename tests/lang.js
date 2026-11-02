@@ -130,5 +130,40 @@ console.log("\nstrings the two franchise menus can show: " + frKeys.length);
 bad("of those, missing from the dictionary", frKeys.filter(k => !DICT[k]));
 bad("of those, holding Bengali under en", frKeys.filter(k => DICT[k] && BN.test(DICT[k].en)));
 
+/* 5 — the language has to survive a refresh, and that is a question about ordering.
+ *
+ * "page refresh korle bn hoye jay." The stored language was read and applied correctly; the open
+ * section was simply restored nine lines earlier, while `lang` still held the module default. A
+ * menu that builds its panel from JS therefore built it in Bengali, and for the two franchise menus
+ * the repair never came: onShow() starts a dropdown loader, the loader took the one busy flag, and
+ * relang() read that flag as "a check is running" and refused to repaint.
+ *
+ * Both halves are checked here, because either one alone brings the symptom back. */
+{
+  const iLang = app.indexOf("applyLang(o.lang");
+  const iPage = app.indexOf("showPage((o.page");
+  const ordered = iLang > 0 && iPage > 0 && iPage > iLang;
+  console.log((ordered ? "ok    " : "FAIL  ") +
+    "boot restores the open section after the language" +
+    (ordered ? "" : "  (showPage at " + iPage + ", applyLang at " + iLang + ")"));
+  if (!ordered) fail++;
+
+  const ui = fs.readFileSync(path.join(ROOT, "menus", "fr", "fr-ui.js"), "utf8");
+  const split = /isRunning: function \(\) \{ return running; \}/.test(ui) &&
+    /isLoading: function \(\) \{ return busy; \}/.test(ui);
+  console.log((split ? "ok    " : "FAIL  ") +
+    "the franchise panel tells a running check apart from a dropdown loader");
+  if (!split) fail++;
+
+  // and a remount must not fire a second loader over the one already open
+  const guarded = ["menus/fr/fr.js", "menus/fe/fe.js"].filter(function (f) {
+    return /isLoading\s*&&\s*panel\.isLoading\(\)\)\) panel\.loadProgs\(\)/.test(
+      fs.readFileSync(path.join(ROOT, f), "utf8"));
+  });
+  console.log((guarded.length === 2 ? "ok    " : "FAIL  ") +
+    "both wrappers skip loadProgs() while a loader is open: " + guarded.length + "/2");
+  if (guarded.length !== 2) fail++;
+}
+
 console.log("\n" + (fail ? "FAILED (" + fail + ")" : "PASS"));
 process.exit(fail ? 1 : 0);

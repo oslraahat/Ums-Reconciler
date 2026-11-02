@@ -115,5 +115,34 @@ check("rule 3 is not applied to the Franchisee side", r.rows[0].fails.length ===
     steps.filter(s => /{w+}/.test(s)).join(" | "));
 }
 
+/* The two buttons belong in a row of their own.
+ *
+ * "ei 2ti menu te btn position thik nai." Seven filters and both buttons shared one wrapping flex
+ * row, with margin-left:auto on Export. At any width where the filters wrapped, Run came to rest
+ * after whichever filter landed last and Export jumped to the right edge of whatever row it fell
+ * into — sometimes the row above Run. Checked on the markup, since the fault is which row each
+ * button is in, and a stand-in DOM renders no layout to measure. */
+{
+  const ui = fs.readFileSync(path.join(__dirname, "..", "menus", "fr", "fr-ui.js"), "utf8");
+  const html = ui.slice(ui.indexOf("root.innerHTML ="), ui.indexOf("/* the dropdown's own wording"));
+  const iFilters = html.indexOf('class="fvrow"');
+  const iAct = html.indexOf('class="fvact"');
+  const iRun = html.indexOf("'Run\"");
+  const iExport = html.indexOf("'Export\"");
+  check("the filters have their own row", iFilters >= 0);
+  check("the buttons have their own row", iAct > iFilters, "fvact at " + iAct);
+  check("Run is in the button row, not among the filters", iAct >= 0 && iRun > iAct, "Run at " + iRun);
+  check("Export is in the button row too", iAct >= 0 && iExport > iAct, "Export at " + iExport);
+  check("Run comes before Export", iRun < iExport);
+  check("neither button carries its own margin-left:auto any more",
+    !/id="\x27 \+ p \+ \x27(Run|Export)"[^>]*margin-left:auto/.test(html));
+
+  const css = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
+  check("the button row is styled", /\.fvact\s*\{[^}]*display:flex/.test(css));
+  check("the filter row is styled", /\.fvrow\s*\{[^}]*flex-wrap:wrap/.test(css));
+  check("Export is pushed right from the stylesheet, where both panels share it",
+    /\.fvact #frExport,\.fvact #feExport\{margin-left:auto\}/.test(css));
+}
+
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
 process.exit(fail ? 1 : 0);

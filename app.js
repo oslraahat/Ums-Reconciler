@@ -3138,7 +3138,6 @@
       if ($("nightConc")) $("nightConc").value = nightConc; if ($("nightCfg")) $("nightCfg").style.display = nightOn ? "" : "none"; })();
     saveOnFinish = o.saveOnFinish === true; dirName = o.saveDirName || "";
     if ($("singleSw")) { const on = o.singleOn !== false; $("singleSw").checked = on; if ($("singleSw").parentNode) $("singleSw").parentNode.classList.toggle("on", on); }
-    showPage((o.page === "crm" || o.page === "adm" || o.page === "fn" || o.page === "cc" || o.page === "fr" || o.page === "fe") ? o.page : "pay");
     if (o.crmBase && $("crmBase")) $("crmBase").value = o.crmBase;
     if ($("admBase")) $("admBase").value = o.admBase || "https://ums-4.osl.team";
     self.APP.adm.setConn(null);
@@ -3147,6 +3146,14 @@
        decides that at the end of the run, when it matters. */
     idb(function (st) { return st.get("dir"); }).then(function (h) { if (h) dirHandle = h; paintSaveRow(); }).catch(function () { paintSaveRow(); }); if (o.baseUrl) baseUrl = o.baseUrl; if (o.baseUrl2) baseUrl2 = o.baseUrl2; srvMode = o.srvMode === true; if (o.appConc) conc = o.appConc;
     // 1 was the old default and it hides exactly the ৳1 mismatches — drop it once, keep any other choice
-    if (o.appTol != null) { if (o.appTol === 1 && !o.tolMigrated) { tol = 0; try { chrome.storage.local.set({ appTol: 0, tolMigrated: true }); } catch (e) {} } else tol = o.appTol; } wire(); applyTheme(o.theme || "dark"); applyLang(o.lang || "en"); testConn(); ckOffer(); }); }
+    if (o.appTol != null) { if (o.appTol === 1 && !o.tolMigrated) { tol = 0; try { chrome.storage.local.set({ appTol: 0, tolMigrated: true }); } catch (e) {} } else tol = o.appTol; } wire(); applyTheme(o.theme || "dark"); applyLang(o.lang || "en");
+    /* The open section is restored LAST, after the language and the addresses. It used to be
+       restored first, which meant a menu that builds its panel from JS built it before the stored
+       language had been read — so it came up in the default, Bengali, and before baseUrl was
+       restored, so it pointed at the wrong server. For Franchisor and For Franchisee are the two
+       that show it, because onShow() also starts a loader and the old single busy flag then made
+       relang() refuse to repaint. Language first, then the page, and there is nothing to repair. */
+    showPage((o.page === "crm" || o.page === "adm" || o.page === "fn" || o.page === "cc" || o.page === "fr" || o.page === "fe") ? o.page : "pay");
+    testConn(); ckOffer(); }); }
   catch (e) { wire(); applyTheme("dark"); applyLang("en"); }
 })();

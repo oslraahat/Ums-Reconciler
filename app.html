@@ -614,6 +614,14 @@
   .fvl{display:flex;flex-direction:column;gap:3px;font-size:11.5px;color:var(--mut);font-weight:600}
   .fvl input,.fvl select{height:var(--ctl-h);font-size:13px;padding:0 8px;min-width:120px}
   .fvl input[type=date]{min-width:132px}
+  /* The seven filters and the two buttons used to share one wrapping flex row, with margin-left:auto
+     on Export. At any width where the filters wrapped — which is most of them — Run ended up tucked
+     after whichever filter happened to land last, and Export shot to the right edge of whatever row
+     it fell into, sometimes above Run. The filters wrap on their own now; the buttons have a row of
+     their own below, Run at the left and Export at the right, wherever the panel is cut off. */
+  .fvrow{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
+  .fvact{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
+  .fvact #frExport,.fvact #feExport{margin-left:auto}
   .fnwhy{color:#e14b5e;font-size:12px;flex:1 1 100%;margin-left:26px}
   /* a reason that carries a fuller explanation on hover — dotted underline hints it is worth hovering */
   .fnwhy.hashelp{cursor:help;text-decoration:underline dotted;text-underline-offset:3px;text-decoration-color:rgba(225,75,94,.45)}
