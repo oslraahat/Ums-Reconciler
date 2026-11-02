@@ -247,6 +247,25 @@
     cc_stopped: { bn: "থামানো হয়েছে — {n} টি বাকি", en: "Stopped — {n} left" },
     cc_halted: { bn: "থেমে গেছে: {why}", en: "Halted: {why}" },
     cc_left: { bn: "{n} টি বাকি", en: "{n} left" },
+    /* The filter pills and the screenshot link are icon-only, so a tooltip is all they say — and a
+       tooltip typed straight into the markup keeps the language it was typed in. These are written by
+       JS, not by a data-i18n node, so applyLang() cannot repaint them; fn.relang() rebuilds the row,
+       which is why t() at render time is enough. */
+    /* The button is labelled with the language it switches TO, so it reads "EN" while the interface
+       is Bengali — which reads to a hurried eye as "you are in EN", and then every Bengali title on
+       the page looks like a bug. The tooltip says both halves: what a click does, and where you are. */
+    /* Tooltips that were typed into app.html and so kept the language they were typed in. The
+       literal stays as the fallback shown before applyLang() runs; data-title is what repaints it. */
+    busy_t: { bn: "চলছে", en: "Running" },
+    panel_t: { bn: "UMS Payment পেজে in-page reconcile panel দেখাবে কিনা", en: "Whether the in-page reconcile panel is shown on the UMS Payment page" },
+    conc_t: { bn: "সর্বোচ্চ 300", en: "300 at most" },
+    fn_mode_t: { bn: "HTTP = দ্রুত, শুধু পেজ GET করে যাচাই · Browser = সামনের ট্যাবে সত্যিকারভাবে লোড করে (JS/console error ধরে) · Headless = ব্যাকগ্রাউন্ডে (focus কাড়ে না)", en: "HTTP = quick, verifies by GET alone · Browser = really loaded in a visible tab (catches JS/console errors) · Headless = in the background (does not steal focus)" },
+    fn_speed_t: { bn: "Browser/Headless মোডে প্রতিটি পেজ কত দ্রুত যাচাই হবে — Slow হলে প্রতিটি পেজে বেশিক্ষণ থামে (দেখা যায় / সার্ভারে নরম)", en: "How fast each page is checked in Browser/Headless mode — Slow waits longer on every page (visible / gentler on the server)" },
+    lang_t: { bn: "ইংরেজিতে বদলাও — এখন বাংলা", en: "Switch to Bengali — now English" },
+    fn_f_pass: { bn: "শুধু Pass দেখাও", en: "Show only Pass" },
+    fn_f_fail: { bn: "শুধু Fail দেখাও", en: "Show only Fail" },
+    fn_f_all: { bn: "সব দেখাও", en: "Show all" },
+    fn_shot_t: { bn: "স্ক্রিনশট — খুলতে ক্লিক করো", en: "Screenshot — click to open" },
     fn_sub: { bn: "Clickable Function Check — পেজের সব লিংক (menu/সাব-মেনু সহ) দ্রুত যাচাই", en: "Clickable Function Check — sweep every link on the page (menus & sub-menus included)" },
     fn_h: { bn: "Clickable Function Check", en: "Clickable Function Check" },
     fn_intro: { bn: "UMS ঠিকানা দাও, Check Now চাপো। প্রতিটা menu ও সাব-মেনু পেজ খুলে Pass/Fail দেখাবে (Fail হলে স্ক্রিনশট সহ)। শুধু পেজ খোলে — কিছু save/delete হয় না, তাই নিরাপদ।", en: "Enter a UMS address and press Check Now. It opens every menu and sub-menu page and marks each Pass or Fail (with a screenshot on failure). It only opens pages — nothing is saved or deleted — so it's safe." },

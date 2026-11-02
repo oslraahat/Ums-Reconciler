@@ -520,11 +520,11 @@
     if (!pp) {
       s.innerHTML =
         '<span class="fnpill fntime" style="background:rgba(245,179,1,.16);color:#e0a81e"></span> '
-        + '<span class="fnpill ok fnf" data-fnf="pass" title="শুধু Pass দেখাও"></span> '
-        + '<span class="fnpill bad fnf" data-fnf="fail" title="শুধু Fail দেখাও"></span> '
+        + '<span class="fnpill ok fnf" data-fnf="pass" title="' + esc(t("fn_f_pass")) + '"></span> '
+        + '<span class="fnpill bad fnf" data-fnf="fail" title="' + esc(t("fn_f_fail")) + '"></span> '
         + '<span class="fnpill fnf" data-fnf="marked" style="background:rgba(245,179,1,.16);color:#e0a81e"></span> '
         + '<span class="fnpill fnf" data-fnf="skipped" style="background:rgba(91,140,255,.16);color:#7ba2ff"></span> '
-        + '<span class="fnpill fnf" data-fnf="all" title="সব দেখাও" style="background:rgba(127,127,127,.14);color:var(--mut)"></span>';
+        + '<span class="fnpill fnf" data-fnf="all" title="' + esc(t("fn_f_all")) + '" style="background:rgba(127,127,127,.14);color:var(--mut)"></span>';
       tp = s.querySelector(".fntime"); pp = s.querySelector('[data-fnf="pass"]');
       fp = s.querySelector('[data-fnf="fail"]'); ap = s.querySelector('[data-fnf="all"]');
     }
@@ -605,7 +605,7 @@
             var cls = a.validation ? "v" : (a.pass ? "p" : "f");
             return '<div class="fnactrow ' + cls + '"><span class="fnst">' + (a.validation ? "!" : (a.pass ? "✓" : "✗")) +
               '</span><span class="fnactlbl">' + esc(a.label) + '</span><span class="fnactwhy">— ' + esc(a.reason) + '</span>' +
-              (a.shot ? '<a class="fnshot" href="' + a.shot + '" target="_blank" title="স্ক্রিনশট — খুলতে ক্লিক করো">📷 Screenshot ↗</a>' : "") +
+              (a.shot ? '<a class="fnshot" href="' + a.shot + '" target="_blank" title="' + esc(t("fn_shot_t")) + '">📷 Screenshot ↗</a>' : "") +
               '</div>';
           }).join("") + '</div>';
         }
@@ -620,7 +620,7 @@
           '<span class="fnst">' + (r.pass ? "✓" : (mk ? "⚑" : "✗")) + '</span>' +
           '<a class="fnlk" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.label) + '</a>' +
           '<span class="fnpath mut">' + esc(r.path) + '</span>' +
-          (r.shot ? '<a class="fnshot" href="' + r.shot + '" target="_blank" title="স্ক্রিনশট — খুলতে ক্লিক করো">📷 Screenshot ↗</a>' : "") +
+          (r.shot ? '<a class="fnshot" href="' + r.shot + '" target="_blank" title="' + esc(t("fn_shot_t")) + '">📷 Screenshot ↗</a>' : "") +
           btn +
           (r.pass ? "" : '<span class="fnwhy' + (r.help ? " hashelp" : "") + '"' +
             (r.help ? ' title="' + esc(r.help) + '"' : "") + '>' + esc(r.reason) + '</span>') +

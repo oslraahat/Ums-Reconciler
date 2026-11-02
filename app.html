@@ -738,7 +738,7 @@
     </div>
     <div style="display:flex;gap:8px;align-items:center">
       <button class="tbtn" id="updBtn" data-i18n="upd_check">↻ Check Update</button>
-      <button class="tbtn" id="lang">EN</button>
+      <button class="tbtn" id="lang" data-title="lang_t">EN</button>
       <button class="tbtn" id="theme">☀ Light</button>
     </div>
   </div>
@@ -746,7 +746,7 @@
     <nav class="side"><div class="sidein">
       <h3 data-i18n="nav_head">বিভাগ</h3>
       <div class="nav">
-        <button id="navPay" class="on"><span class="ic">৳</span><span data-i18n="nav_pay">Payment History</span><span class="busy" title="চলছে"></span></button>
+        <button id="navPay" class="on"><span class="ic">৳</span><span data-i18n="nav_pay">Payment History</span><span class="busy" data-title="busy_t" title="চলছে"></span></button>
         <button id="navCrm"><span class="ic">☎</span><span data-i18n="nav_crm">CRM</span></button>
         <div class="sub" id="crmSub">
           <button id="navCrmDash" class="on" data-i18n="crm_dash">Dashboard</button>
@@ -790,7 +790,7 @@
     <div class="card">
       <!-- The sheet picker shows only for a workbook with more than one tab; a .csv, a Google
            Sheet or a pasted block has nothing to choose between, so it stays hidden. -->
-      <div class="ch"><span class="n">2</span><h2 data-i18n="verify_h">কী যাচাই হবে</h2><span id="cnt" class="badge">০ টি</span><div id="sheetRow" class="sheetrow" style="display:none"><label for="sheetSel" data-i18n="sheet_l">কোন শিট পড়া হবে</label><select id="sheetSel"></select></div><label class="srvsw" style="margin-left:auto" title="UMS Payment পেজে in-page reconcile panel দেখাবে কিনা"><input type="checkbox" id="singleSw" checked><i class="tg"></i><span data-i18n="single_l">Single Reconcile</span></label></div>
+      <div class="ch"><span class="n">2</span><h2 data-i18n="verify_h">কী যাচাই হবে</h2><span id="cnt" class="badge">০ টি</span><div id="sheetRow" class="sheetrow" style="display:none"><label for="sheetSel" data-i18n="sheet_l">কোন শিট পড়া হবে</label><select id="sheetSel"></select></div><label class="srvsw" style="margin-left:auto" data-title="panel_t" title="UMS Payment পেজে in-page reconcile panel দেখাবে কিনা"><input type="checkbox" id="singleSw" checked><i class="tg"></i><span data-i18n="single_l">Single Reconcile</span></label></div>
       <div class="hint" style="margin:0 0 6px" data-i18n="in_hint">Excel / CSV বা Google Sheet import করো — Reg ও spid/Program অটো-ধরবে।</div>
       <div class="row-actions">
         <label class="btn g impbtn" for="file" style="cursor:pointer" data-i18n="import_btn">⬆ Import Excel</label>
@@ -818,7 +818,7 @@
       <div class="ch"><span class="n">3</span><h2 data-i18n="settings_h">সেটিংস ও Run</h2></div>
       <div class="grid g4" id="setGrid">
         <div><label data-i18n="tol_l">গ্রহণযোগ্য পার্থক্য</label><input id="tol" type="number" min="0" step="any" value="0"></div>
-        <div><label data-i18n="conc_l">একসাথে কয়টি ছাত্র</label><input id="conc" type="number" min="1" max="300" value="10" title="সর্বোচ্চ 300"><div class="cnote" id="concNote"></div></div>
+        <div><label data-i18n="conc_l">একসাথে কয়টি ছাত্র</label><input id="conc" type="number" min="1" max="300" value="10" data-title="conc_t" title="সর্বোচ্চ 300"><div class="cnote" id="concNote"></div></div>
         <!-- night boost sits in its OWN column right after "একসাথে কয়টি ছাত্র": the column label
              carries the meaning, so the switch itself is a bare toggle and the times follow it -->
         <div>
@@ -1112,12 +1112,12 @@
             <div style="flex:1 1 150px;min-width:90px">
               <div style="display:flex;align-items:baseline;justify-content:space-between;gap:8px"><label data-i18n="fn_base_l">UMS ঠিকানা (Base URL)</label><span id="fnConn" class="fnconn"></span></div>
               <input id="fnBase" spellcheck="false" placeholder="https://ums-4.osl.team"></div>
-            <div class="seg segeq" style="height:var(--ctl-h)" title="HTTP = দ্রুত, শুধু পেজ GET করে যাচাই · Browser = সামনের ট্যাবে সত্যিকারভাবে লোড করে (JS/console error ধরে) · Headless = ব্যাকগ্রাউন্ডে (focus কাড়ে না)">
+            <div class="seg segeq" style="height:var(--ctl-h)" data-title="fn_mode_t" title="HTTP = দ্রুত, শুধু পেজ GET করে যাচাই · Browser = সামনের ট্যাবে সত্যিকারভাবে লোড করে (JS/console error ধরে) · Headless = ব্যাকগ্রাউন্ডে (focus কাড়ে না)">
               <button type="button" id="fnHttp" class="on" data-i18n="fn_http_l">⚡ HTTP</button>
               <button type="button" id="fnBrowser" data-i18n="fn_browser_l">🌐 Browser</button>
               <button type="button" id="fnHeadless" data-i18n="fn_headless_l">⚙️ Headless</button>
             </div>
-            <div class="seg segeq" id="fnSpeedSeg" style="height:var(--ctl-h);display:none" title="Browser/Headless মোডে প্রতিটি পেজ কত দ্রুত যাচাই হবে — Slow হলে প্রতিটি পেজে বেশিক্ষণ থামে (দেখা যায় / সার্ভারে নরম)">
+            <div class="seg segeq" id="fnSpeedSeg" style="height:var(--ctl-h);display:none" data-title="fn_speed_t" title="Browser/Headless মোডে প্রতিটি পেজ কত দ্রুত যাচাই হবে — Slow হলে প্রতিটি পেজে বেশিক্ষণ থামে (দেখা যায় / সার্ভারে নরম)">
               <button type="button" id="fnFast" class="on" data-i18n="fn_fast_l">🚀 Fast</button>
               <button type="button" id="fnSlow" data-i18n="fn_slow_l">⏳ Slow</button>
             </div>
