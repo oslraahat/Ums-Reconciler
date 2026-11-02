@@ -33,26 +33,25 @@ const missing = used.filter(k => !DICT[k]);
 if (missing.length) { fail++; console.log("MISSING FROM DICT: " + missing.join(", ")); }
 
 // a label that is the same in both languages is only right when it names a UMS term
-const sameOk = new Set(["fv_c_tt", "fv_c_pct", "fv_c_svc", "fv_export", "fv_r_who", "fv_r_what", "fv_r_tt"]);
+/* fv_lv_course and fv_lv_student name the report's two levels. UMS spells them "Course Wise" and
+   "Student Wise" in its own left menu and the QA cases quote them that way 652 times, so the words
+   are the report's, not ours, and translating them would stop them matching the screen. */
+const sameOk = new Set(["fv_c_tt", "fv_c_pct", "fv_c_svc", "fv_export", "fv_r_who", "fv_r_what",
+  "fv_r_tt", "fv_lv_course", "fv_lv_student"]);
 const suspicious = used.filter(k => DICT[k] && DICT[k].bn === DICT[k].en && !sameOk.has(k));
 console.log("keys the menus use: " + used.length);
 console.log("identical in bn and en, and not a UMS term: " + suspicious.length +
   (suspicious.length ? "  → " + suspicious.join(", ") : ""));
 if (suspicious.length) fail++;
 
-// and the columns a person actually sees in the export
-for (const lang of ["bn", "en"]) {
-  const cols = ["fv_c_tt", "fv_c_course", "fv_c_sess", "fv_c_total", "fv_c_pct",
-    "fv_c_base", "fv_c_svc", "fv_c_move", "fv_c_prob", "fv_repro_h"]
-    .map(k => (DICT[k] ? DICT[k][lang] : "!!" + k));
-  console.log("\nExcel columns (" + lang + "):\n  " + cols.join(" | "));
-  if (cols.some(c => c.startsWith("!!"))) fail++;
-}
-
 /* The slip that started this: a column name typed straight into the header array instead of a
-   dictionary key. Nothing above notices — the key simply stops being used — so the array itself
+   dictionary key. Nothing else notices — the key simply stops being used — so the array itself
    is checked: every entry must be a key, never a word. Located by string, not by regex, because
-   the entries are quoted and a pattern here would only be another thing to get wrong. */
+   the entries are quoted and a pattern here would only be another thing to get wrong.
+
+   The keys are READ from fr-ui.js rather than listed again here. They were listed, and adding the
+   Student column to the export left the list a column short: the test failed on its own staleness
+   while the product was right, which teaches whoever sees it to edit the test until it goes quiet. */
 {
   const ui = fs.readFileSync(path.join(ROOT, "menus", "fr", "fr-ui.js"), "utf8");
   const start = ui.indexOf("var header = [");
@@ -69,6 +68,11 @@ for (const lang of ["bn", "en"]) {
     if (unknown.length) { fail++; console.log("\ncolumn key(s) with no string behind them: " + unknown.join(", ")); }
     if (!literals.length && !unknown.length) {
       console.log("\nexport header: " + entries.length + " dictionary keys, no hardcoded words");
+      // and the columns a person actually sees, in both languages, from those same keys
+      for (const lang of ["bn", "en"]) {
+        console.log("Excel columns (" + lang + "):\n  " +
+          entries.map(k => DICT[k][lang]).join(" | "));
+      }
     }
   }
 }

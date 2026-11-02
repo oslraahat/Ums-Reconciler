@@ -341,6 +341,15 @@
     fv_c_svc: { bn: "Value of Service", en: "Value of Service" },
     fv_c_move: { bn: "কোর্সে-কোর্সে সরেছে", en: "Moved between courses" },
     fv_c_prob: { bn: "যা ভুল", en: "What is wrong" },
+    /* The report has two levels and one Run now covers both, so every line that could mean either
+       one has to say which. */
+    fv_lv_course: { bn: "Course Wise", en: "Course Wise" },
+    fv_lv_student: { bn: "Student Wise", en: "Student Wise" },
+    fv_c_who: { bn: "ছাত্র", en: "Student" },
+    /* The one finding from running Student Wise live against ums-3: a row with no classes divides by
+       zero, the FRS guard puts 0 in Value of Service, and nothing says who owns what is left. */
+    fv_f_noclass: { bn: "Total Class/Exam = 0, তাই Value of Service-ও 0 — কিন্তু base কাটার পর {rest} টাকা থেকে যাচ্ছে, যার মালিক FRS বলে না", en: "Total Class/Exam = 0, so Value of Service is 0 too — but {rest} is left over after the base cut, and the FRS does not say whose it is" },
+    fv_r_student: { bn: "যে ছাত্রকে খুঁজবে: {who}", en: "The student to find: {who}" },
     fv_f_svccount: { bn: "Total Class/Exam {shown} ≠ শাখাগুলোর Service-এর যোগফল {sum}", en: "Total Class/Exam {shown} is not the branches' service counts added up, {sum}" },
     fv_repro_h: { bn: "যেভাবে নিজে আবার দেখবে", en: "How to see this yourself" },
     fv_r_open: { bn: "খোলো: {url}", en: "Open: {url}" },

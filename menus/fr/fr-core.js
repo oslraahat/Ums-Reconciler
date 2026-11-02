@@ -241,6 +241,23 @@
         if (!near(svcCount, row.TotalService))
           bad.push(fill("fv_f_svccount", { shown: r2(row.TotalService), sum: r2(svcCount) }));
       }
+      /* Where the transfer types apportion by service, the money left after the base cut is divided
+         by classes taken. A row with no classes at all divides by zero, and the FRS's guard puts 0
+         in Value of Service — but it never says who owns the remainder. Run live against ums-3 on
+         14.79 this was the whole story: 802 student rows, not one per-row rule broken, yet 3 of 9
+         branch/transfer combinations failed the report balance, each tracing to exactly one row with
+         classes = 0 — 400, 2,000 and 10,000 taka with no owner.
+
+         Per-row drift is normally movement, not a fault: a student taking two courses has their money
+         split between the courses by ratio while their classes stay with one. That defence needs a
+         class somewhere to have moved the value TO. With zero classes on the row there is none, so
+         the remainder is not moved, it is unaccounted for — and that is worth saying by name. */
+      if (apportions && row.serviceCounts != null) {
+        var classes = (row.serviceCounts || []).reduce(function (a, b) { return a + b; }, 0);
+        var rest = total - baseCut;
+        if (classes === 0 && Math.abs(rest) > 0.01)
+          bad.push(fill("fv_f_noclass", { rest: r2(rest) }));
+      }
       if (!near(netSum, total)) bad.push(fill("fv_f_total", { shown: r2(total), sum: r2(netSum) }));
       // a row with no Base % at all is a gap in the setup, not arithmetic that disagrees
       if (row.FranchisorPercent != null && !near(total * pct / 100, baseCut))
@@ -276,8 +293,12 @@
      in the dropdowns (not as ids), the row to look at, what UMS put on screen, and what the FRS
      says it should have been. Follow the lines in order and the same figure appears. */
   function repro(ctx, row, problem) {
+    /* The recipe has to name the page the figure is actually on. Both levels of the report live at
+       their own address, and a Student Wise failure sent someone to the Course Wise page would not
+       show the row named two lines below. */
+    var page = ctx.level === "student" ? SIDE[ctx.side].studentPage : SIDE[ctx.side].page;
     var s = [
-      fill("fv_r_open", { url: root(ctx.base) + SIDE[ctx.side].page }),
+      fill("fv_r_open", { url: root(ctx.base) + page }),
       fill("fv_r_who", { org: ctx.orgText, prog: ctx.progText }),
       fill("fv_r_what", { sess: ctx.sessText, branch: ctx.branchText }),
       fill("fv_r_tt", { tt: ctx.transferText }),
@@ -285,6 +306,8 @@
       T("fv_r_calc")
     ];
     if (row) {
+      // on the student level the row is a person first; the course alone would not find it
+      if (row.who) s.push(fill("fv_r_student", { who: row.who }));
       s.push(fill("fv_r_row", { row: row.course + (row.session ? " (Session " + row.session + ")" : "") }));
       s.push(fill("fv_r_screen", { total: row.total, pct: row.pct, base: row.baseCut, svc: row.svc }));
     } else {

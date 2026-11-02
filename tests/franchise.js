@@ -87,6 +87,54 @@ check("but a transfer type with no service IS flagged", r.reportDrift !== 0, "dr
 r = C.checkRows([row(100, 0, 0, [100], [60])], "fe", 10);
 check("rule 3 is not applied to the Franchisee side", r.rows[0].fails.length === 0, JSON.stringify(r.rows[0].fails));
 
+/* classes = 0. Running Student Wise live against ums-3 on 14.79, this was the entire finding: 802
+   student rows, not one per-row rule broken, yet 3 of 9 branch/transfer combinations failed the
+   report balance — each tracing to one row with no classes, whose remainder after the base cut has
+   no owner. Per-row drift is normally movement between courses; with no classes there is nowhere
+   for it to have moved, so this one is named rather than excused. */
+{
+  // pct has to agree with base, or rule 2 fires and the fixture tests the wrong thing
+  const noClass = (total, base, counts) => ({
+    CourseName: "X", SessionName: "2026", TotalCollection: total,
+    FranchisorPercent: total ? (base / total) * 100 : 0,
+    BaseCut: base, TotalReceivable: base, FranchisorService: 0,
+    StudentName: "Rumon tta", RegistrationNo: "5574286", TotalService: counts.reduce((a, b) => a + b, 0),
+    collections: [total], services: [0], serviceCounts: counts
+  });
+  let z = C.checkRows([noClass(400, 0, [0])], "fr", 10).rows[0];
+  check("a row with no classes and money left over is named",
+    z.fails.some(f => f.indexOf("400") >= 0), JSON.stringify(z.fails));
+
+  z = C.checkRows([noClass(400, 0, [0])], "fr", 30).rows[0];
+  check("but not under Non-Transfer, which apportions nothing",
+    !z.fails.length, JSON.stringify(z.fails));
+
+  z = C.checkRows([noClass(400, 400, [0])], "fr", 10).rows[0];
+  check("nor when the base cut took everything, leaving nothing unowned",
+    !z.fails.length, JSON.stringify(z.fails));
+
+  z = C.checkRows([noClass(400, 0, [3])], "fr", 10).rows[0];
+  check("nor when a class exists for the value to have moved to",
+    !z.fails.some(f => f.indexOf("Class/Exam = 0") >= 0), JSON.stringify(z.fails));
+
+  // and a student failure must send someone to the Student Wise page, naming the person
+  const sctx = {
+    base: "https://ums-3.osl.team/", side: "fr", level: "student",
+    orgText: "UDVASH (1)", progText: "Engineering Admission Program (68)",
+    sessText: "2023 (61)", branchText: "Rajshahi Kadirganj Udvash (89)",
+    transferText: "Franchisee → All", dateFrom: "2023-01-01", dateTo: "2026-11-01", showZero: true
+  };
+  const srow = C.checkRows([noClass(400, 0, [0])], "fr", 10).rows[0];
+  const ss = C.repro(sctx, srow, srow.fails.join(" · "));
+  check("the student recipe opens the Student Wise page",
+    ss[0].indexOf("FranchisorCalculation/StudentWise") > 0, ss[0]);
+  check("it names the student and the registration number",
+    ss.some(s => s.indexOf("Rumon tta") >= 0 && s.indexOf("5574286") >= 0), ss.join(" | "));
+  check("the course recipe still opens the Course Wise page",
+    C.repro(Object.assign({}, sctx, { level: "course" }), srow, "x")[0]
+      .indexOf("FranchisorCalculation/CourseWise") > 0);
+}
+
 /* A failure has to carry the way back to itself, in whichever language the panel is in. A recipe
    that stayed Bangla under EN, or that printed a programme id instead of its name, would be no
    use to the person asked to reproduce the bug. */
@@ -113,6 +161,25 @@ check("rule 3 is not applied to the Franchisee side", r.rows[0].fails.length ===
   check("it ends with what is wrong", steps[8].indexOf("24000") > 0 && steps[8].indexOf("25000") > 0, steps[8]);
   check("no step leaked an unfilled {slot}", !steps.some(s => /{w+}/.test(s)),
     steps.filter(s => /{w+}/.test(s)).join(" | "));
+}
+
+/* One Run has to cover both levels, and the Referer has to be re-armed for each.
+ *
+ * The engine has had studentWise since 14.79 and for two versions only a script ever called it: the
+ * menu ran Course Wise alone, so the Student Wise cases could not be answered from the tool at all.
+ * Nothing failed, because nothing asked. Checked on the source, since driving six live report
+ * fetches is not something a test should do. */
+{
+  const ui = fs.readFileSync(path.join(__dirname, "..", "menus", "fr", "fr-ui.js"), "utf8");
+  check("the Run covers the Course Wise level", /k: "course"[^}]*fetch: C\.courseWise/.test(ui));
+  check("the Run covers the Student Wise level", /k: "student"[^}]*fetch: C\.studentWise/.test(ui));
+  check("the level is re-armed on the Referer, not assumed",
+    /armReferer\(base\(\), side, lv\.k\)/.test(ui));
+  check("the level reaches the recipe, so it names the right page",
+    /level: lv\.k/.test(ui));
+  check("each result remembers which level it came from", /level: lv\.k, levelLabel/.test(ui));
+  check("the export splits the two levels into their own sheets",
+    /\["course", "student"\]\.forEach/.test(ui) && /g\.level === k/.test(ui));
 }
 
 /* The two buttons belong in a row of their own.
