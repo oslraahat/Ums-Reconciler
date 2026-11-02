@@ -89,10 +89,58 @@ first step's response into a page that is already running; there is no address t
 can the tool make the lookup call itself: the path says `Create`, so it classifies as a WRITE and is
 refused — correctly, since nothing about the name tells it that this particular POST only reads.
 
-The way through is the one `menus/cc/cc-page.js` already takes for Cancel Course: a content script
-drives the real page in a real tab, reads what came back, and reports it. That is how the remaining
-three flows should be mapped, and it is also how they will have to be driven, so the mapping and the
-building are the same work rather than two.
+The way through is the one `menus/cc/cc-page.js` already takes for Course Cancel: a content script
+drives the real page in a real tab, reads what came back, and reports it. That is also how these
+flows will have to be driven, so the mapping and the building are the same work rather than two.
+
+### Every one of these flows starts with the same lookup
+
+All four pages carry the same input, `#stdRollOrRegistrationNo`, and each asks its own controller for
+the student before showing anything else:
+
+| Flow | Lookup | Its button |
+|---|---|---|
+| Transfer | `POST /Student/StudentTransfer/Create` `{stdRollOrRegistrationNo}` | `#studentPrn` "Find Student" |
+| Add course | `POST /Student/AddCourse/GenerateStudentProgramDetails` `{stdRollOrRegistrationNo}` | — |
+| Program migration | `POST /Student/StudentMigrationHistory/StudentProgramMigration` (project-root + the same path) | — |
+| Due payment | **not yet found** — the page has the input and a `#searchByprNo` "Submit" button, but no url literal; it posts some other way | — |
+| Course Cancel (already built) | `POST /Student/CancelCourse/GenerateStudentProgramDetails` | — |
+
+`GenerateStudentProgramDetails` is the same action on three different controllers, and Course Cancel
+has been calling it read-only since it shipped — which is the strongest corroboration available that
+it only reads.
+
+The Transfer lookup is confirmed against ums-3: HTTP 200, an HTML fragment, and for a number it does
+not know, "Please provide valid Registration No./ Roll No.". So it validates and reports rather than
+creating anything.
+
+### How a POST to a path called Create is allowed at all
+
+The write-endpoint refusal is a pattern over the path, and the path says `Create`. Loosening the
+pattern to let the Transfer lookup through would let through everything else named Create, so the
+pattern stays and the exceptions are listed one at a time, in `VERIFIED_READS` in
+`tools/discover.js`. Each entry carries:
+
+- the exact path,
+- the exact fields it may be sent — one extra field and it is refused, because a lookup given
+  fields it does not take is no longer the request that was verified,
+- and the evidence that it only reads, in prose, from the page's own script.
+
+An entry is still not enough on its own: `--allow-verified-read` has to be on the command line, so
+no POST to a path named like a write can happen by default or by accident. The tool says, on stderr,
+every time it uses an exception and why.
+
+An entry is a claim. It is written down, it names its evidence, and it is one line to remove.
+
+### What is left
+
+- Due payment's lookup endpoint.
+- The second step of each flow — the fields that only exist after the lookup has returned. These
+  come from the lookup's own HTML fragment, which is now reachable for three of the four.
+- Class/exam entry, for scenario 4's control (money with a class for the value to have moved to).
+
+To go further on the second steps I need a Registration No. or Roll that exists on the server being
+mapped: `5574286` is not one on ums-3.
 
 Three things the first run taught about the tool itself, all now fixed:
 

@@ -90,6 +90,51 @@ const check = function (name, ok, extra) {
   check("an unrecognised path is not treated as a loader: " + p, D.classify(p) !== "loader");
 });
 
+/* ---- the verified-read exceptions ----
+   A few controllers answer a LOOKUP on a path whose name says it writes. The refusal pattern stays
+   as it is and each exception is listed instead, so the question for a test is not "does the list
+   work" but "can the list be widened without anyone meaning to". */
+{
+  const src = fs.readFileSync(TOOL, "utf8");
+  const block = src.slice(src.indexOf("const VERIFIED_READS"), src.indexOf("function verifiedRead"));
+  const entries = (block.match(/path:\s*"([^"]+)"/g) || []).map(s => s.replace(/path:\s*"|"/g, ""));
+
+  check("the exceptions are a list of named paths, not a looser pattern",
+    entries.length > 0 && !/VERIFIED_READS\s*=\s*\//.test(src), entries.join(", "));
+  check("every exception is still classified a WRITE by the pattern",
+    entries.every(p => D.classify(p) === "WRITE"), entries.filter(p => D.classify(p) !== "WRITE").join(", "));
+  check("every exception names the fields it may be sent",
+    (block.match(/fields:\s*\[/g) || []).length === entries.length);
+  check("every exception records why it only reads",
+    (block.match(/why:/g) || []).length === entries.length);
+  /* The point of the whole arrangement: nothing is sent on the strength of a list entry alone. */
+  check("an exception still needs --allow-verified-read on the command line",
+    /if \(!allowVerified\) \{/.test(src) && /--allow-verified-read was not given/.test(src));
+  check("an extra field voids the exception",
+    /A lookup given fields it does/.test(src) && /extra\.length/.test(src));
+  check("the tool says so on stderr every time it uses one",
+    /sending a POST to a path named like a write/.test(src));
+
+  /* Asked, not run. I wrote these three as exit-code tests first, and breaking each guard to check
+     the test noticed showed the tool going on to make the request — including a POST to
+     /Student/Admission/NewStudentAdmission. The same trap this file was rewritten to avoid, walked
+     into again by three new checks. A refusal is asked of the function that decides it. */
+  check("a listed path is recognised when sent exactly its own fields",
+    (D.verifiedRead("/Student/StudentTransfer/Create", "stdRollOrRegistrationNo=1") || {}).extra
+      ? D.verifiedRead("/Student/StudentTransfer/Create", "stdRollOrRegistrationNo=1").extra.length === 0
+      : false);
+  check("an extra field is reported, so the caller can refuse it",
+    (D.verifiedRead("/Student/StudentTransfer/Create", "stdRollOrRegistrationNo=1&amount=500") || {})
+      .extra.join(",") === "amount");
+  check("a path that is not listed gets no exception at all",
+    D.verifiedRead("/Student/Admission/NewStudentAdmission", "x=1") === null);
+  check("…nor does a path that merely looks similar",
+    D.verifiedRead("/Student/StudentTransfer/CreateTransfer", "stdRollOrRegistrationNo=1") === null);
+  check("every listed path appears in the exported list, so the list is the only way in",
+    D.VERIFIED_READS.every(v => entries.indexOf(v.path) >= 0) &&
+    D.VERIFIED_READS.length === entries.length);
+}
+
 // ---- a password is reported, never filled or sent ----
 {
   const src = fs.readFileSync(TOOL, "utf8");

@@ -39,7 +39,7 @@ const fs = require("fs");
    it, so the decisions are plain functions and the command line is just one caller. */
 
 // ---------- arguments ----------
-let base = "", page = "", loader = "", params = "", out = "";
+let base = "", page = "", loader = "", params = "", out = "", allowVerified = false;
 function readArgs() {
   const argv = process.argv.slice(2);
   const arg = function (name, dflt) {
@@ -51,6 +51,7 @@ function readArgs() {
   loader = normPath(arg("loader", ""), "--loader");
   params = arg("params", "");
   out = arg("out", "");
+  allowVerified = argv.indexOf("--allow-verified-read") >= 0;
 }
 
 /* Git Bash on Windows rewrites an argument that looks like a Unix path into a Windows one before
@@ -90,6 +91,47 @@ let cookie = "";
 // ---------- write-endpoint refusal ----------
 const WRITES = /(Create|Save|Insert|Add|Update|Edit|Delete|Remove|Submit|Confirm|Approve|Cancel|Migrat|Transfer|Pay(ment)?|Admission)/i;
 const LOADERS = /(^|\/)(Get|Load)[A-Za-z]*$|DataTable|CalculationData$/;
+
+/* A few of these controllers answer a LOOKUP on a path whose name says it writes. UMS's Transfer
+   page is the clearest: GET /Student/StudentTransfer/Create serves the page, and its search button
+   POSTs to the SAME url with one field, stdRollOrRegistrationNo, to find the student — the second
+   step does not exist until that has returned.
+   Loosening the pattern to let those through would also let through everything else named Create.
+   So the pattern stays, and each exception is a named entry with the evidence for it and the exact
+   fields it may be sent. Anything not listed, or listed but sent a field it does not name, is
+   refused as before — and even a listed one needs --allow-verified-read on the command line, so no
+   POST to a path called Create can happen by default or by accident.
+   An entry here is a claim that a request only reads. It is made from the page's own script, it is
+   written down, and it is one line to remove if it turns out to be wrong. */
+const VERIFIED_READS = [{
+  path: "/Student/StudentTransfer/Create",
+  fields: ["stdRollOrRegistrationNo"],
+  why: "the page's own search button (#studentPrn, \"Find Student\"): $.ajax({ url: " +
+       "'/Student/StudentTransfer/Create', type: 'POST', data: { stdRollOrRegistrationNo: " +
+       "$('#PrnNoFirst').val() } }) — a student lookup, rendered into the page; the transfer itself " +
+       "is a later step with its own submit. Run on ums-3: answers an HTML fragment, and for an " +
+       "unknown number \"Please provide valid Registration No./ Roll No.\""
+}, {
+  path: "/Student/AddCourse/GenerateStudentProgramDetails",
+  fields: ["stdRollOrRegistrationNo"],
+  why: "the page's own $.ajax POST with data { stdRollOrRegistrationNo } — it renders the student's " +
+       "programmes so one can be chosen. Corroborated in our own shipped code: menus/cc/cc-page.js " +
+       "calls the identical action on the CancelCourse controller purely to list programmes"
+}, {
+  path: "/Student/CancelCourse/GenerateStudentProgramDetails",
+  fields: ["stdRollOrRegistrationNo"],
+  why: "the same action, and the one Course Cancel has used read-only since it shipped — " +
+       "menus/cc/cc-page.js asks it for a student's programmes and cancels nothing by doing so"
+}];
+function verifiedRead(path, qs) {
+  const tail = path.split("?")[0];
+  const hit = VERIFIED_READS.filter(function (v) { return v.path.toLowerCase() === tail.toLowerCase(); })[0];
+  if (!hit) return null;
+  const sent = String(qs || "").split("&").filter(Boolean).map(function (kv) { return kv.split("=")[0]; });
+  const extra = sent.filter(function (k) { return hit.fields.indexOf(k) < 0; });
+  return extra.length ? { hit: hit, extra: extra } : { hit: hit, extra: [] };
+}
+
 function classify(path) {
   const tail = path.split("?")[0];
   if (LOADERS.test(tail)) return "loader";
@@ -323,10 +365,28 @@ function report(path, r, scripts) {
 // ---------- a loader may be asked a question; nothing else may ----------
 async function askLoader(path, qs) {
   if (classify(path) !== "loader") {
-    console.error("refused: `" + path + "` is not a loader (" + classify(path) + ").");
-    console.error("Discovery reads. A path that changes something is mapped from the page that calls");
-    console.error("it, never by sending it.");
-    process.exit(4);
+    const v = verifiedRead(path, qs);
+    if (!v) {
+      console.error("refused: `" + path + "` is not a loader (" + classify(path) + ").");
+      console.error("Discovery reads. A path that changes something is mapped from the page that calls");
+      console.error("it, never by sending it.");
+      process.exit(4);
+    }
+    if (v.extra.length) {
+      console.error("refused: `" + path + "` is a verified read, but only with " +
+        v.hit.fields.join(", ") + ".");
+      console.error("These were also sent: " + v.extra.join(", ") + ". A lookup given fields it does");
+      console.error("not take is no longer the request that was verified.");
+      process.exit(6);
+    }
+    if (!allowVerified) {
+      console.error("refused: `" + path + "` is a verified read, but --allow-verified-read was not given.");
+      console.error("Why it is one: " + v.hit.why);
+      console.error("Pass --allow-verified-read to send exactly: " + v.hit.fields.join(", "));
+      process.exit(7);
+    }
+    console.error("note: sending a POST to a path named like a write, on the strength of a recorded");
+    console.error("      exception. " + v.hit.why);
   }
   if (/password/i.test(qs)) {
     console.error("refused: a password is never sent by this tool.");
@@ -407,6 +467,7 @@ if (require.main === module) {
 } else {
   module.exports = {
     isTest: isTest, classify: classify, looksLikeLogin: looksLikeLogin,
-    WRITES: WRITES, LOADERS: LOADERS
+    WRITES: WRITES, LOADERS: LOADERS,
+    verifiedRead: verifiedRead, VERIFIED_READS: VERIFIED_READS
   };
 }
