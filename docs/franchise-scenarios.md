@@ -59,14 +59,54 @@ covering, not because a case asks for them.
 |---|---|
 | New admission | **built** — `menus/adm/adm.js`, posts `/Student/Admission/NewStudentAdmission`, gated to `*.osl.team`, sequential or parallel, with a receipt read back |
 | Cancel course | **built** — `menus/cc/`, from a sheet of (Reg, StudentProgramId, CourseId), dry run first |
-| Add course | **not built** — endpoint not yet known |
-| Due payment | **not built** — endpoint not yet known |
-| Transfer | **not built** — endpoint not yet known; this is the one the whole report hangs on |
-| Program migration | **not built** — endpoint not yet known |
-| Class/exam entry | **not built** — needed to make scenario 5's opposite (a row WITH classes) |
+| Add course | page found, flow not mapped — `/Student/AddCourse/AddCourseOrSubject` |
+| Due payment | page found, flow not mapped — `/Student/Payment/StudentDuePayment` |
+| Transfer | page found, first step mapped — `/Student/StudentTransfer/Create`; the one the whole report hangs on |
+| Program migration | page found, flow not mapped — `/Student/StudentMigrationHistory/StudentProgramMigration` |
+| Class/exam entry | **not found** — needed to make scenario 5's opposite (a row WITH classes) |
 
 So four flows have to be reverse-engineered before any of scenarios 2, 3, 4, 8 or 10 can be built.
 That is read-only work and it comes first.
+
+### What the first discovery run found, on ums-3
+
+All four pages answer HTTP 200 and their addresses are now known — they were not before, and they
+came out of the left menu of any UMS page, 247 links of it. The neighbours are worth noting too:
+`/Student/StudentTransfer/TransferList`, `TransferSettlement`, `TransferReport`, and
+`/Student/StudentMigrationHistory/MigrationPaymentHistory`.
+
+The Transfer page's first step is mapped: `POST /Student/StudentTransfer/Create` with a single field,
+
+```
+stdRollOrRegistrationNo=<reg>
+```
+
+which is a LOOKUP — the same url serves the page on GET and finds the student on POST. The transfer
+itself is a second step that only exists after that lookup has returned.
+
+**And that is where fetching stops being enough.** The second step's fields are rendered by the
+first step's response into a page that is already running; there is no address to ask for them. Nor
+can the tool make the lookup call itself: the path says `Create`, so it classifies as a WRITE and is
+refused — correctly, since nothing about the name tells it that this particular POST only reads.
+
+The way through is the one `menus/cc/cc-page.js` already takes for Cancel Course: a content script
+drives the real page in a real tab, reads what came back, and reports it. That is how the remaining
+three flows should be mapped, and it is also how they will have to be driven, so the mapping and the
+building are the same work rather than two.
+
+Three things the first run taught about the tool itself, all now fixed:
+
+- Git Bash on Windows rewrites `--page /Student/X` into `C:/Program Files/Git/Student/X` before the
+  program sees it. Pasted onto the base, that gave `https://ums-3.osl.teamC:/…`, whose hostname
+  parses as `ums-3.osl.teamc` — and all that was said about it was "fetch failed".
+- "fetch failed" is undici saying a network error happened and nothing about which. The cause
+  carries the code, and ENOTFOUND is the difference between a wrong address and a server that is
+  down.
+- The cascade was invisible. These pages call their own controller as
+  `$("body").attr("data-project-root") + "Controller/Action"` — no leading slash — so a pattern that
+  required one found only the left menu's links, and every page reported the same two loaders from
+  the shared layout. The dropdowns turned out to be server-rendered anyway, and the only scripts
+  loaded are generic libraries, which is itself the finding: there is no per-page bundle to read.
 
 ## 3a · The discovery tool
 

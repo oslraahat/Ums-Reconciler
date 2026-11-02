@@ -225,19 +225,33 @@ check("rule 3 is not applied to the Franchisee side", r.rows[0].fails.length ===
   const iAct = html.indexOf('class="fvact"');
   const iRun = html.indexOf("'Run\"");
   const iExport = html.indexOf("'Export\"");
-  check("the filters have their own row", iFilters >= 0);
-  check("the buttons have their own row", iAct > iFilters, "fvact at " + iAct);
-  check("Run is in the button row, not among the filters", iAct >= 0 && iRun > iAct, "Run at " + iRun);
-  check("Export is in the button row too", iAct >= 0 && iExport > iAct, "Export at " + iExport);
+  check("the filters have a row", iFilters >= 0);
+  check("the buttons are grouped", iAct > iFilters, "fvact at " + iAct);
+  check("every button is inside the group, not loose among the filters",
+    iAct >= 0 && iRun > iAct && iExport > iAct, "Run at " + iRun + ", Export at " + iExport);
   check("Run comes before Export", iRun < iExport);
-  check("neither button carries its own margin-left:auto any more",
-    !/id="\x27 \+ p \+ \x27(Run|Export)"[^>]*margin-left:auto/.test(html));
+  check("no button carries its own margin-left:auto any more",
+    !/id="\x27 \+ p \+ \x27(Run|Scan|Stop|Export)"[^>]*margin-left:auto/.test(html));
+  /* The group lives INSIDE the filter row — the buttons sit at its right-hand end rather than on a
+     row of their own. Checked by bracket depth, because "inside" is the whole point: as one flex
+     item the group cannot split across a wrap, which is what put Export above Run before. */
+  {
+    const after = html.slice(iAct);
+    const closes = after.slice(0, after.indexOf("fvName") >= 0 ? after.indexOf("fvName") : after.length);
+    check("the group is nested in the filter row, not a sibling of it",
+      /'<\/div>' \+\s*\/\/ the button group[\s\S]{0,80}'<\/div>' \+\s*\/\/ the filter row/.test(html),
+      closes.slice(0, 60));
+  }
 
   const css = fs.readFileSync(path.join(__dirname, "..", "app.html"), "utf8");
-  check("the button row is styled", /\.fvact\s*\{[^}]*display:flex/.test(css));
+  check("the group is styled", /\.fvact\s*\{[^}]*display:flex/.test(css));
   check("the filter row is styled", /\.fvrow\s*\{[^}]*flex-wrap:wrap/.test(css));
-  check("Export is pushed right from the stylesheet, where both panels share it",
-    /\.fvact #frExport,\.fvact #feExport\{margin-left:auto\}/.test(css));
+  check("the group is pushed right, as a group rather than one button",
+    /\.fvact\s*\{[^}]*margin-left:auto/.test(css));
+  check("the buttons cannot split across a wrap",
+    /\.fvact\s*\{[^}]*flex-wrap:nowrap/.test(css));
+  check("and at phone width the group stops being pushed right",
+    /@media \(max-width:560px\)\{ \.fvact\{margin-left:0/.test(css));
 }
 
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");

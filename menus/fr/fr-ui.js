@@ -71,7 +71,10 @@
         '<label class="fvl">' + esc(t("fv_branch")) + '<select id="' + p + 'Branch"></select></label>' +
         '<label class="fvl">' + esc(t("fv_from")) + '<input type="date" id="' + p + 'From" value="' + ymd(from) + '"></label>' +
         '<label class="fvl">' + esc(t("fv_to")) + '<input type="date" id="' + p + 'To" value="' + ymd(today) + '"></label>' +
-      '</div>' +
+        /* The buttons sit at the right-hand end of the filter row, not on a row of their own. They
+           are ONE flex item, so they stay together and never split across a wrap — which is what
+           went wrong when each button was its own item in this row: Run came to rest after whichever
+           filter landed last and Export shot to the right edge of whatever row it fell into. */
       '<div class="fvact">' +
         '<button class="btn" id="' + p + 'Run" style="height:var(--ctl-h)">' + esc(t("fv_run")) + '</button>' +
         /* Six passes over an empty filter report nothing six times, which is what "No rows for this
@@ -80,7 +83,8 @@
         '<button class="btn" id="' + p + 'Scan" style="height:var(--ctl-h)">' + esc(t("fv_scan")) + '</button>' +
         '<button class="btn" id="' + p + 'Stop" style="height:var(--ctl-h);display:none">' + esc(t("fv_stop")) + '</button>' +
         '<button class="btn" id="' + p + 'Export" style="height:var(--ctl-h)" disabled>' + esc(t("fv_export")) + '</button>' +
-      '</div>' +
+        '</div>' +        // the button group
+      '</div>' +          // the filter row that holds it
       '<div class="mut" id="' + p + 'Note" style="margin-top:10px;font-size:12.5px"></div>' +
       '<div id="' + p + 'Out" style="margin-top:10px"></div>';
 

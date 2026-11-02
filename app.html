@@ -620,8 +620,14 @@
      it fell into, sometimes above Run. The filters wrap on their own now; the buttons have a row of
      their own below, Run at the left and Export at the right, wherever the panel is cut off. */
   .fvrow{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end}
-  .fvact{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:12px}
-  .fvact #frExport,.fvact #feExport{margin-left:auto}
+  /* The buttons live at the right-hand end of the filter row. As ONE flex item they stay together
+     and cannot split across a wrap — which is what went wrong when each button was its own item in
+     this row: Run settled after whichever filter landed last, and Export shot to the right edge of
+     whatever row it fell into, sometimes the row above Run. margin-left:auto pushes the group, not
+     a single button, so Run · Find data · Excel keep their order at every width. */
+  .fvact{display:flex;flex-wrap:nowrap;gap:8px;align-items:flex-end;margin-left:auto}
+  /* and on a phone, where the group is the whole width, it starts at the left like everything else */
+  @media (max-width:560px){ .fvact{margin-left:0;flex-wrap:wrap} }
   .fnwhy{color:#e14b5e;font-size:12px;flex:1 1 100%;margin-left:26px}
   /* a reason that carries a fuller explanation on hover — dotted underline hints it is worth hovering */
   .fnwhy.hashelp{cursor:help;text-decoration:underline dotted;text-underline-offset:3px;text-decoration-color:rgba(225,75,94,.45)}

@@ -47,10 +47,33 @@ function readArgs() {
     return i >= 0 && argv[i + 1] && !argv[i + 1].startsWith("--") ? argv[i + 1] : dflt;
   };
   base = (arg("base", "") || "").replace(/\/+$/, "");
-  page = arg("page", "");
-  loader = arg("loader", "");
+  page = normPath(arg("page", ""), "--page");
+  loader = normPath(arg("loader", ""), "--loader");
   params = arg("params", "");
   out = arg("out", "");
+}
+
+/* Git Bash on Windows rewrites an argument that looks like a Unix path into a Windows one before
+   the program ever sees it: `--page /Student/X` arrives as `C:/Program Files/Git/Student/X`. Pasted
+   onto the base that gave https://ums-3.osl.teamC:/Program Files/… , whose hostname parses as
+   "ums-3.osl.teamc", and the only thing said about it was "fetch failed".
+   Recovered here rather than worked around at the call site, and SAID rather than done quietly:
+   silently rewriting what someone typed is its own way to waste an afternoon. */
+function normPath(v, which) {
+  if (!v) return "";
+  let p = v;
+  const msys = p.match(/^[A-Za-z]:[\\/](?:.*[\\/])?Git[\\/](.*)$/);
+  if (msys) {
+    p = "/" + msys[1].replace(/\\/g, "/");
+    console.error("note: the shell rewrote " + which + " as a Windows path; reading it as " + p);
+    console.error("      (pass MSYS_NO_PATHCONV=1, or a leading // , to stop it at the source)");
+  }
+  try {
+    // a full URL is accepted too, so a link can be pasted straight in
+    const u = new URL(p);
+    if (/^https?:$/.test(u.protocol)) return u.pathname + (u.search || "");
+  } catch (e) { /* not a URL, which is the normal case */ }
+  return p.startsWith("/") ? p : "/" + p;
 }
 
 // ---------- the gate ----------
@@ -111,7 +134,30 @@ function tags(html, name) {
   return out;
 }
 
-function report(path, r) {
+/* These pages keep almost nothing inline: the dropdowns arrive server-rendered and the cascade lives
+   in /Scripts/…. Four pages each reported one shared loader and nothing else until the scripts were
+   read too. Same-origin only, and capped — a page that references forty bundles is not an invitation
+   to fetch forty bundles. */
+async function scriptsOf(html, limit) {
+  const srcs = [];
+  const re = /<script[^>]*\bsrc="([^"]+)"/gi;
+  let m;
+  while ((m = re.exec(html)) && srcs.length < limit) {
+    const s = m[1];
+    if (/^https?:\/\//i.test(s) || s.startsWith("//")) continue;   // off-site, including analytics
+    srcs.push(s.startsWith("/") ? s : "/" + s);
+  }
+  const bodies = [];
+  for (const s of srcs) {
+    try {
+      const got = await get(s);
+      if (got.status === 200 && got.text) bodies.push({ src: s, text: got.text });
+    } catch (e) { /* a missing bundle says nothing about the page */ }
+  }
+  return bodies;
+}
+
+function report(path, r, scripts) {
   const html = r.text;
   const lines = [];
   const say = function (s) { lines.push(s); };
@@ -141,9 +187,14 @@ function report(path, r) {
   const inputs = tags(html, "input").concat(tags(html, "textarea"));
   const pw = inputs.filter(function (x) { return (x.a.type || "").toLowerCase() === "password"; });
   const token = inputs.filter(function (x) { return /RequestVerificationToken/i.test(x.a.name || ""); });
+  /* A field with an id and no name is still a field: these pages post what their own script
+     collects, not what a <form> submits, so requiring a name reported "Fields (0)" on a page with
+     23 dropdowns and a dozen inputs. Hidden fields are kept too — they carry the ids the write
+     endpoint actually keys on. */
   const fields = inputs.filter(function (x) {
     const t = (x.a.type || "text").toLowerCase();
-    return t !== "password" && x.a.name && !/RequestVerificationToken/i.test(x.a.name);
+    return t !== "password" && t !== "submit" && t !== "button" &&
+      (x.a.name || x.a.id) && !/RequestVerificationToken/i.test(x.a.name || "");
   });
   say("");
   say("## Fields (" + fields.length + ")");
@@ -151,7 +202,7 @@ function report(path, r) {
   say("| name | type | id | value |");
   say("|---|---|---|---|");
   fields.slice(0, 80).forEach(function (x) {
-    say("| `" + x.a.name + "` | " + (x.a.type || "text") + " | " + (x.a.id || "") + " | " +
+    say("| `" + (x.a.name || "(id only)") + "` | " + (x.a.type || "text") + " | " + (x.a.id || "") + " | " +
       (x.a.value ? "`" + x.a.value.slice(0, 30) + "`" : "") + " |");
   });
   if (fields.length > 80) say("| … | (" + (fields.length - 80) + " more) | | |");
@@ -195,6 +246,59 @@ function report(path, r) {
   let m;
   while ((m = pre.exec(html))) found[m[1]] = (found[m[1]] || 0) + 1;
   const paths = Object.keys(found).sort();
+
+  /* The page's OWN cascade, which is the part that cannot be guessed and the reason for the run.
+     It was missing entirely at first: these scripts call their own controller with a RELATIVE url —
+     $.post("GenerateStudentProgramDetails", …) — and a pattern that required a leading slash found
+     only the left menu's links, so every page reported the same two loaders from the shared layout
+     and none of its own. Resolved against the controller the page itself is in. */
+  const ctrl = path.replace(/^\/+/, "").split("/").slice(0, 2).join("/");
+  const rel = {};
+  // $.post("GenerateStudentProgramDetails", …) — bare action against its own controller
+  const relpat = /(?:url\s*:\s*|\$\.(?:post|get|getJSON)\s*\(\s*|action\s*:\s*)["']([A-Za-z][A-Za-z0-9_]*)["']/g;
+  while ((m = relpat.exec(html))) rel["/" + ctrl + "/" + m[1]] = (rel["/" + ctrl + "/" + m[1]] || 0) + 1;
+  /* And the shape these pages actually use, which is neither of the two above:
+         url: $("body").attr("data-project-root") + "Student/AddCourse/GetSomething"
+     a root read off the <body> plus a path with no leading slash. Nothing that required a leading
+     slash saw any of it, which is why every page reported only the left menu's links and the same
+     two loaders from the shared layout. An initial capital is what separates these from the
+     ordinary "a/b" strings in the page. */
+  const rootpat = /["']([A-Z][A-Za-z0-9_]*\/[A-Za-z][A-Za-z0-9_]*(?:\/[A-Za-z0-9_]+)?)["']/g;
+  while ((m = rootpat.exec(html))) rel["/" + m[1]] = (rel["/" + m[1]] || 0) + 1;
+  /* and the same two shapes again inside each script the page loads, which is where these pages
+     actually keep their cascade */
+  (scripts || []).forEach(function (sc) {
+    let x;
+    const a = new RegExp(relpat.source, "g");
+    while ((x = a.exec(sc.text))) rel["/" + ctrl + "/" + x[1]] = (rel["/" + ctrl + "/" + x[1]] || 0) + 1;
+    const b = new RegExp(rootpat.source, "g");
+    while ((x = b.exec(sc.text))) rel["/" + x[1]] = (rel["/" + x[1]] || 0) + 1;
+    const c = new RegExp(pre.source, "g");
+    while ((x = c.exec(sc.text))) rel[x[1]] = (rel[x[1]] || 0) + 1;
+  });
+  const relPaths = Object.keys(rel).sort();
+  if (scripts && scripts.length) {
+    say("");
+    say("## Scripts read (" + scripts.length + ")");
+    say("");
+    scripts.forEach(function (sc) { say("- `" + sc.src + "` — " + sc.text.length + " bytes"); });
+  }
+  if (relPaths.length) {
+    say("");
+    say("## This page's own cascade (" + relPaths.length + ")");
+    say("");
+    say("Called with a relative url by the page's own script, resolved against `/" + ctrl + "/`.");
+    say("");
+    say("| path | times | kind |");
+    say("|---|---|---|");
+    relPaths.forEach(function (pth) {
+      say("| `" + pth + "` | " + rel[pth] + " | " + classify(pth) + " |");
+    });
+    say("");
+    say("Note: `kind` is judged on the whole path, deliberately over-inclusively — a controller");
+    say("called AddCourse or Payment makes everything under it a WRITE, so a read-only loader there");
+    say("is refused too. That is the safe direction: it is mapped from the page instead of called.");
+  }
   say("");
   say("## Endpoints this page references (" + paths.length + ")");
   say("");
@@ -272,7 +376,8 @@ async function main() {
       return;
     }
     const r = await get(page);
-    const md = report(page, r);
+    const scripts = await scriptsOf(r.text, 12);
+    const md = report(page, r, scripts);
     if (out) {
       fs.appendFileSync(out, "\n\n" + md + "\n");
       console.log("appended to " + out);
@@ -280,7 +385,19 @@ async function main() {
       console.log(md);
     }
   } catch (e) {
-    console.error("failed: " + (e && e.message ? e.message : e));
+    /* "fetch failed" is undici saying a network error happened and nothing about which. The cause
+       carries the code — ENOTFOUND, ECONNREFUSED, a certificate error — and that is the difference
+       between "wrong address", "server down" and "self-signed certificate on an internal host". */
+    const c = (e && e.cause) || {};
+    console.error("failed: " + ((e && e.message) || e) +
+      (c.code ? " (" + c.code + ")" : "") +
+      (c.message && c.message !== (e && e.message) ? " — " + c.message : ""));
+    if (/SELF_SIGNED|UNABLE_TO_VERIFY|CERT/.test(String(c.code))) {
+      console.error("The host's certificate does not verify. That is normal for an internal server,");
+      console.error("and it is not something this tool works around: a discovery run that ignores");
+      console.error("certificates is a discovery run that cannot tell the server from anything else");
+      console.error("on the network. Export the server's CA with NODE_EXTRA_CA_CERTS instead.");
+    }
     process.exit(1);
   }
 }
