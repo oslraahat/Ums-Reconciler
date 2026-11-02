@@ -115,30 +115,15 @@ bad("Bengali tooltips with nothing to repaint them", titles);
 console.log("note  Bengali strings typed outside the dictionary: " + prose.length +
   " (mostly adm/cc/fn messages — tracked, not failed here)");
 
-/* The two franchise menus are what the report was about, so their strings are named rather than
-   left to the totals above: a key either menu reaches for must exist, and must not be Bengali in
-   its en slot. */
-const frSrc = ["menus/fr/fr-core.js", "menus/fr/fr-ui.js", "menus/fr/fr.js", "menus/fe/fe.js"]
-  .map(f => fs.readFileSync(path.join(ROOT, f), "utf8")).join("\n");
-const frKeys = [...new Set([
-  ...[...frSrc.matchAll(/\b[tT]\("([a-z0-9_]+)"\)/g)].map(m => m[1]),
-  ...[...frSrc.matchAll(/fill\("([a-z0-9_]+)"/g)].map(m => m[1]),
-  ...[...frSrc.matchAll(/"(fv_[a-z0-9_]+)"/g)].map(m => m[1]),
-  "nav_fr", "nav_fe", "fr_h", "fe_h", "fr_sub", "fe_sub"
-])].sort();
-console.log("\nstrings the two franchise menus can show: " + frKeys.length);
-bad("of those, missing from the dictionary", frKeys.filter(k => !DICT[k]));
-bad("of those, holding Bengali under en", frKeys.filter(k => DICT[k] && BN.test(DICT[k].en)));
-
 /* 5 — the language has to survive a refresh, and that is a question about ordering.
  *
  * "page refresh korle bn hoye jay." The stored language was read and applied correctly; the open
- * section was simply restored nine lines earlier, while `lang` still held the module default. A
- * menu that builds its panel from JS therefore built it in Bengali, and for the two franchise menus
- * the repair never came: onShow() starts a dropdown loader, the loader took the one busy flag, and
- * relang() read that flag as "a check is running" and refused to repaint.
+ * section was simply restored nine lines earlier in the same boot callback, while `lang` still held
+ * the module default. Any menu that builds its panel from JS therefore built it in Bengali, and it
+ * was also built before baseUrl was restored, so it pointed at the wrong server.
  *
- * Both halves are checked here, because either one alone brings the symptom back. */
+ * Checked by position, which is the only thing that settles it: the open section must be restored
+ * AFTER the language. */
 {
   const iLang = app.indexOf("applyLang(o.lang");
   const iPage = app.indexOf("showPage((o.page");
@@ -147,34 +132,6 @@ bad("of those, holding Bengali under en", frKeys.filter(k => DICT[k] && BN.test(
     "boot restores the open section after the language" +
     (ordered ? "" : "  (showPage at " + iPage + ", applyLang at " + iLang + ")"));
   if (!ordered) fail++;
-
-  const ui = fs.readFileSync(path.join(ROOT, "menus", "fr", "fr-ui.js"), "utf8");
-  const split = /isRunning: function \(\) \{ return running; \}/.test(ui) &&
-    /isLoading: function \(\) \{ return busy; \}/.test(ui);
-  console.log((split ? "ok    " : "FAIL  ") +
-    "the franchise panel tells a running check apart from a dropdown loader");
-  if (!split) fail++;
-
-  // and a remount must not fire a second loader over the one already open
-  const guarded = ["menus/fr/fr.js", "menus/fe/fe.js"].filter(function (f) {
-    return /isLoading\s*&&\s*panel\.isLoading\(\)\)\) panel\.loadProgs\(\)/.test(
-      fs.readFileSync(path.join(ROOT, f), "utf8"));
-  });
-  console.log((guarded.length === 2 ? "ok    " : "FAIL  ") +
-    "both wrappers skip loadProgs() while a loader is open: " + guarded.length + "/2");
-  if (guarded.length !== 2) fail++;
-
-  /* The saved address has to be back BEFORE the dropdowns are asked for, or they are loaded from
-     the seeded one and are then wrong — the same ordering fault as the language, one layer down.
-     loadProgs() must therefore sit inside restoreBase().then(), not beside it. */
-  const sequenced = ["menus/fr/fr.js", "menus/fe/fe.js"].filter(function (f) {
-    const src = fs.readFileSync(path.join(ROOT, f), "utf8");
-    const at = src.indexOf("panel.restoreBase().then(function () {");
-    return at >= 0 && src.indexOf("panel.loadProgs()", at) > at;
-  });
-  console.log((sequenced.length === 2 ? "ok    " : "FAIL  ") +
-    "both wrappers wait for the saved address before loading the dropdowns: " + sequenced.length + "/2");
-  if (sequenced.length !== 2) fail++;
 }
 
 console.log("\n" + (fail ? "FAILED (" + fail + ")" : "PASS"));

@@ -307,102 +307,6 @@
     fn_visiting: { bn: "পেজ লোড করে যাচাই করছি…", en: "Loading & checking pages…" },
     fn_shooting: { bn: "Fail-এর স্ক্রিনশট নিচ্ছি…", en: "Capturing failure screenshots…" },
     fn_done: { bn: "✓ শেষ", en: "✓ Done" },
-    nav_fr: { bn: "For Franchisor", en: "For Franchisor" },
-    nav_fe: { bn: "For Franchisee", en: "For Franchisee" },
-    fr_h: { bn: "For Franchisor — হিসাব যাচাই", en: "For Franchisor — calculation check" },
-    fe_h: { bn: "For Franchisee — হিসাব যাচাই", en: "For Franchisee — calculation check" },
-    fr_sub: { bn: "Franchisor Calculation রিপোর্টের অংক FRS-এর সাথে মিলিয়ে দেখে — কিছু লেখে না", en: "Checks the Franchisor Calculation report against the FRS — read-only" },
-    fe_sub: { bn: "Franchisee Calculation রিপোর্টের অংক FRS-এর সাথে মিলিয়ে দেখে — কিছু লেখে না", en: "Checks the Franchisee Calculation report against the FRS — read-only" },
-    fv_base: { bn: "UMS ঠিকানা", en: "UMS address" },
-    fv_org: { bn: "প্রতিষ্ঠান", en: "Organization" },
-    fv_prog: { bn: "প্রোগ্রাম", en: "Program" },
-    fv_sess: { bn: "সেশন", en: "Session" },
-    fv_branch: { bn: "ফ্র্যাঞ্চাইজি শাখা", en: "Franchisee Branch" },
-    fv_from: { bn: "থেকে", en: "From" },
-    fv_to: { bn: "পর্যন্ত", en: "To" },
-    fv_run: { bn: "যাচাই করো", en: "Check" },
-    fv_export: { bn: "↓ Excel", en: "↓ Excel" },
-    fv_loading: { bn: "তালিকা আসছে…", en: "Loading the lists…" },
-    fv_checking: { bn: "যাচাই চলছে", en: "Checking" },
-    fv_done: { bn: "✓ শেষ", en: "✓ Done" },
-    fv_err: { bn: "সমস্যা", en: "Problem" },
-    fv_login: { bn: "লগইন দরকার — আগে এই সার্ভারে ব্রাউজারে লগইন করো", en: "Login needed — sign in to this server in the browser first" },
-    fv_f_total: { bn: "Total Collection {shown} ≠ শাখাগুলোর Net-এর যোগফল {sum}", en: "Total Collection {shown} is not the branches' net collections added up, {sum}" },
-    fv_f_base: { bn: "Base% পাওনা {shown} ≠ Total × {pct}% = {want}", en: "Base% receivable {shown} is not Total × {pct}% = {want}" },
-    fv_f_recv: { bn: "Total Receivable {shown} ≠ Base% + Franchisor-এর Value of Service = {want}", en: "Total Receivable {shown} is not Base% + the Franchisor branch's Value of Service = {want}" },
-    fv_on: { bn: "চালু", en: "ON" },
-    fv_off: { bn: "বন্ধ", en: "OFF" },
-    fv_c_tt: { bn: "Transfer Type", en: "Transfer Type" },
-    fv_c_course: { bn: "কোর্স", en: "Course" },
-    fv_c_sess: { bn: "সেশন", en: "Session" },
-    fv_c_total: { bn: "মোট কালেকশন", en: "Total Collection" },
-    fv_c_pct: { bn: "Base %", en: "Base %" },
-    fv_c_base: { bn: "Base% পাওনা", en: "Base% receivable" },
-    fv_c_svc: { bn: "Value of Service", en: "Value of Service" },
-    fv_c_move: { bn: "কোর্সে-কোর্সে সরেছে", en: "Moved between courses" },
-    fv_c_prob: { bn: "যা ভুল", en: "What is wrong" },
-    /* The report has two levels and one Run now covers both, so every line that could mean either
-       one has to say which. */
-    /* Six passes over an empty filter say "no rows" six times and never say where the rows ARE.
-       Scan walks every session × branch the dropdowns offer and reports the ones that have data,
-       grouped by transfer type — because testing per transfer type is what the list is for. */
-    fv_scan: { bn: "ডেটা কোথায় আছে", en: "Find data" },
-    fv_scan_need: { bn: "আগে সেশন আর শাখা লোড হতে দাও", en: "Let the sessions and branches load first" },
-    fv_scan_at: { bn: "খুঁজছি {done}/{total} — পেয়েছি {found}", en: "Scanning {done}/{total} — found {found}" },
-    fv_scan_done: { bn: "✓ শেষ — {total} টি সমন্বয়ে {found} টিতে ডেটা আছে", en: "✓ Done — {found} of {total} combinations have data" },
-    fv_scan_hit: { bn: "{n} টি সারি", en: "{n} rows" },
-    fv_scan_none: { bn: "এই প্রোগ্রামের কোনো সেশন বা শাখাতেই কোনো সারি নেই — যাচাই করার মতো কিছু নেই, আগে ডেটা বানাতে হবে", en: "Not one session or branch of this program has any rows — there is nothing to check, so the data has to be created first" },
-    fv_scan_gap: { bn: "যে Transfer Type-গুলোর কোথাও ডেটা নেই", en: "Transfer types with no data anywhere" },
-    fv_scan_gapwhy: { bn: "কোনো সেশন/শাখায় একটিও সারি নেই — এই Transfer Type এখনো যাচাই করা যায়নি", en: "Not one row in any session or branch — this transfer type has not been checked at all" },
-    fv_stop: { bn: "থামাও", en: "Stop" },
-    fv_stopping: { bn: "থামানো হচ্ছে…", en: "Stopping…" },
-    fv_stopped: { bn: "⏹ থামানো হয়েছে", en: "⏹ Stopped" },
-    /* The Summary Report — the third level. Its arithmetic is the one the page states itself, in its
-       own column tooltips, so these say what the page says. */
-    fv_lv_summary: { bn: "Summary Report", en: "Summary Report" },
-    fv_s_recv: { bn: "Total Received {shown} ≠ Cash + Bank + MFS = {sum}", en: "Total Received {shown} is not Cash + Bank + MFS = {sum}" },
-    fv_s_adj: { bn: "Adjustment Total {shown} ≠ (G − H − I − J) = {want}", en: "Adjustment Total {shown} is not (G − H − I − J) = {want}" },
-    fv_s_total: { bn: "Total {shown} ≠ (Net Receivable − Total Received + Adjustment Total) = {want}", en: "Total {shown} is not (Net Receivable − Total Received + Adjustment Total) = {want}" },
-    fv_s_settled: { bn: "Final Settled = {flag}, কিন্তু বাকি {total} — শূন্য হলেই Final Settled হওয়ার কথা", en: "Final Settled = {flag}, but {total} is still outstanding — it should say settled only at zero" },
-    fv_s_coltotal: { bn: "{col}-এর Total {shown} ≠ শাখার ঘরগুলোর যোগফল {sum}", en: "{col}: the Total {shown} is not the branch columns added up, {sum}" },
-    fv_s_recvable: { bn: "{col} নম্বর শাখার Total Receivable {shown} ≠ (Net from Transfer + Other Collected from Own − Own Collected from Other) = {want}", en: "Branch column {col}: Total Receivable {shown} is not (Net from Transfer + Other Collected from Own − Own Collected from Other) = {want}" },
-    fv_s_net: { bn: "{col} নম্বর শাখার Net Receivable {shown} ≠ (Total Receivable − Received/Paid) = {want}", en: "Branch column {col}: Net Receivable {shown} is not (Total Receivable − Received/Paid) = {want}" },
-    fv_s_c_transfer: { bn: "Net from Transfer", en: "Net from Transfer" },
-    fv_s_c_otherown: { bn: "Other Collected from Own", en: "Other Collected from Own" },
-    fv_s_c_ownother: { bn: "Own Collected from Other", en: "Own Collected from Other" },
-    fv_s_c_recvable: { bn: "Total Receivable", en: "Total Receivable" },
-    fv_s_c_paid: { bn: "Received / Paid", en: "Received / Paid" },
-    fv_s_c_net: { bn: "Net Receivable", en: "Net Receivable" },
-    /* The check that only exists once two levels have been read: the Summary's Net Receivable is,
-       by the page's own account, what Course Wise reports over the three transfer types. */
-    fv_x_head: { bn: "স্তরে-স্তরে মিল", en: "Across the levels" },
-    fv_x_net: { bn: "Summary-র Net Receivable {shown} ≠ Course Wise-এর তিন Transfer Type মিলিয়ে {sum} — পার্থক্য {diff}", en: "The Summary's Net Receivable {shown} is not what Course Wise reports over the three transfer types, {sum} — a difference of {diff}" },
-    fv_x_ok: { bn: "মিলেছে · Summary-র Net Receivable Course Wise-এর যোগফলের সমান", en: "Agrees · the Summary's Net Receivable equals the Course Wise total" },
-    fv_lv_course: { bn: "Course Wise", en: "Course Wise" },
-    fv_lv_student: { bn: "Student Wise", en: "Student Wise" },
-    fv_c_who: { bn: "ছাত্র", en: "Student" },
-    /* The one finding from running Student Wise live against ums-3: a row with no classes divides by
-       zero, the FRS guard puts 0 in Value of Service, and nothing says who owns what is left. */
-    fv_f_noclass: { bn: "Total Class/Exam = 0, তাই Value of Service-ও 0 — কিন্তু base কাটার পর {rest} টাকা থেকে যাচ্ছে, যার মালিক FRS বলে না", en: "Total Class/Exam = 0, so Value of Service is 0 too — but {rest} is left over after the base cut, and the FRS does not say whose it is" },
-    fv_r_student: { bn: "যে ছাত্রকে খুঁজবে: {who}", en: "The student to find: {who}" },
-    fv_f_svccount: { bn: "Total Class/Exam {shown} ≠ শাখাগুলোর Service-এর যোগফল {sum}", en: "Total Class/Exam {shown} is not the branches' service counts added up, {sum}" },
-    fv_repro_h: { bn: "যেভাবে নিজে আবার দেখবে", en: "How to see this yourself" },
-    fv_r_open: { bn: "খোলো: {url}", en: "Open: {url}" },
-    fv_r_who: { bn: "Organization = {org}  ·  Program = {prog}", en: "Organization = {org}  ·  Program = {prog}" },
-    fv_r_what: { bn: "Session = {sess}  ·  Franchisee Branch = {branch}", en: "Session = {sess}  ·  Franchisee Branch = {branch}" },
-    fv_r_tt: { bn: "Transfer Type = {tt}", en: "Transfer Type = {tt}" },
-    fv_r_period: { bn: "Period = {from} থেকে {to}  ·  Show Data With Zero Payment = {zero}", en: "Period = {from} to {to}  ·  Show Data With Zero Payment = {zero}" },
-    fv_r_calc: { bn: "Calculate বোতামে চাপো", en: "Press Calculate" },
-    fv_r_row: { bn: "যে সারিটি দেখবে: {row}", en: "The row to look at: {row}" },
-    fv_r_screen: { bn: "পর্দায় যা আছে: Total Collection = {total}  ·  Franchisor % = {pct}  ·  Base% পাওনা = {base}  ·  Value of Service (সব শাখা মিলে) = {svc}", en: "What is on screen: Total Collection = {total}  ·  Franchisor % = {pct}  ·  Base% receivable = {base}  ·  Value of Service (all branches) = {svc}" },
-    fv_r_sum: { bn: "প্রতিটি সারির Value of Service যোগ করো, আর আলাদাভাবে (Total − Base% পাওনা) যোগ করো — দুটো মিলছে না", en: "Add up every row's Value of Service, and separately add up (Total − Base% receivable) — the two do not meet" },
-    fv_r_wrong: { bn: "যা ভুল: {problem}", en: "What is wrong: {problem}" },
-    fv_noref: { bn: "রিকোয়েস্ট-হেডার বসানো গেল না — এক্সটেনশন Reload করে আবার দেখো", en: "Could not set the request header — reload the extension and try again" },
-    fv_needbase: { bn: "আগে UMS ঠিকানা দাও", en: "Enter the UMS address first" },
-    fv_norows: { bn: "এই ফিল্টারে কোনো সারি নেই", en: "No rows for this filter" },
-    fv_balance: { bn: "রিপোর্ট-পর্যায়ের মিল", en: "Report balance" },
-    fv_balance_off: { bn: "মিলছে না — পার্থক্য", en: "Does not balance — difference" },
-    fv_moved: { bn: "মিলেছে · {n} টি কোর্সের মান একে অপরের সাথে সরেছে (বহু-কোর্স শিক্ষার্থীর কারণে স্বাভাবিক)", en: "Balances · value moved between {n} course rows (normal with multi-course students)" },
     // the label reads the same in both languages, on purpose — it names the status, not a sentence
     fn_mark: { bn: "✓ As Pass", en: "✓ As Pass" },
     fn_mark_t: { bn: "এই Fail জানা ও গ্রহণযোগ্য — As Pass ধরো", en: "This failure is known and acceptable — count it As Pass" },
@@ -666,8 +570,6 @@
     if (self.APP.crm) self.APP.crm.setConn(self.APP.crm.getConn());
     if (self.APP.adm) self.APP.adm.setConn(self.APP.adm.getConn());
     if (self.APP.fn && self.APP.fn.relang) self.APP.fn.relang();
-    if (self.APP.fr && self.APP.fr.relang) self.APP.fr.relang();
-    if (self.APP.fe && self.APP.fe.relang) self.APP.fe.relang();
     if (self.APP.cc && self.APP.cc.relang) self.APP.cc.relang();
     const pv = $("preview"); if (pv) pv.removeAttribute("data-col"); // force head rebuild in the new language
     /* Everything whose words are written by JS rather than by a data-i18n node has to be
@@ -2798,22 +2700,18 @@
   let page = "pay";
 
   function showPage(p) {
-    page = (p === "crm" || p === "adm" || p === "fn" || p === "cc" || p === "fr" || p === "fe") ? p : "pay";
+    page = (p === "crm" || p === "adm" || p === "fn" || p === "cc") ? p : "pay";
     const set = function (id, yes) { const e = $(id); if (e) e.classList.toggle("on", yes); };
     set("pgPay", page === "pay"); set("pgCrm", page === "crm"); set("pgAdm", page === "adm"); set("pgFn", page === "fn"); set("pgCc", page === "cc");
-    set("pgFr", page === "fr"); set("pgFe", page === "fe");
     set("navPay", page === "pay"); set("navCrm", page === "crm"); set("navAdm", page === "adm"); set("navFn", page === "fn"); set("navCc", page === "cc");
-    set("navFr", page === "fr"); set("navFe", page === "fe");
     /* what is inside CRM is listed only while CRM is the open section */
     set("crmSub", page === "crm");
     if (page === "crm") self.APP.crm.show(crmTab);
     if (page === "adm") self.APP.adm.onShow();
     if (page === "cc" && self.APP.cc) self.APP.cc.onShow();
-    if (page === "fr" && self.APP.fr) self.APP.fr.onShow();
-    if (page === "fe" && self.APP.fe) self.APP.fe.onShow();
     /* The subtitle belongs to whichever section is open. Written as a data-i18n key rather than
        as text, so applyLang() keeps it right when the language changes under it. */
-    const key = page === "pay" ? "subtitle" : page === "crm" ? "crm_sub" : page === "fn" ? "fn_sub" : page === "cc" ? "cc_sub" : page === "fr" ? "fr_sub" : page === "fe" ? "fe_sub" : "adm_sub";
+    const key = page === "pay" ? "subtitle" : page === "crm" ? "crm_sub" : page === "fn" ? "fn_sub" : page === "cc" ? "cc_sub" : "adm_sub";
     const sub = $("sub");
     if (sub) { sub.setAttribute("data-i18n", key); sub.textContent = t(key); }
     try { chrome.storage.local.set({ page: page }); } catch (e) {}
@@ -2932,8 +2830,6 @@
     if ($("navAdm")) $("navAdm").addEventListener("click", function () { if (hasSel()) return; showPage("adm"); });
     if ($("navFn")) $("navFn").addEventListener("click", function () { if (hasSel()) return; showPage("fn"); });
     if ($("navCc")) $("navCc").addEventListener("click", function () { if (hasSel()) return; showPage("cc"); });
-    if ($("navFr")) $("navFr").addEventListener("click", function () { if (hasSel()) return; showPage("fr"); });
-    if ($("navFe")) $("navFe").addEventListener("click", function () { if (hasSel()) return; showPage("fe"); });
     if ($("admRun")) $("admRun").addEventListener("click", self.APP.adm.run);
     if ($("admStop")) $("admStop").addEventListener("click", self.APP.adm.stop);
     if ($("admSeq")) $("admSeq").addEventListener("click", function () { self.APP.adm.setMode("sequential"); });
@@ -3197,7 +3093,7 @@
        restored, so it pointed at the wrong server. For Franchisor and For Franchisee are the two
        that show it, because onShow() also starts a loader and the old single busy flag then made
        relang() refuse to repaint. Language first, then the page, and there is nothing to repair. */
-    showPage((o.page === "crm" || o.page === "adm" || o.page === "fn" || o.page === "cc" || o.page === "fr" || o.page === "fe") ? o.page : "pay");
+    showPage((o.page === "crm" || o.page === "adm" || o.page === "fn" || o.page === "cc") ? o.page : "pay");
     testConn(); ckOffer(); }); }
   catch (e) { wire(); applyTheme("dark"); applyLang("en"); }
 })();

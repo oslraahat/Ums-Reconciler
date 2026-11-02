@@ -50,14 +50,18 @@ chrome.runtime.onInstalled.addListener(function (details) {
   chrome.tabs.create({ url: chrome.runtime.getURL(PAGE) });
 });
 
-/* Safety net for the two declarativeNetRequest session rules that rewrite Referer/Origin on our
-   OWN requests: 8801 (New Admission's HTTP posts) and 8802 (the Franchise check, whose endpoints
-   answer 302 unless the Referer is their own page). Both are armed only for the moment they are
-   needed and disarmed in a finally — but a panel closed mid-run never reaches that finally, and a
-   session rule outlives the page that made it. A stale one would quietly rewrite headers on
-   unrelated UMS AJAX, which is exactly the breakage 8801's scoping comment warns about. So clear
-   both whenever the service worker starts (install, update, browser start, or wake); each is
-   re-added, correctly scoped, only while it is actually in use. */
+/* Safety net for the declarativeNetRequest session rules that rewrite Referer/Origin on our OWN
+   requests. 8801 is New Admission's HTTP posts: armed only for the moment it is needed and disarmed
+   in a finally — but a panel closed mid-run never reaches that finally, and a session rule outlives
+   the page that made it. A stale one would quietly rewrite headers on unrelated UMS AJAX, which is
+   exactly the breakage 8801's scoping comment warns about. So it is cleared whenever the service
+   worker starts (install, update, browser start, or wake) and re-added, correctly scoped, only
+   while it is in use.
+
+   8802 belonged to the Franchise check, which no longer exists. It stays in this list on purpose:
+   someone updating from a version that armed it can still have that rule standing in the browser
+   session this update lands in, and it would go on rewriting the Referer on their UMS AJAX until
+   Chrome was restarted. Clearing a rule nothing arms any more costs nothing. */
 (function clearStaleRefererRule() {
   try {
     if (chrome.declarativeNetRequest && chrome.declarativeNetRequest.updateSessionRules)

@@ -45,7 +45,7 @@ const REC = read("reconcile.js"), MANIFEST = read("manifest.json");
 /* The New Admission and CRM menus moved to menus/adm/adm.js and menus/crm/crm.js; their t() calls, key mentions
    and {placeholder} fills live there now, so the string usage/unused checks scan the three together.
    DICT itself is still parsed from app.js. */
-const SRC = APP + "\n" + read("menus/adm/adm.js") + "\n" + read("menus/crm/crm.js") + "\n" + read("menus/fn/fn.js") + "\n" + read("menus/cc/cc.js") + "\n" + read("menus/fr/fr-core.js") + "\n" + read("menus/fr/fr-ui.js") + "\n" + read("menus/fr/fr.js") + "\n" + read("menus/fe/fe.js") + "\n" + read("lib/update.js");
+const SRC = APP + "\n" + read("menus/adm/adm.js") + "\n" + read("menus/crm/crm.js") + "\n" + read("menus/fn/fn.js") + "\n" + read("menus/cc/cc.js") + "\n" + read("lib/update.js");
 
 /* ---------- everything parses ---------- */
 {
@@ -164,10 +164,10 @@ const SRC = APP + "\n" + read("menus/adm/adm.js") + "\n" + read("menus/crm/crm.j
      still has to be checked, not waved through: the slot counts as filled only if THAT key's own
      fill() call names a property of that name, so forgetting one property is still caught. */
   const unfilled = [];
-  /* There is more than one generic filler now. fr-ui.js already had fill(sel, list) for filling a
-     DROPDOWN, so its sentence filler had to be called something else — msg(key, vals) — and a check
-     that knew only the name "fill" reported fv_scan_done's slots as nobody's job. Both names are
-     tried; each still has to name the property, so a forgotten one is caught either way. */
+  /* There is more than one generic filler: a module that already has fill(sel, list) for filling a
+     DROPDOWN names its sentence filler something else, msg(key, vals). A check that knew only the
+     name "fill" called such a key's slots nobody's job. Both names are tried; each still has to name
+     the property, so a forgotten one is caught either way. */
   const FILLERS = ["fill", "msg"];
   const filledBy = function (key, name) {
     return FILLERS.some(function (fn) {

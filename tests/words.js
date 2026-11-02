@@ -33,10 +33,6 @@ const SRC = APP + "\n"
   + fs.readFileSync(path.join(ROOT, "menus", "crm", "crm.js"), "utf8") + "\n"
   + fs.readFileSync(path.join(ROOT, "menus", "fn", "fn.js"), "utf8") + "\n"
   + fs.readFileSync(path.join(ROOT, "menus", "cc", "cc.js"), "utf8") + "\n"
-  + fs.readFileSync(path.join(ROOT, "menus", "fr", "fr-core.js"), "utf8") + "\n"
-  + fs.readFileSync(path.join(ROOT, "menus", "fr", "fr-ui.js"), "utf8") + "\n"
-  + fs.readFileSync(path.join(ROOT, "menus", "fr", "fr.js"), "utf8") + "\n"
-  + fs.readFileSync(path.join(ROOT, "menus", "fe", "fe.js"), "utf8") + "\n"
   + fs.readFileSync(path.join(ROOT, "lib", "update.js"), "utf8");
 
 let fail = 0;

@@ -4,11 +4,10 @@
  *   node tools/discover.js --base https://ums-4.osl.team --page /Student/FranchisorTransaction/Create
  *   node tools/discover.js --base ... --page ... --loader /Student/Admission/GetSessionByProgram --params programId=68
  *
- * Step 1 of docs/franchise-scenarios.md. Add Course, Due Payment, Transfer and Program Migration
- * have to be mapped before any of them can be built, and mapping is reading: fetch the page, list
- * its form fields and dropdowns, and pull the endpoints its own inline script calls. The same thing
- * was done by hand for the report and written up as docs/franchise-api.md; this makes it repeatable
- * and, more to the point, makes the refusals automatic rather than remembered.
+ * Maps a UMS page by reading it: the form fields, the dropdowns, and the endpoints its own script
+ * calls. Nothing about it is tied to a particular menu — it is how docs/franchise-api.md was
+ * written, and it is here for the next time an endpoint has to be found rather than guessed. What
+ * makes it worth keeping as a tool rather than a habit is that the refusals below are automatic.
  *
  * The cookie comes from the environment, never the command line:
  *
