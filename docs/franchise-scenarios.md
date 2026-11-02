@@ -68,11 +68,44 @@ covering, not because a case asks for them.
 So four flows have to be reverse-engineered before any of scenarios 2, 3, 4, 8 or 10 can be built.
 That is read-only work and it comes first.
 
+## 3a · The discovery tool
+
+`tools/discover.js` does step 1 repeatably, and makes the refusals automatic rather than remembered:
+
+```
+UMS_COOKIE=".UERP_AUTH=…" node tools/discover.js --base https://ums-4.osl.team \
+  --page /Student/FranchisorTransaction/Create
+```
+
+It reports the page's forms, fields, dropdowns (naming the ones a loader fills, which is the
+cascade), the antiforgery token, and every endpoint the page's own script references — each
+classified loader / WRITE / unknown. With `--loader` it will ask a loader a question; with anything
+else it refuses and says so.
+
+The cookie comes from the environment, never the command line, so it stays out of shell history,
+and it is never printed.
+
+What it will not do: touch a host that is not `https://*.osl.team` (checked on the parsed hostname —
+a substring test passes `osl.team.evil.com`); POST to anything that is not a loader; send a
+password; or treat a login page as the page that was asked for.
+
+`tests/discover.js` asks those decisions directly rather than running the tool. The first version of
+that test ran it, and with the loader guard broken on purpose — to check the test would notice — the
+tool went on and POSTed to `/Student/Admission/NewStudentAdmission` on ums-4. A test for a refusal
+must not depend on the refusal working.
+
+Two paths worth starting from are already referenced in the repo, from the Function Check sweeps:
+
+- `/Student/FranchisorTransaction/Create` — very likely the **Transfer** flow, the one the whole
+  report hangs on
+- `/Student/FranchisorPercentSettings/Create` — where Base % comes from, which rule 2 checks against
+
 ## 4 · Order of work
 
 1. **Discovery, read-only.** For each of the four unknown flows: open the page, record the cascade
    of loader calls, the form fields, and the write endpoint — as `docs/franchise-api.md` already
-   does for the report. The probe refuses write endpoints while discovering.
+   does for the report. `tools/discover.js` above does this and refuses write endpoints while doing
+   it.
 2. **Dry run.** Assemble each scenario's payload and display it. Write nothing. This is the step to
    check before anything is sent, and it is where a wrong field is cheap.
 3. **Create, on the test server only.** Behind the same `*.osl.team` gate as New Admission. Real
