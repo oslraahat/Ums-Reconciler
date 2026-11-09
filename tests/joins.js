@@ -164,11 +164,10 @@ const SRC = APP + "\n" + read("menus/adm/adm.js") + "\n" + read("menus/crm/crm.j
      still has to be checked, not waved through: the slot counts as filled only if THAT key's own
      fill() call names a property of that name, so forgetting one property is still caught. */
   const unfilled = [];
-  /* There is more than one generic filler: a module that already has fill(sel, list) for filling a
-     DROPDOWN names its sentence filler something else, msg(key, vals). A check that knew only the
-     name "fill" called such a key's slots nobody's job. Both names are tried; each still has to name
-     the property, so a forgotten one is caught either way. */
-  const FILLERS = ["fill", "msg"];
+  /* The generic filler is fill(). There was once a second, msg(key, vals), in fr-ui.js; it went
+     with that file in 14.89.0, and is not tried any more — a name nothing defines would let a
+     stray msg("key", {...}) count as filling a slot. Add a name here only when a module defines it. */
+  const FILLERS = ["fill"];
   const filledBy = function (key, name) {
     return FILLERS.some(function (fn) {
       const at = SRC.indexOf(fn + '("' + key + '"');

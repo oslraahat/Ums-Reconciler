@@ -126,7 +126,7 @@ console.log("note  Bengali strings typed outside the dictionary: " + prose.lengt
  * AFTER the language. */
 {
   const iLang = app.indexOf("applyLang(o.lang");
-  const iPage = app.indexOf("showPage((o.page");
+  const iPage = app.indexOf("showPage(o.page");
   const ordered = iLang > 0 && iPage > 0 && iPage > iLang;
   console.log((ordered ? "ok    " : "FAIL  ") +
     "boot restores the open section after the language" +

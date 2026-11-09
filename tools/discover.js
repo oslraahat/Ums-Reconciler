@@ -111,24 +111,32 @@ const VERIFIED_READS = [{
        "is a later step with its own submit. Run on ums-3: answers an HTML fragment, and for an " +
        "unknown number \"Please provide valid Registration No./ Roll No.\""
 }, {
-  path: "/Student/AddCourse/GenerateStudentProgramDetails",
-  fields: ["stdRollOrRegistrationNo"],
-  why: "the page's own $.ajax POST with data { stdRollOrRegistrationNo } — it renders the student's " +
-       "programmes so one can be chosen. Corroborated in our own shipped code: menus/cc/cc-page.js " +
-       "calls the identical action on the CancelCourse controller purely to list programmes"
-}, {
   path: "/Student/CancelCourse/GenerateStudentProgramDetails",
   fields: ["stdRollOrRegistrationNo"],
   why: "the same action, and the one Course Cancel has used read-only since it shipped — " +
        "menus/cc/cc-page.js asks it for a student's programmes and cancels nothing by doing so"
 }];
+/* What the server binds is the body AND the url's own query string, with names decoded and case
+   ignored — ASP.NET MVC model binding reads both that way. So the fields are read the same way here:
+   a `?amount=…` left on --loader would otherwise reach the Create action unchecked. And the exception
+   is for the one-field lookup that was verified, so the field it names must actually be there; an
+   empty form posted to Create is a different request. */
+function sentFields(path, qs) {
+  const q = path.indexOf("?") >= 0 ? path.slice(path.indexOf("?") + 1) : "";
+  return [q, String(qs || "")].join("&").split("&").filter(Boolean).map(function (kv) {
+    const k = kv.split("=")[0].replace(/\+/g, " ");
+    try { return decodeURIComponent(k).toLowerCase(); } catch (e) { return k.toLowerCase(); }
+  });
+}
 function verifiedRead(path, qs) {
   const tail = path.split("?")[0];
   const hit = VERIFIED_READS.filter(function (v) { return v.path.toLowerCase() === tail.toLowerCase(); })[0];
   if (!hit) return null;
-  const sent = String(qs || "").split("&").filter(Boolean).map(function (kv) { return kv.split("=")[0]; });
-  const extra = sent.filter(function (k) { return hit.fields.indexOf(k) < 0; });
-  return extra.length ? { hit: hit, extra: extra } : { hit: hit, extra: [] };
+  const want = hit.fields.map(function (f) { return f.toLowerCase(); });
+  const sent = sentFields(path, qs);
+  const extra = sent.filter(function (k) { return want.indexOf(k) < 0; });
+  const missing = hit.fields.filter(function (f) { return sent.indexOf(f.toLowerCase()) < 0; });
+  return { hit: hit, extra: extra, missing: missing };
 }
 
 function classify(path) {
@@ -378,6 +386,12 @@ async function askLoader(path, qs) {
       console.error("not take is no longer the request that was verified.");
       process.exit(6);
     }
+    if (v.missing.length) {
+      console.error("refused: `" + path + "` is a verified read only as a lookup by " +
+        v.hit.fields.join(", ") + ", and " + v.missing.join(", ") + " was not sent.");
+      console.error("An empty form posted to it is not the request that was verified.");
+      process.exit(6);
+    }
     if (!allowVerified) {
       console.error("refused: `" + path + "` is a verified read, but --allow-verified-read was not given.");
       console.error("Why it is one: " + v.hit.why);
@@ -387,7 +401,8 @@ async function askLoader(path, qs) {
     console.error("note: sending a POST to a path named like a write, on the strength of a recorded");
     console.error("      exception. " + v.hit.why);
   }
-  if (/password/i.test(qs)) {
+  /* the url too: a ?password=… on --loader is sent just as surely as one in the body */
+  if (/password/i.test(qs) || /password/i.test(path)) {
     console.error("refused: a password is never sent by this tool.");
     process.exit(5);
   }

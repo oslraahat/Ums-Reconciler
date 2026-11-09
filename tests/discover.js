@@ -119,13 +119,28 @@ const check = function (name, ok, extra) {
      the test noticed showed the tool going on to make the request — including a POST to
      /Student/Admission/NewStudentAdmission. The same trap this file was rewritten to avoid, walked
      into again by three new checks. A refusal is asked of the function that decides it. */
+  /* A null where an object was expected must come back as a FAIL line, not a TypeError that takes
+     every later check down with it. */
+  const vr = function (p, q) {
+    const v = D.verifiedRead(p, q);
+    return v && { extra: (v.extra || []).join(","), missing: (v.missing || []).join(",") };
+  };
+  const T = "/Student/StudentTransfer/Create";
   check("a listed path is recognised when sent exactly its own fields",
-    (D.verifiedRead("/Student/StudentTransfer/Create", "stdRollOrRegistrationNo=1") || {}).extra
-      ? D.verifiedRead("/Student/StudentTransfer/Create", "stdRollOrRegistrationNo=1").extra.length === 0
-      : false);
+    (vr(T, "stdRollOrRegistrationNo=1") || {}).extra === "" && (vr(T, "stdRollOrRegistrationNo=1") || {}).missing === "");
   check("an extra field is reported, so the caller can refuse it",
-    (D.verifiedRead("/Student/StudentTransfer/Create", "stdRollOrRegistrationNo=1&amount=500") || {})
-      .extra.join(",") === "amount");
+    (vr(T, "stdRollOrRegistrationNo=1&amount=500") || {}).extra === "amount");
+  check("a field hidden in the url's own query string is counted too",
+    (vr(T + "?amount=500&toBranchId=7", "stdRollOrRegistrationNo=1") || {}).extra === "amount,tobranchid");
+  check("an empty body is not the verified lookup — the named field is reported missing",
+    (vr(T, "") || {}).missing === "stdRollOrRegistrationNo");
+  check("field names are read as the server binds them: decoded, case ignored",
+    (vr(T, "StdRollOrRegistrationNo=1") || {}).extra === "" &&
+    (vr(T, "%61mount=1&stdRollOrRegistrationNo=1") || {}).extra === "amount");
+  check("the tool refuses a missing field before it sends anything",
+    /v\.missing\.length/.test(src) && /was not sent/.test(src));
+  check("AddCourse is not an exception — its only evidence was another controller's action",
+    D.verifiedRead("/Student/AddCourse/GenerateStudentProgramDetails", "stdRollOrRegistrationNo=1") === null);
   check("a path that is not listed gets no exception at all",
     D.verifiedRead("/Student/Admission/NewStudentAdmission", "x=1") === null);
   check("…nor does a path that merely looks similar",
@@ -139,7 +154,8 @@ const check = function (name, ok, extra) {
 {
   const src = fs.readFileSync(TOOL, "utf8");
   check("a password parameter is refused before any request",
-    /if \(\/password\/i\.test\(qs\)\)/.test(src) && /refused: a password is never sent/.test(src));
+    /if \(\/password\/i\.test\(qs\) \|\| \/password\/i\.test\(path\)\)/.test(src) &&
+    /refused: a password is never sent/.test(src));
   check("a password input is reported and not filled",
     /Password fields/.test(src) && /NOT filled/.test(src));
   check("passwords are excluded from the field table",

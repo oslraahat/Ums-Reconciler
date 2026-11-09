@@ -3096,10 +3096,11 @@
     /* The open section is restored LAST, after the language and the addresses. It used to be
        restored first, which meant a menu that builds its panel from JS built it before the stored
        language had been read — so it came up in the default, Bengali, and before baseUrl was
-       restored, so it pointed at the wrong server. For Franchisor and For Franchisee are the two
-       that show it, because onShow() also starts a loader and the old single busy flag then made
-       relang() refuse to repaint. Language first, then the page, and there is nothing to repair. */
-    showPage((o.page === "crm" || o.page === "adm" || o.page === "fn" || o.page === "cc") ? o.page : "pay");
+       restored, so it pointed at the wrong server. Any menu whose onShow() builds or loads
+       something shows it (Admission and Course Cancel today). Language first, then the page, and
+       there is nothing to repair. showPage() itself falls back to Payment for a name it does not
+       know, so the list of pages lives there only. */
+    showPage(o.page);
     testConn(); ckOffer(); }); }
   catch (e) { wire(); applyTheme("dark"); applyLang("en"); }
 })();

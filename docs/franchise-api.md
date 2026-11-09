@@ -169,7 +169,9 @@ run in a real document. The established pattern in this codebase is an injected 
 
 Read off ums-3 on 2 Nov 2026. Unlike the other two levels the arithmetic did not have to be
 inferred: the page states it in its own column tooltips, and every rule was then checked against a
-real row before being written into `checkSummary()`.
+real row before being written into `checkSummary()`. (That code lived in fr-core.js, removed in
+14.89.0 with the For Franchisor and For Franchisee menus; the rules below are kept as the record of
+what was verified, not as a description of code that still ships.)
 
 | Side | Page | Data endpoint |
 |---|---|---|
@@ -225,4 +227,4 @@ The Franchisor page says its Net Receivable comes from "Course Wise Calculation 
 (Franchisee→Franchisor T + Franchisor→Franchisee T + Non-Transfer E)" — so it should equal what the
 Course Wise level reports over the three transfer types. Neither level can say this alone, and
 nobody checks it by eye across two screens, which is why it is the one check worth most here. It
-runs after all three levels, Franchisor-side only.
+ran after all three levels, Franchisor-side only, until 14.89.0 removed it with fr-core.js.
