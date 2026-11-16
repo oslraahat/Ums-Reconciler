@@ -47,5 +47,12 @@ check("skip comes before b.click()", skipAt > 0 && clickAt > 0 && skipAt < click
 // judged on the button's own words, not on the section heading appended for context
 check("matched on ownLabel, not the context label", /DESTRUCTIVE\.test\(ownLabel\)/.test(src));
 
+/* ---- a rebuilt panel is not a page full of new buttons ----
+   Net Collection Summary Report's View reloads its panel, building the same four buttons again as new
+   elements. Tracking "tested" by element re-clicked them 4× (16 clicks) and a hidden Headless tab ran
+   past the 55s probe cap. Tracking is by signature now; pin that the element-identity check is gone. */
+check("tested buttons are tracked by signature", /testedSig\[sig\]/.test(src));
+check("no element-identity 'tested' list left", !/tested\.indexOf\(el\)/.test(src));
+
 console.log(fail ? "\n" + fail + " টি ভুল" : "\nসব ঠিক আছে");
 process.exit(fail ? 1 : 0);

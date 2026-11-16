@@ -812,18 +812,44 @@ async function fnActionProbe(opts) {
     var DESTRUCTIVE = /\b(delete|remove|destroy|drop|void|cancel|cancellation|transfer|migrate|migration|pay|payment|refund|settle|reset|merge|reject|block|freeze|lock|unlock|deactivate|revoke)\b|মুছ|বাতিল|ট্রান্সফার|পেমেন্ট/i;
     var DESTRUCTIVE_CODE = /delete|remove|destroy|void|cancel|transfer|migrat|refund|settle|reset|merge|reject|revoke|deactivate/i;
     // Re-scan before EACH click, not once up front: clicking a button (e.g. an empty-field Submit)
-    // can reveal NEW buttons, and those must be tested too. `tested` holds the elements already done.
+    // can reveal NEW buttons, and those must be tested too.
+    /* "Already tested" is judged by WHAT the button is, not by the DOM element. A View that reloads its
+       panel (Net Collection Summary Report's partial) builds the very same buttons again as fresh
+       elements, and an element-identity check took each rebuild for new buttons: the same four were
+       clicked four times over, up to the 16 cap. In a hidden Headless tab, where Chrome stretches every
+       timer, that ran past the 55s probe cap and the page showed "inject সমস্যা — probe timeout".
+       The signature is the button's own text + id/name/onclick + its section heading, plus its rank
+       among buttons with that same signature, so two genuinely different unlabeled buttons on one page
+       are still told apart while a rebuilt copy of one is recognised. */
     var SEL = "button, input[type=submit], input[type=button], [role=button], a.btn";
-    var tested = [];
+    var testedSig = {};
+    function headOf(el) {
+      try {
+        var host = el.closest && el.closest("td, th, fieldset, .card, .panel, .box, .form-group, .tab-pane, section");
+        var h = host && host.querySelector && host.querySelector("legend, .card-header, .card-title, .panel-heading, th, h1, h2, h3, h4, label");
+        return (h && h !== el) ? (h.textContent || "").replace(/\s+/g, " ").trim().slice(0, 24) : "";
+      } catch (e) { return ""; }
+    }
+    function baseSig(el) {
+      return [el.tagName, el.type || "", el.id || "", el.name || "",
+        (el.value || el.textContent || el.title || "").replace(/\s+/g, " ").trim().slice(0, 40),
+        el.getAttribute("onclick") || "", headOf(el)].join("|");
+    }
     function nextBtn() {
-      var list = document.querySelectorAll(SEL);
-      for (var j = 0; j < list.length; j++) { var el = list[j]; if (vis(el) && !el.disabled && tested.indexOf(el) < 0) return el; }
+      var list = document.querySelectorAll(SEL), rank = {};
+      for (var j = 0; j < list.length; j++) {
+        var el = list[j];
+        if (!vis(el) || el.disabled) continue;
+        var bs = baseSig(el), k = rank[bs] = (rank[bs] || 0) + 1;
+        var sig = bs + "@" + k;
+        if (!testedSig[sig]) { testedSig[sig] = 1; return el; }
+      }
       return null;
     }
     var count = 0, navAway = false;
     while (count < 16 && !navAway) {
       var b = nextBtn(); if (!b) break;
-      tested.push(b); count++;
+      count++;
       var label = ((b.value || b.textContent || b.title || "").replace(/\s+/g, " ").trim() || "button").slice(0, 40);
       // the button's OWN words, before a section heading is appended for context below — a View inside
       // a "Payment Report" panel must not read as a payment button
@@ -831,13 +857,7 @@ async function fnActionProbe(opts) {
       // several buttons can share a label (e.g. many "Select All") — tag each with context so it is
       // clear WHICH one: its id/name, else the nearest column/section heading, else a running number.
       var ctx = (b.id || b.name || "").trim();
-      if (!ctx) {
-        try {
-          var host = b.closest && b.closest("td, th, fieldset, .card, .panel, .box, .form-group, .tab-pane, section");
-          var h = host && host.querySelector && host.querySelector("legend, .card-header, .card-title, .panel-heading, th, h1, h2, h3, h4, label");
-          if (h && h !== b) ctx = (h.textContent || "").replace(/\s+/g, " ").trim().slice(0, 24);
-        } catch (e) {}
-      }
+      if (!ctx) ctx = headOf(b);
       if (!ctx) ctx = "#" + count;
       if (ctx && label.toLowerCase().indexOf(ctx.toLowerCase()) < 0) label = label + " · " + ctx;
       var isWrite = WRITE.test(label) || /submit/i.test(b.type || "");
