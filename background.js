@@ -804,6 +804,13 @@ async function fnActionProbe(opts) {
     var hasPassword = !!document.querySelector("input[type=password]");
     var WRITE = /\b(save|submit|create|add|update|edit|delete|remove|destroy|confirm|send|issue|approve|reject|block|reset|import|sync|generate|pay|void|settle|distribute|transfer|assign|post|enable|disable|process|finalize|publish|freeze|promote|migrate|merge|lock|unlock)\b|সংরক্ষণ|জমা|হালনাগাদ|মুছ|পাঠা/i;
     var VIEW = /\b(view|search|find|show|report|load|filter|list|get|display|preview|check|go|ok)\b|খুঁজ|দেখ|অনুসন্ধান/i;
+    /* Destructive buttons are never clicked, not even on the osl.team test server. The submit hold-back
+       does not stop an AJAX save, and confirm() is stubbed to answer OK, so clicking these deleted the
+       first row of a list or posted a 100000 payment into a server other testers share. Matched on the
+       visible label AND on id/name/onclick, since a row's Delete is often an icon whose only words are
+       in its id ("btnDeleteStudent") or handler ("deleteRow(42)"). */
+    var DESTRUCTIVE = /\b(delete|remove|destroy|drop|void|cancel|cancellation|transfer|migrate|migration|pay|payment|refund|settle|reset|merge|reject|block|freeze|lock|unlock|deactivate|revoke)\b|মুছ|বাতিল|ট্রান্সফার|পেমেন্ট/i;
+    var DESTRUCTIVE_CODE = /delete|remove|destroy|void|cancel|transfer|migrat|refund|settle|reset|merge|reject|revoke|deactivate/i;
     // Re-scan before EACH click, not once up front: clicking a button (e.g. an empty-field Submit)
     // can reveal NEW buttons, and those must be tested too. `tested` holds the elements already done.
     var SEL = "button, input[type=submit], input[type=button], [role=button], a.btn";
@@ -818,6 +825,9 @@ async function fnActionProbe(opts) {
       var b = nextBtn(); if (!b) break;
       tested.push(b); count++;
       var label = ((b.value || b.textContent || b.title || "").replace(/\s+/g, " ").trim() || "button").slice(0, 40);
+      // the button's OWN words, before a section heading is appended for context below — a View inside
+      // a "Payment Report" panel must not read as a payment button
+      var ownLabel = label + " " + (b.title || "") + " " + (b.getAttribute("aria-label") || "");
       // several buttons can share a label (e.g. many "Select All") — tag each with context so it is
       // clear WHICH one: its id/name, else the nearest column/section heading, else a running number.
       var ctx = (b.id || b.name || "").trim();
@@ -832,6 +842,8 @@ async function fnActionProbe(opts) {
       if (ctx && label.toLowerCase().indexOf(ctx.toLowerCase()) < 0) label = label + " · " + ctx;
       var isWrite = WRITE.test(label) || /submit/i.test(b.type || "");
       if (isWrite && (hasPassword || /password|change.?pass|credential/i.test(label))) { actions.push({ label: label, pass: true, reason: "skipped — password/credential (নিরাপত্তা)" }); continue; }
+      var code = ((b.id || "") + " " + (b.name || "") + " " + (b.getAttribute("onclick") || "") + " " + (b.getAttribute("data-action") || "")).trim();
+      if (DESTRUCTIVE.test(ownLabel) || (code && DESTRUCTIVE_CODE.test(code))) { actions.push({ label: label, pass: true, reason: "skipped — destructive বাটন (টেস্ট সার্ভারের ডাটা রক্ষায় ক্লিক করা হয়নি)" }); continue; }
       // a plain navigational link (<a class=btn href=/page>) only changes location — which we hold
       // back — so it never loads a table in place; don't judge it by the view/table rule.
       var hrefAttr = (b.tagName === "A" && b.getAttribute("href")) || "";

@@ -1,9 +1,10 @@
 /* Clickable Function Check (fn*) — a read-only UI health crawl of a UMS site.
  *
  * Given a base URL it reads the home page, pulls every menu / sub-menu LINK out of the sidebar, and
- * opens each one rapidly (concurrent GETs) to see whether the page is healthy. It never clicks an
- * in-page action — no form is submitted, nothing is saved or deleted — so it is safe against the
- * live/test UMS. A link that logs out, deletes, exports or downloads is skipped for the same reason.
+ * opens each one to see whether the page is healthy. Opening is read-only on any server; a link that
+ * logs out, deletes, exports or downloads is never opened. The optional button test (Browser/Headless
+ * only) does fill forms and click buttons, so it runs on *.osl.team test servers alone, and even there
+ * destructive buttons (delete, cancel, transfer, migrate, pay…) are skipped — see fnActionProbe.
  *
  * A page FAILS when any of these is true:
  *   • the request errors / does not load — HTTP 4xx/5xx, a redirect to the login page, or a timeout
