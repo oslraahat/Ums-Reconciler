@@ -166,21 +166,51 @@ async function admDriver(p) {
     el.value = opt.value; el.dispatchEvent(new Event("change", { bubbles: true })); return true;
   };
   const hasOpts = function (sel) { const s = $(sel); return s && s.options.length > 1; };
+  /* Resolve when the dropdown's option list is REBUILT (or at the cap). hasOpts is not enough after a
+     parent change: the page arrives with Program already filled, so hasOpts("#Program") is true at once
+     — and on ums-41 the driver picked Program and Session before GetProgramByClass answered. That late
+     reply rebuilt Program as "Select Program" and emptied Session, and the run died at "Branch এলো না". */
+  const waitRebuild = function (sel, ms) {
+    return new Promise(function (resolve) {
+      const el = $(sel); if (!el) return resolve(false);
+      let done = false; const fin = function (v) { if (done) return; done = true; try { mo.disconnect(); } catch (e) {} clearTimeout(to); resolve(v); };
+      const mo = new MutationObserver(function () { fin(true); });
+      try { mo.observe(el, { childList: true }); } catch (e) {}
+      const to = setTimeout(function () { fin(false); }, ms);
+    });
+  };
   /* per-step stopwatch so we can see WHERE Headless loses time to Browser */
   const _t0 = (self.performance || Date).now();
   const _T = []; const _m = function (l) { _T.push(l + Math.round(((self.performance || Date).now()) - _t0)); };
   try {
     await waitFor(function () { return hasOpts("#StudentClass"); }, 10000);
+    // armed BEFORE the change, so a fast reply cannot slip past the observer
+    const progRebuilt = waitRebuild("#Program", 15000);
     if (!setSelByText("#StudentClass", /admission/i)) setSel("#StudentClass", "Admission");
     if (!($("#StudentClass") && $("#StudentClass").value)) throw new Error("Student Class সেট হলো না (option এলো না?)");
     await noBlock();
+    await progRebuilt;   // the class's own program list has landed (or 15s passed)
     if (!await waitFor(function () { return hasOpts("#Program"); }, 40000)) throw new Error("Program এলো না");
     _m("prog");
-    setSel("#Program", String(p.program)); await noBlock();
-    if (!await waitFor(function () { return hasOpts("#Session"); }, 30000)) throw new Error("Session এলো না");
+    /* Program → Session, and confirm both STILL hold before going on: a reply from an earlier step that
+       lands late rebuilds the list and silently resets the choice. One retry covers that race. */
+    const pickProgSess = async function () {
+      const sessRebuilt = waitRebuild("#Session", 15000);
+      setSel("#Program", String(p.program)); await noBlock();
+      await sessRebuilt;
+      if (!await waitFor(function () { return hasOpts("#Session"); }, 30000)) throw new Error("Session এলো না");
+      setSel("#Session", String(p.session)); await noBlock();
+    };
+    const progSessHeld = function () { return $("#Program") && $("#Program").value === String(p.program) && $("#Session") && $("#Session").value === String(p.session); };
+    await pickProgSess();
     _m("sess");
-    setSel("#Session", String(p.session)); await noBlock();
-    await waitFor(function () { return document.querySelector(".course-name-check"); }, 25000);   // let the session cascade finish
+    await waitFor(function () { return document.querySelector(".course-name-check") || !progSessHeld(); }, 25000);   // let the session cascade finish
+    if (!progSessHeld()) {
+      _m("reset");
+      await pickProgSess();
+      await waitFor(function () { return document.querySelector(".course-name-check"); }, 25000);
+      if (!progSessHeld()) throw new Error("Program/Session ধরে রাখা গেল না — পেজ বারবার রিসেট করছে [prog " + ($("#Program") || {}).value + " · sess " + ($("#Session") || {}).value + "]");
+    }
     _m("crs");
     setSel("#Gender", String(p.gender)); setSel("#Religion", String(p.religion));
     if ($("#LastInstituteName")) $("#LastInstituteName").value = p.instName || "";
@@ -188,7 +218,7 @@ async function admDriver(p) {
     setSel("#VersionOfStudy", String(p.version)); await noBlock();
     if (!await waitFor(function () { return hasOpts("#Branch"); }, 25000)) {
       const dv = function (s) { const e = $(s); return e ? (e.value || "?") + "/" + ((e.options || []).length) + "o" : "none"; };
-      throw new Error("Branch এলো না [ver " + dv("#VersionOfStudy") + " · gen " + dv("#Gender") + " · sess " + dv("#Session") + " · branch " + dv("#Branch") + " · courses " + document.querySelectorAll(".course-name-check").length + "]");
+      throw new Error("Branch এলো না [prog " + dv("#Program") + " · ver " + dv("#VersionOfStudy") + " · gen " + dv("#Gender") + " · sess " + dv("#Session") + " · branch " + dv("#Branch") + " · courses " + document.querySelectorAll(".course-name-check").length + "]");
     }
     _m("br");
     setSel("#Branch", String(p.branch)); await noBlock();
