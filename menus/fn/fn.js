@@ -489,8 +489,14 @@
       });
     } catch (e) {}
   }
-  function fnOk(r) { return !!(r && (r.pass || fnMarks[r.path])); }      // effective verdict
-  function fnMarked(r) { return !!(r && !r.pass && fnMarks[r.path]); }   // failed, but marked As Pass
+  /* A row fails when its page failed OR one of its buttons did. Judging by r.pass alone hid a page that
+     opened fine but whose "Print Report" threw a JS error: the row read ✓, so the Fail filter and the
+     Fail count both skipped it while the ✗ sat right there under it. A validation answer is pass:true,
+     so it never counts here. */
+  function fnActFail(r) { return !!(r && r.actions && r.actions.some(function (a) { return !a.pass; })); }
+  function fnRowFail(r) { return !!(r && (!r.pass || fnActFail(r))); }
+  function fnOk(r) { return !!(r && (!fnRowFail(r) || fnMarks[r.path])); }      // effective verdict
+  function fnMarked(r) { return !!(r && fnRowFail(r) && fnMarks[r.path]); }      // failed, but marked As Pass
   var fnT0 = 0, fnTimer = null;
   function fnElapsed() {
     var s = Math.round(((fnRun ? Date.now() : fnEnd) - fnT0) / 1000); if (s < 0) s = 0;
@@ -612,13 +618,13 @@
         }
         // A failed row carries a toggle on the right so a known-OK failure can be accepted. A marked
         // row still shows its reason — it is "As Pass", not actually passing.
-        var mk = fnMarked(r), cls = r.pass ? "p" : (mk ? "m" : "f");
-        var btn = r.pass ? "" :
+        var rf = fnRowFail(r), mk = fnMarked(r), cls = !rf ? "p" : (mk ? "m" : "f");
+        var btn = !rf ? "" :
           '<button class="fnmark' + (mk ? " on" : "") + '" data-mp="' + esc(r.path) + '" title="' +
           esc(t(mk ? "fn_unmark_t" : "fn_mark_t")) + '">' +
           esc(t(mk ? "fn_unmark" : "fn_mark")) + '</button>';
         html += '<div class="fnrow ' + cls + '">' +
-          '<span class="fnst">' + (r.pass ? "✓" : (mk ? "⚑" : "✗")) + '</span>' +
+          '<span class="fnst">' + (!rf ? "✓" : (mk ? "⚑" : "✗")) + '</span>' +
           '<a class="fnlk" href="' + esc(r.url) + '" target="_blank" rel="noopener">' + esc(r.label) + '</a>' +
           '<span class="fnpath mut">' + esc(r.path) + '</span>' +
           (r.shot ? '<a class="fnshot" href="' + r.shot + '" target="_blank" title="' + esc(t("fn_shot_t")) + '">📷 Screenshot ↗</a>' : "") +
@@ -918,9 +924,11 @@
       // a failure marked As Pass exports as "As Pass" (amber) and KEEPS its original reason, so the
       // spreadsheet never hides what actually happened
       var mk = fnMarked(r);
-      mat.push([r.menu, r.label, r.path, r.pass ? "Pass" : (mk ? "As Pass" : "Fail"),
-        r.reason + (r.warn ? " | ⚠ " + r.warn : ""), "", r.url]);
-      colors.push(r.pass ? "g" : (mk ? "y" : "r"));
+      // same verdict as the panel: a page whose button failed is a Fail row, not a green one
+      var rf = fnRowFail(r);
+      mat.push([r.menu, r.label, r.path, !rf ? "Pass" : (mk ? "As Pass" : "Fail"),
+        r.reason + (r.pass && rf ? " (পেজ খোলে, বাটনে সমস্যা)" : "") + (r.warn ? " | ⚠ " + r.warn : ""), "", r.url]);
+      colors.push(!rf ? "g" : (mk ? "y" : "r"));
       (r.actions || []).forEach(function (a) {
         mat.push([r.menu, r.label, r.path, a.pass ? "Pass" : "Fail", a.reason, a.label, r.url]);
         colors.push(a.pass ? "g" : "r");
@@ -1030,6 +1038,6 @@
     busy: function () { return !!fnRun; },
     // pure helpers exposed for tests
     parseNav: fnParseNav, classify: fnClassify, classifyProbe: fnClassifyProbe,
-    topMenu: fnTopMenu, areaWanted: fnAreaWanted, skipHref: fnSkipHref,
+    topMenu: fnTopMenu, areaWanted: fnAreaWanted, skipHref: fnSkipHref, rowFail: fnRowFail,
     skipped: function () { return fnSkipped.slice(); } };
 })();

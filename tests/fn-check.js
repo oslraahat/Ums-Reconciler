@@ -128,5 +128,18 @@ const cl = (res) => U.classify(res, BASE);
   area('/Dashboard', 'Other');
 }
 
+/* ---- a page that opens but whose button breaks is a Fail row ----
+   Seen on ums-3: /Student/StudentAdmissionTarget/DashboardDetails?deadLine=879 opened fine, but its
+   "Print Report" threw "Cannot read properties of null". The row read ✓, so the Fail filter hid it. */
+{
+  const page = { path: "/Student/StudentAdmissionTarget/DashboardDetails?deadLine=879", pass: true, reason: "ঠিক আছে" };
+  check("page ok, no buttons → not a Fail row", !U.rowFail(page));
+  check("page ok, a button JS error → Fail row", U.rowFail(Object.assign({}, page, {
+    actions: [{ label: "Print Report · printBtn", pass: false, reason: "JS error: TypeError: Cannot read properties of null" }] })));
+  check("page ok, only a validation answer → not a Fail row", !U.rowFail(Object.assign({}, page, {
+    actions: [{ label: "Submit", pass: true, validation: true, reason: "ভ্যালিডেশন: Roll No. should be 7 digit" }] })));
+  check("page failed → Fail row", U.rowFail({ path: "/x", pass: false, reason: "HTTP 500" }));
+}
+
 console.log(fail ? "\n" + fail + " FAILED" : "\nসব ঠিক আছে");
 process.exit(fail ? 1 : 0);
