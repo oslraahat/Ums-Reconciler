@@ -24,13 +24,13 @@ let fail = 0;
 const check = (name, ok) => { if (!ok) fail++; console.log((ok ? "PASS  " : "FAIL  ") + name); };
 
 // button text that must be skipped
-["Delete", "Remove", "Void Receipt", "Cancel Course", "Transfer", "Migrate", "Pay", "Payment",
+["Delete", "Remove", "Void Receipt", "Cancel Course", "Transfer", "Migrate", "Pay", "Pay Now",
  "Refund", "Settle", "Reset", "Reject", "Block", "মুছে ফেলুন", "বাতিল"].forEach((l) =>
   check("skip label: " + l, DESTRUCTIVE.test(l)));
 
 // button text that must still be clicked
 ["View", "Search", "Show Report", "Load", "Filter", "Save", "Submit", "Calculate", "Check Now",
- "Display", "Preview", "Next"].forEach((l) =>
+ "Display", "Preview", "Next", "Payment", "Udvash Payment Account", "View Due List"].forEach((l) =>
   check("click label: " + l, !DESTRUCTIVE.test(l)));
 
 // an icon-only row button: the words are only in its id / handler
@@ -53,6 +53,21 @@ check("matched on ownLabel, not the context label", /DESTRUCTIVE\.test\(ownLabel
    past the 55s probe cap. Tracking is by signature now; pin that the element-identity check is gone. */
 check("tested buttons are tracked by signature", /testedSig\[sig\]/.test(src));
 check("no element-identity 'tested' list left", !/tested\.indexOf\(el\)/.test(src));
+
+/* ---- ums-41 Payment reports: widgets, placeholders, labels ----
+   Course Wise / Program Wise Due List failed every multiselect option ("Male", "Bangla"…) for not
+   loading a table: the panel heading "...List" was appended to each label and read as a View word, the
+   options used up the 16-click cap, and "Select Program" (value 0) was taken as already chosen. */
+const PLACEHOLDER = grab("PLACEHOLDER");
+check("placeholder: Select Program", PLACEHOLDER.test("Select Program"));
+check("placeholder: -- Select Session --", PLACEHOLDER.test("-- Select Session --"));
+check("not placeholder: All Branch", !PLACEHOLDER.test("All Branch"));
+check("not placeholder: UDVASH", !PLACEHOLDER.test("UDVASH"));
+const W = /var WIDGET = "([^"]+)"/.exec(src);
+check("multiselect toggles and options are widgets", !!W && /\.multiselect\b/.test(W[1]) && /\.multiselect-container/.test(W[1]));
+check("dual-listbox arrows are widgets", !!W && /bootstrap-duallistbox-container \.buttons/.test(W[1]));
+check("View is judged by the button's own words", /var isView = VIEW\.test\(ownLabel\)/.test(src));
+check("a held-back form submit counts as the button working", /__fnSubmitTried/.test(src) && /ফর্ম submit হলো/.test(src));
 
 console.log(fail ? "\n" + fail + " টি ভুল" : "\nসব ঠিক আছে");
 process.exit(fail ? 1 : 0);

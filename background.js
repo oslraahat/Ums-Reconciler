@@ -651,12 +651,16 @@ async function fnActionProbe(opts) {
   try {
     // hold navigation back so the context survives and nothing is actually committed
     try {
-      document.addEventListener("submit", function (e) { try { e.preventDefault(); e.stopImmediatePropagation(); } catch (_) {} }, true);
+      // Remember that a submit was ATTEMPTED: a report that posts to its own result page (Course Wise
+      // Due List → GenerateDueListReport) can never show a table here, since that navigation is held
+      // back. The attempt itself is the proof the button worked.
+      window.__fnSubmitTried = 0;
+      document.addEventListener("submit", function (e) { try { window.__fnSubmitTried++; e.preventDefault(); e.stopImmediatePropagation(); } catch (_) {} }, true);
       window.addEventListener("beforeunload", function (e) { try { e.preventDefault(); e.returnValue = ""; } catch (_) {} });
       // Hold navigation so clicking a button can't destroy the frame (which would lose the whole probe
       // — "Frame with ID 0 was removed"). Cancel anchor clicks, and neuter the programmatic routes.
       document.addEventListener("click", function (e) { try { var a = e.target && e.target.closest && e.target.closest("a[href]"); if (a) { var h = a.getAttribute("href") || ""; if (h && h.charAt(0) !== "#" && !/^javascript:/i.test(h)) e.preventDefault(); } } catch (_) {} }, true);
-      try { HTMLFormElement.prototype.submit = function () {}; } catch (_) {}
+      try { HTMLFormElement.prototype.submit = function () { window.__fnSubmitTried++; }; } catch (_) {}
       try { window.open = function () { return null; }; } catch (_) {}
       // a button that opens a native alert/confirm/prompt would BLOCK the page thread and hang the
       // whole crawl — neutralise them so a click returns immediately (confirm auto-"OK", no prompt text)
@@ -709,11 +713,46 @@ async function fnActionProbe(opts) {
       var seen = false;
       return waitFor(function () { return seen; }, capMs, function () { seen = true; });
     }
+    // visible text-bearing leaf elements, to see what a click made appear. Elements, not their text:
+    // a message re-drawn after the click is a new element even when an earlier submit left the same words.
+    function leafEls() {
+      var out = [];
+      try {
+        document.querySelectorAll("body div, body span, body small, body p, body li, body label").forEach(function (e) {
+          if (e.children.length || !vis(e)) return;
+          // a widget's own caption ("Select All" on a multiselect) is not a message from the form
+          if (e.closest && e.closest("button, .btn, .multiselect-container, .dropdown-menu, select, option, .bootstrap-duallistbox-container, table, .dataTables_wrapper, .dt-container")) return;   // nor is a table's own "No data available"
+          var t = (e.textContent || "").trim();
+          if (t && t.length <= 160) out.push(e);
+        });
+      } catch (e) {}
+      return out;
+    }
+    var PLACEHOLDER = /^\s*(-+\s*)?(select|choose|pick|নির্বাচন|বাছাই)/i;
     function fillSelects() {
       var did = 0;
       document.querySelectorAll("select").forEach(function (s) {
-        if (!vis(s) || s.disabled || (s.value && s.value.trim())) return;
-        var opt = Array.prototype.find.call(s.options, function (o) { return o.value && o.value.trim(); });
+        /* A bootstrap dual listbox hides the real <select> and draws two lists of its own. Course Wise
+           Due List refuses View until that real select ("informationViewList") holds an item, and a
+           visibility check skipped it, so the report was never actually run. Fill the real one and let
+           the widget redraw; the two drawn lists are left alone, they only mirror it. */
+        if (s.closest && s.closest(".bootstrap-duallistbox-container")) return;
+        var dual = s.multiple && !vis(s) && !!((s.parentElement && s.parentElement.querySelector(".bootstrap-duallistbox-container")) ||
+          (window.jQuery && jQuery(s).data("plugin_bootstrapDualListbox")));
+        if (dual) {
+          if (s.disabled || s.selectedOptions.length || !s.options.length) return;
+          s.options[0].selected = true; fire(s, "change");
+          try { if (window.jQuery && jQuery.fn.bootstrapDualListbox) jQuery(s).bootstrapDualListbox("refresh", true); } catch (e) {}
+          did++; return;
+        }
+        if (!vis(s) || s.disabled) return;
+        /* "0" is a real choice when it reads "All Branch", but a placeholder when it reads "Select
+           Program" — Course Wise Due List keeps Program/Session at 0 = "Select …" and refuses View, while
+           the old empty-value test took that 0 for an answer and left them unset. */
+        var cur = s.selectedOptions && s.selectedOptions[0];
+        var isPlaceholder = function (o) { return !o || !o.value || !o.value.trim() || (o.value === "0" && PLACEHOLDER.test(o.text || "")); };
+        if (!isPlaceholder(cur)) return;
+        var opt = Array.prototype.find.call(s.options, function (o) { return !isPlaceholder(o); });
         if (opt) { s.value = opt.value; fire(s, "input"); fire(s, "change"); did++; }
       });
       return did;
@@ -796,7 +835,16 @@ async function fnActionProbe(opts) {
     // several passes so cascading dropdowns (one selection loads the next via AJAX) ALL get set
     try {
       // 3 passes so dependent dropdowns that populate after a change event get filled on the next pass
-      for (var pass = 0; pass < 3; pass++) { var changed = fillSelects(); fillInputs(); await waitChange(changed ? 350 : 120); }
+      /* Keep going while a pass still fills something: each choice can load the next dropdown over AJAX,
+         and UMS chains run 4-5 deep (Organization → Program → Session → Course → Branch). A fixed 3
+         passes with a 350ms wait left Session at "Select Session" on Course Wise Due List. A changed
+         pass waits for the page to answer (up to 1.5s) and the loop stops at the first quiet pass. */
+      for (var pass = 0; pass < 7; pass++) {
+        var changed = fillSelects(); fillInputs();
+        if (!changed && pass > 0) break;
+        await waitChange(changed ? 1500 : 150);
+        if (changed) await waitChange(250);   // a second burst: the options arrive, then the widget redraws
+      }
     } catch (e) {}
 
     // Changing a password would lock the real user out, so on any page carrying a password box the
@@ -809,7 +857,16 @@ async function fnActionProbe(opts) {
        first row of a list or posted a 100000 payment into a server other testers share. Matched on the
        visible label AND on id/name/onclick, since a row's Delete is often an icon whose only words are
        in its id ("btnDeleteStudent") or handler ("deleteRow(42)"). */
-    var DESTRUCTIVE = /\b(delete|remove|destroy|drop|void|cancel|cancellation|transfer|migrate|migration|pay|payment|refund|settle|reset|merge|reject|block|freeze|lock|unlock|deactivate|revoke)\b|মুছ|বাতিল|ট্রান্সফার|পেমেন্ট/i;
+    // "payment" is NOT here: it is a noun far more often than an action — bKash's account picker lists
+    // "Udvash Payment Account", and skipping on it hid that whole filter. "Pay" / "Pay Now" still match.
+    var DESTRUCTIVE = /\b(delete|remove|destroy|drop|void|cancel|cancellation|transfer|migrate|migration|pay|refund|settle|reset|merge|reject|block|freeze|lock|unlock|deactivate|revoke)\b|মুছ|বাতিল|ট্রান্সফার/i;
+    /* Form widgets are not actions. A bootstrap-multiselect draws its <select> as a "Select All" toggle
+       button plus one button per option (Male, Female, Bangla…), and a dual listbox adds four arrow
+       buttons. On Course Wise Due List those 9 toggles and their options used up the 16-click cap, the
+       real "View Due List" was never reached, and each option was failed for not loading a table. The
+       fill step already sets the underlying <select>, so these are left alone. */
+    var WIDGET = ".multiselect, .multiselect-container, .multiselect-container *, .dropdown-toggle, .dropdown-menu *, .navbar-toggler, .bootstrap-duallistbox-container .buttons, .bootstrap-duallistbox-container .buttons *, .select2-container *";
+    function isWidget(el) { try { return el.matches(WIDGET); } catch (e) { return false; } }
     var DESTRUCTIVE_CODE = /delete|remove|destroy|void|cancel|transfer|migrat|refund|settle|reset|merge|reject|revoke|deactivate/i;
     // Re-scan before EACH click, not once up front: clicking a button (e.g. an empty-field Submit)
     // can reveal NEW buttons, and those must be tested too.
@@ -839,7 +896,7 @@ async function fnActionProbe(opts) {
       var list = document.querySelectorAll(SEL), rank = {};
       for (var j = 0; j < list.length; j++) {
         var el = list[j];
-        if (!vis(el) || el.disabled) continue;
+        if (!vis(el) || el.disabled || isWidget(el)) continue;
         var bs = baseSig(el), k = rank[bs] = (rank[bs] || 0) + 1;
         var sig = bs + "@" + k;
         if (!testedSig[sig]) { testedSig[sig] = 1; return el; }
@@ -860,7 +917,7 @@ async function fnActionProbe(opts) {
       if (!ctx) ctx = headOf(b);
       if (!ctx) ctx = "#" + count;
       if (ctx && label.toLowerCase().indexOf(ctx.toLowerCase()) < 0) label = label + " · " + ctx;
-      var isWrite = WRITE.test(label) || /submit/i.test(b.type || "");
+      var isWrite = WRITE.test(ownLabel) || /submit/i.test(b.type || "");
       if (isWrite && (hasPassword || /password|change.?pass|credential/i.test(label))) { actions.push({ label: label, pass: true, reason: "skipped — password/credential (নিরাপত্তা)" }); continue; }
       var code = ((b.id || "") + " " + (b.name || "") + " " + (b.getAttribute("onclick") || "") + " " + (b.getAttribute("data-action") || "")).trim();
       if (DESTRUCTIVE.test(ownLabel) || (code && DESTRUCTIVE_CODE.test(code))) { actions.push({ label: label, pass: true, reason: "skipped — destructive বাটন (টেস্ট সার্ভারের ডাটা রক্ষায় ক্লিক করা হয়নি)" }); continue; }
@@ -868,21 +925,37 @@ async function fnActionProbe(opts) {
       // back — so it never loads a table in place; don't judge it by the view/table rule.
       var hrefAttr = (b.tagName === "A" && b.getAttribute("href")) || "";
       var isNavLink = !!hrefAttr && hrefAttr.charAt(0) !== "#" && !/^javascript:/i.test(hrefAttr);
-      var isView = VIEW.test(label) && !isWrite && !isNavLink;
-      var before = location.href, rowsBefore = dataRows();
+      var isView = VIEW.test(ownLabel) && !isWrite && !isNavLink;
+      var before = location.href, rowsBefore = dataRows(), submitsBefore = window.__fnSubmitTried || 0;
       try { if (window.__fnErr) window.__fnErr.length = 0; } catch (e) {}
+      var leafBefore = leafEls();
       try { b.click(); } catch (e) { actions.push({ label: label, pass: false, reason: "click error: " + ((e && e.message) || e) }); continue; }
       // Wait for the result: the click either navigates or renders something (a view/search loads its
       // table over AJAX). Resolve the moment that shows up rather than polling on a clock — the cap is
       // only reached when the click genuinely did nothing.
       await waitFor(function () {
-        return location.href !== before || (isView && dataRows() > rowsBefore);
+        return location.href !== before || (window.__fnSubmitTried || 0) > submitsBefore || (isView && dataRows() > rowsBefore);
       }, isView ? 2000 : 700);
       if (location.href !== before) { actions.push({ label: label, pass: true, reason: "action triggered (পেজ বদলেছে)" }); navAway = true; continue; }
       var er = pageErr();
       var ce = ""; try { if (window.__fnErr && window.__fnErr.length) ce = window.__fnErr.slice(0, 2).join(" | "); } catch (e) {}
       // the form answered about the value, so the button fired and the page is fine — said plainly
       // rather than counted as a failure
+      /* A page can show its validation as a bare <div> under the field (UMS's showErrorMessageBelowCtrl:
+         "Please select an item.") with no class to find it by. So look at what text APPEARED after the
+         click: new validation wording means the button fired and the form answered, not that it broke. */
+      if (!er) {
+        var newVal = leafEls().filter(function (e) { return leafBefore.indexOf(e) < 0; })
+          .map(function (e) { return (e.textContent || "").replace(/\s+/g, " ").trim(); })
+          .filter(function (t) { return SAYS_VALIDATION.test(t) && !SAYS_BREAKAGE.test(t); });
+        if (!newVal.length && isView && dataRows() <= rowsBefore) {
+          // the page may reuse one message element per field, so nothing is "new" — but a View that
+          // produced nothing while a "please select" sits on screen is the form asking for input
+          newVal = leafEls().map(function (e) { return (e.textContent || "").replace(/\s+/g, " ").trim(); })
+            .filter(function (t) { return SAYS_VALIDATION.test(t) && !SAYS_BREAKAGE.test(t); });
+        }
+        if (newVal.length) er = { text: newVal[0], validation: true };
+      }
       if (er && er.validation) {
         actions.push({ label: label, pass: true, validation: true,
           reason: "ভ্যালিডেশন: " + er.text.slice(0, 70) });
@@ -891,6 +964,8 @@ async function fnActionProbe(opts) {
       if (er) { actions.push({ label: label, pass: false, reason: "error: " + er.text.slice(0, 70) }); continue; }
       if (ce) { actions.push({ label: label, pass: false, reason: "JS error: " + ce.slice(0, 70) }); continue; }
       if (isNavLink) { actions.push({ label: label, pass: true, reason: "লিংক বাটন — নেভিগেশন আটকানো হয়েছে (error নেই)" }); continue; }
+      // the button posted its form to another page — held back on purpose, so no table can appear here
+      if ((window.__fnSubmitTried || 0) > submitsBefore) { actions.push({ label: label, pass: true, reason: "✓ ফর্ম submit হলো — রিপোর্ট আলাদা পেজে খোলে (নিরাপত্তার জন্য পেজ বদল আটকানো)" }); continue; }
       if (isView) {
         var rowsAfter = dataRows(), hasTable = !!document.querySelector("table");
         if (rowsAfter > 0) actions.push({ label: label, pass: true, reason: "✓ টেবিল এলো — " + rowsAfter + " row" });
